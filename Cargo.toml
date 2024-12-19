@@ -1,0 +1,4 @@
+[workspace]
+members = ["umesen-core", "umesen-ui"]
+default-members = ["umesen-ui"]
+resolver = "2"
