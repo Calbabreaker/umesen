@@ -1,5 +1,4 @@
-use std::num::NonZeroU32;
-
+#[derive(Clone)]
 pub struct Bus {
     pub ram: [u8; 0xffff],
     /// Cpu cycles counter for debugging
