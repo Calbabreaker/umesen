@@ -276,12 +276,12 @@ impl Cpu {
 
     fn stx(&mut self, mode: AddressingMode) {
         let address = self.read_operand_address(mode);
-        self.bus.write_byte(address, self.a);
+        self.bus.write_byte(address, self.x);
     }
 
     fn sty(&mut self, mode: AddressingMode) {
         let address = self.read_operand_address(mode);
-        self.bus.write_byte(address, self.a);
+        self.bus.write_byte(address, self.y);
     }
 
     fn tax(&mut self) {
@@ -314,90 +314,98 @@ impl Cpu {
 mod test {
     use crate::cpu::{Cpu, Flags};
 
-    fn execute(rom: &[u8], assert_fn: impl Fn(Cpu)) {
+    fn execute(cpu: &mut Cpu, rom: &[u8]) {
+        if rom.is_empty() {
+            return;
+        }
+        for (i, x) in rom.iter().enumerate() {
+            cpu.bus.ram[i + cpu.pc as usize] = *x;
+        }
+        cpu.execute_next();
+    }
+
+    fn test(rom: &[u8], assert_fn: impl Fn(Cpu)) {
         let mut cpu = Cpu {
             a: 0xff,
-            x: 0xff,
-            y: 0xff,
+            x: 0xfe,
+            y: 0xfd,
             ..Default::default()
         };
         cpu.bus.ram[0x132] = 69;
-        for (i, x) in rom.iter().enumerate() {
-            cpu.bus.ram[i] = *x;
-        }
-        cpu.execute_next();
+        cpu.bus.ram[0x12] = 69;
+        execute(&mut cpu, rom);
         assert_fn(cpu);
     }
 
     #[test]
     fn addressing_modes() {
         // Immediate mode lda
-        execute(&[0xa9, 123], |cpu| {
+        test(&[0xa9, 123], |cpu| {
             assert_eq!(cpu.a, 123);
             assert_eq!(cpu.bus.cpu_cycles, 2);
             assert_eq!(cpu.pc, 2);
         });
 
         // Zero page mode lda
-        execute(&[0xa5, 0x02, 69], |cpu| {
+        test(&[0xa5, 0x12], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 3);
             assert_eq!(cpu.pc, 2);
         });
 
-        // Zero page x mode lda
-        execute(&[0xb5, 0x03, 69], |cpu| {
+        // Zero page x mode lda (first ldx)
+        test(&[0xb5, 0x14], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 4);
             assert_eq!(cpu.pc, 2);
         });
 
-        // Zero page y mode ldx
-        execute(&[0xb6, 0x03, 69], |cpu| {
+        // Zero page y mode ldx (first ldy)
+        test(&[0xb6, 0x15], |cpu| {
             assert_eq!(cpu.x, 69);
             assert_eq!(cpu.bus.cpu_cycles, 4);
             assert_eq!(cpu.pc, 2);
         });
 
         // Absolute mode lda
-        execute(&[0xad, 0x32, 0x01], |cpu| {
+        test(&[0xad, 0x32, 0x01], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 4);
             assert_eq!(cpu.pc, 3);
         });
 
         // Absolute mode x lda
-        execute(&[0xbd, 0x33, 0x00], |cpu| {
+        test(&[0xbd, 0x34, 0x00], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 5);
             assert_eq!(cpu.pc, 3);
         });
 
         // Absolute mode x lda (no page cross)
-        execute(&[0xbd], |cpu| assert_eq!(cpu.bus.cpu_cycles, 4));
+        test(&[0xbd], |cpu| assert_eq!(cpu.bus.cpu_cycles, 4));
 
         // Absolute mode x sta (always extra clock)
-        execute(&[0x9d, 0x12, 0x00], |mut cpu| {
+        test(&[0x9d, 0x13, 0x00], |mut cpu| {
             assert_eq!(cpu.bus.cpu_cycles, 5);
             assert_eq!(cpu.bus.read_byte(0x111), 0xff);
         });
 
         // Absolute mode y lda
-        execute(&[0xb9, 0x33, 0x00], |cpu| {
+        test(&[0xb9, 0x35, 0x00], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 5);
             assert_eq!(cpu.pc, 3);
         });
 
         // Indirect x mode lda
-        execute(&[0xa1, 0x04, 0, 0x32, 0x01], |cpu| {
+        test(&[0xa1, 0x05, 0, 0x32, 0x01], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 6);
             assert_eq!(cpu.pc, 2);
         });
 
         // Indirect y mode lda
-        execute(&[0xb1, 0x03, 0, 0x33], |cpu| {
+        test(&[0xb1, 0x03, 0, 0x35, 0x00], |cpu| {
             assert_eq!(cpu.a, 69);
             assert_eq!(cpu.bus.cpu_cycles, 6);
             assert_eq!(cpu.pc, 2);
@@ -407,21 +415,23 @@ mod test {
     #[test]
     fn zero_neg_flags() {
         // lda immediate
-        execute(&[0xa9, 22], |cpu| assert_eq!(cpu.flags, Flags::empty()));
-        execute(&[0xa9, 0], |cpu| assert_eq!(cpu.flags, Flags::ZERO));
-        execute(&[0xa9, 128], |cpu| assert_eq!(cpu.flags, Flags::NEGATIVE));
+        test(&[0xa9, 22], |cpu| assert_eq!(cpu.flags, Flags::empty()));
+        test(&[0xa9, 0], |cpu| assert_eq!(cpu.flags, Flags::ZERO));
+        test(&[0xa9, 128], |cpu| assert_eq!(cpu.flags, Flags::NEGATIVE));
     }
 
     #[test]
     fn adc() {
-        execute(&[0x69, 69, 0x69, 69, 0x69, 0x69], |mut cpu| {
+        test(&[0x69, 69], |mut cpu| {
             assert_eq!(cpu.a, 68);
             assert_eq!(cpu.flags, Flags::CARRY);
-            cpu.execute_next();
+
+            execute(&mut cpu, &[0x69, 69]);
             assert_eq!(cpu.a, 138);
             assert_eq!(cpu.flags, Flags::OVERFLOW | Flags::NEGATIVE);
+
             cpu.flags.set(Flags::DECIMAL, true);
-            cpu.execute_next();
+            execute(&mut cpu, &[0x69, 0x69]);
             assert_eq!(cpu.a, 0x59);
             assert_eq!(cpu.flags, Flags::CARRY | Flags::DECIMAL);
         });
@@ -429,7 +439,7 @@ mod test {
 
     #[test]
     fn sbc() {
-        execute(&[0xe9, 69, 0xe9, 0x69], |cpu| {
+        test(&[0xe9, 69], |cpu| {
             assert_eq!(cpu.a, 186);
             assert_eq!(cpu.flags, Flags::CARRY | Flags::NEGATIVE);
         });
@@ -437,31 +447,31 @@ mod test {
 
     #[test]
     fn lda() {
-        execute(&[0xa9, 123], |cpu| assert_eq!(cpu.a, 123));
+        test(&[0xa9, 123], |cpu| assert_eq!(cpu.a, 123));
     }
 
     #[test]
     fn ldx() {
-        execute(&[0xa2, 69], |cpu| assert_eq!(cpu.x, 69));
+        test(&[0xa2, 69], |cpu| assert_eq!(cpu.x, 69));
     }
 
     #[test]
     fn ldy() {
-        execute(&[0xa0, 69], |cpu| assert_eq!(cpu.y, 69));
+        test(&[0xa0, 69], |cpu| assert_eq!(cpu.y, 69));
     }
 
     #[test]
     fn sta() {
-        execute(&[0x85, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xff));
+        test(&[0x85, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xff));
     }
 
     #[test]
     fn stx() {
-        execute(&[0x86, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xff));
+        test(&[0x86, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xfe));
     }
 
     #[test]
     fn sty() {
-        execute(&[0x84, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xff));
+        test(&[0x84, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xfd));
     }
 }
