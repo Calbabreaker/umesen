@@ -1,13 +1,13 @@
 use crate::cpu::{Cpu, Flags};
 
 fn execute(cpu: &mut Cpu, rom: &[u8]) {
-    if rom.is_empty() {
-        return;
-    }
+    let start_pc = cpu.pc as usize;
     for (i, x) in rom.iter().enumerate() {
-        cpu.bus.ram[i + cpu.pc as usize] = *x;
+        cpu.bus.ram[i + start_pc] = *x;
     }
-    cpu.execute_next();
+    while cpu.execute_next().is_ok() {}
+    cpu.bus.cpu_cycles -= 1;
+    cpu.pc -= 1;
 }
 
 const A: u8 = 0xff;
@@ -167,7 +167,10 @@ fn sty() {
 
 #[test]
 fn tax() {
-    test(&[0xaa], |cpu| assert_eq!(cpu.x, 0xff));
+    test(&[0xaa], |cpu| {
+        assert_eq!(cpu.x, 0xff);
+        assert_eq!(cpu.bus.cpu_cycles, 2)
+    });
 }
 
 #[test]
@@ -193,4 +196,96 @@ fn txs() {
 #[test]
 fn tya() {
     test(&[0x98], |cpu| assert_eq!(cpu.a, 0xfd));
+}
+
+#[test]
+fn clc() {
+    test(&[0x38, 0x18], |cpu| assert_eq!(cpu.flags, Flags::empty()));
+}
+
+#[test]
+fn cld() {
+    test(&[0xf8, 0xd8], |cpu| assert_eq!(cpu.flags, Flags::empty()));
+}
+
+#[test]
+fn cli() {
+    test(&[0x78, 0x58], |cpu| assert_eq!(cpu.flags, Flags::empty()));
+}
+
+#[test]
+fn clv() {
+    test(&[], |mut cpu| {
+        cpu.flags = Flags::OVERFLOW;
+        execute(&mut cpu, &[0xb8]);
+        assert_eq!(cpu.flags, Flags::empty());
+        assert_eq!(cpu.bus.cpu_cycles, 2);
+    });
+}
+
+#[test]
+fn sec() {
+    test(&[0x38], |cpu| assert_eq!(cpu.flags, Flags::CARRY));
+}
+
+#[test]
+fn sed() {
+    test(&[0xf8], |cpu| assert_eq!(cpu.flags, Flags::DECIMAL));
+}
+
+#[test]
+fn sei() {
+    test(&[0x78], |cpu| assert_eq!(cpu.flags, Flags::INTERRUPT));
+}
+
+#[test]
+fn and() {
+    test(&[0x29, 0x69], |cpu| assert_eq!(cpu.a, 0x69));
+}
+
+#[test]
+fn eor() {
+    test(&[0x49, 0x69], |cpu| assert_eq!(cpu.a, 0xff ^ 0x69));
+}
+
+#[test]
+fn ora() {
+    test(&[0x09, 0x69], |cpu| assert_eq!(cpu.a, 0xff | 0x69));
+}
+
+#[test]
+fn bit() {
+    test(&[0x24, 0x03, 0, 0b1100_0000], |cpu| {
+        assert_eq!(cpu.flags, Flags::OVERFLOW | Flags::NEGATIVE);
+    });
+    test(&[0x2c, 0x03, 0, 0b0100_0000], |cpu| {
+        assert_eq!(cpu.flags, Flags::OVERFLOW);
+    });
+    test(&[0x24, 0x03, 0, 0b0000_0000], |cpu| {
+        assert_eq!(cpu.flags, Flags::ZERO)
+    });
+}
+
+#[test]
+fn cmp() {
+    test(&[0xc9, 0xff], |cpu| {
+        assert_eq!(cpu.flags, Flags::ZERO | Flags::CARRY)
+    });
+}
+
+#[test]
+fn cpx() {
+    test(&[0xb0, 0xff], |cpu| assert_eq!(cpu.flags, Flags::empty()));
+}
+
+#[test]
+fn cpy() {
+    test(&[0xc0, 0x2], |cpu| {
+        assert_eq!(cpu.flags, Flags::CARRY | Flags::NEGATIVE)
+    });
+}
+
+#[test]
+fn nop() {
+    test(&[0xea], |cpu| assert_eq!(cpu.bus.cpu_cycles, 2));
 }

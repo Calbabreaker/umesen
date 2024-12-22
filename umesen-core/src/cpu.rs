@@ -1,4 +1,4 @@
-use crate::bus::Bus;
+use crate::{bus::Bus, CpuError};
 
 bitflags::bitflags! {
     /// Flags for the cpu register
@@ -59,20 +59,28 @@ pub struct Cpu {
     // Index y register
     y: u8,
     flags: Flags,
-    bus: Bus,
+    pub bus: Bus,
+}
+
+macro_rules! load_reg {
+    ($this: ident, $reg: ident, $operator: tt, $mode: expr) => {{
+        $this.$reg $operator $this.read_operand_value($mode);
+        $this.set_zero_neg_flags($this.$reg);
+    }};
 }
 
 macro_rules! set_reg {
-    ($this: ident, $reg: ident, $value: expr) => {{
-        $this.$reg = $value;
+    ($this: ident, $reg: ident, $operator: tt, $value: expr) => {{
+        $this.$reg $operator $value;
+        $this.bus.clock_cpu();
         $this.set_zero_neg_flags($this.$reg);
     }};
 }
 
 impl Cpu {
-    pub fn execute_next(&mut self) {
+    pub fn execute_next(&mut self) -> Result<(), CpuError> {
         let opcode = self.read_byte_at_pc();
-        self.execute(opcode);
+        self.execute(opcode)
     }
 
     fn read_byte_at_pc(&mut self) -> u8 {
@@ -146,76 +154,149 @@ impl Cpu {
         self.bus.read_byte(address)
     }
 
-    fn execute(&mut self, opcode: u8) {
+    fn execute(&mut self, opcode: u8) -> Result<(), CpuError> {
         match opcode {
-            // Arithmetic
+            // -- Arithmetic --
             0x69 => self.adc(AddrMode::Immediate),
+            0x65 => self.adc(AddrMode::ZeroPage),
+            0x75 => self.adc(AddrMode::ZeroPageX),
             0x6d => self.adc(AddrMode::Absolute),
             0x7d => self.adc(AddrMode::AbsoluteX),
             0x79 => self.adc(AddrMode::AbsoluteY),
-            0x65 => self.adc(AddrMode::ZeroPage),
-            0x75 => self.adc(AddrMode::ZeroPageX),
             0x61 => self.adc(AddrMode::IndirectX),
             0x71 => self.adc(AddrMode::IndirectY),
 
             0xe9 => self.sbc(AddrMode::Immediate),
+            0xe5 => self.sbc(AddrMode::ZeroPage),
+            0xf5 => self.sbc(AddrMode::ZeroPageX),
             0xed => self.sbc(AddrMode::Absolute),
             0xfd => self.sbc(AddrMode::AbsoluteX),
             0xf9 => self.sbc(AddrMode::AbsoluteY),
-            0xe5 => self.sbc(AddrMode::ZeroPage),
-            0xf5 => self.sbc(AddrMode::ZeroPageX),
             0xe1 => self.sbc(AddrMode::IndirectX),
             0xf1 => self.sbc(AddrMode::IndirectY),
 
-            // Register loads
-            0xa9 => set_reg!(self, a, self.read_operand_value(AddrMode::Immediate)),
-            0xa5 => set_reg!(self, a, self.read_operand_value(AddrMode::ZeroPage)),
-            0xb5 => set_reg!(self, a, self.read_operand_value(AddrMode::ZeroPageX)),
-            0xad => set_reg!(self, a, self.read_operand_value(AddrMode::Absolute)),
-            0xbd => set_reg!(self, a, self.read_operand_value(AddrMode::AbsoluteX)),
-            0xb9 => set_reg!(self, a, self.read_operand_value(AddrMode::AbsoluteY)),
-            0xa1 => set_reg!(self, a, self.read_operand_value(AddrMode::IndirectX)),
-            0xb1 => set_reg!(self, a, self.read_operand_value(AddrMode::IndirectY)),
+            // -- Register loads --
+            // lda
+            0xa9 => load_reg!(self, a, =, AddrMode::Immediate),
+            0xa5 => load_reg!(self, a, =, AddrMode::ZeroPage),
+            0xb5 => load_reg!(self, a, =, AddrMode::ZeroPageX),
+            0xad => load_reg!(self, a, =, AddrMode::Absolute),
+            0xbd => load_reg!(self, a, =, AddrMode::AbsoluteX),
+            0xb9 => load_reg!(self, a, =, AddrMode::AbsoluteY),
+            0xa1 => load_reg!(self, a, =, AddrMode::IndirectX),
+            0xb1 => load_reg!(self, a, =, AddrMode::IndirectY),
 
-            0xa2 => set_reg!(self, x, self.read_operand_value(AddrMode::Immediate)),
-            0xae => set_reg!(self, x, self.read_operand_value(AddrMode::Absolute)),
-            0xbe => set_reg!(self, x, self.read_operand_value(AddrMode::AbsoluteY)),
-            0xa6 => set_reg!(self, x, self.read_operand_value(AddrMode::ZeroPage)),
-            0xb6 => set_reg!(self, x, self.read_operand_value(AddrMode::ZeroPageY)),
+            // ldx
+            0xa2 => load_reg!(self, x, =, AddrMode::Immediate),
+            0xa6 => load_reg!(self, x, =, AddrMode::ZeroPage),
+            0xb6 => load_reg!(self, x, =, AddrMode::ZeroPageY),
+            0xae => load_reg!(self, x, =, AddrMode::Absolute),
+            0xbe => load_reg!(self, x, =, AddrMode::AbsoluteY),
 
-            0xa0 => set_reg!(self, y, self.read_operand_value(AddrMode::Immediate)),
-            0xac => set_reg!(self, y, self.read_operand_value(AddrMode::Absolute)),
-            0xbc => set_reg!(self, y, self.read_operand_value(AddrMode::AbsoluteX)),
-            0xa4 => set_reg!(self, y, self.read_operand_value(AddrMode::ZeroPage)),
-            0xb4 => set_reg!(self, y, self.read_operand_value(AddrMode::ZeroPageX)),
+            // ldy
+            0xa0 => load_reg!(self, y, =, AddrMode::Immediate),
+            0xa4 => load_reg!(self, y, =, AddrMode::ZeroPage),
+            0xb4 => load_reg!(self, y, =, AddrMode::ZeroPageX),
+            0xac => load_reg!(self, y, =, AddrMode::Absolute),
+            0xbc => load_reg!(self, y, =, AddrMode::AbsoluteX),
 
-            // Register stores
+            // -- Register stores --
+            // sta
+            0x85 => self.store(self.a, AddrMode::ZeroPage),
+            0x95 => self.store(self.a, AddrMode::ZeroPageX),
             0x8d => self.store(self.a, AddrMode::Absolute),
             0x9d => self.store(self.a, AddrMode::AbsoluteXForceClock),
             0x99 => self.store(self.a, AddrMode::AbsoluteYForceClock),
-            0x85 => self.store(self.a, AddrMode::ZeroPage),
-            0x95 => self.store(self.a, AddrMode::ZeroPageX),
             0x81 => self.store(self.a, AddrMode::IndirectX),
             0x91 => self.store(self.a, AddrMode::IndirectYForceClock),
 
+            // stx
             0x8e => self.store(self.x, AddrMode::Absolute),
             0x86 => self.store(self.x, AddrMode::ZeroPage),
             0x96 => self.store(self.x, AddrMode::ZeroPageY),
 
+            // st
             0x8c => self.store(self.y, AddrMode::Absolute),
             0x84 => self.store(self.y, AddrMode::ZeroPage),
             0x94 => self.store(self.y, AddrMode::ZeroPageX),
 
-            // Register transfers
-            0xaa => set_reg!(self, x, self.a),
-            0xa8 => set_reg!(self, y, self.a),
-            0xba => set_reg!(self, x, self.sp),
-            0x8a => set_reg!(self, a, self.x),
-            0x9a => set_reg!(self, sp, self.x),
-            0x98 => set_reg!(self, a, self.y),
+            // -- Register transfers --
+            0xaa => set_reg!(self, x,  =, self.a),  // tax
+            0xa8 => set_reg!(self, y,  =, self.a),  // tay
+            0xba => set_reg!(self, x,  =, self.sp), // tsx
+            0x8a => set_reg!(self, a,  =, self.x),  // txa
+            0x9a => set_reg!(self, sp, =, self.x),  // txs
+            0x98 => set_reg!(self, a,  =, self.y),  // tya
 
-            _ => panic!("Unknown instruction with opcode: 0x{opcode:02x}"),
-        }
+            // -- Flag clear and set --
+            0x18 => self.set_flag(Flags::CARRY, false), // clc
+            0xd8 => self.set_flag(Flags::DECIMAL, false), // cld
+            0x58 => self.set_flag(Flags::INTERRUPT, false), // cli
+            0xb8 => self.set_flag(Flags::OVERFLOW, false), // clv
+            0x38 => self.set_flag(Flags::CARRY, true),  // sec
+            0xf8 => self.set_flag(Flags::DECIMAL, true), // sed
+            0x78 => self.set_flag(Flags::INTERRUPT, true), // sei
+
+            // -- Logic --
+            // and
+            0x29 => load_reg!(self, a, &=, AddrMode::Immediate),
+            0x25 => load_reg!(self, a, &=, AddrMode::ZeroPage),
+            0x35 => load_reg!(self, a, &=, AddrMode::ZeroPageX),
+            0x2d => load_reg!(self, a, &=, AddrMode::Absolute),
+            0x3d => load_reg!(self, a, &=, AddrMode::AbsoluteX),
+            0x39 => load_reg!(self, a, &=, AddrMode::AbsoluteY),
+            0x21 => load_reg!(self, a, &=, AddrMode::IndirectX),
+            0x31 => load_reg!(self, a, &=, AddrMode::IndirectY),
+
+            0x2c => self.bit(AddrMode::Absolute),
+            0x24 => self.bit(AddrMode::ZeroPage),
+
+            // eor
+            0x49 => load_reg!(self, a, ^=, AddrMode::Immediate),
+            0x45 => load_reg!(self, a, ^=, AddrMode::ZeroPage),
+            0x55 => load_reg!(self, a, ^=, AddrMode::ZeroPageX),
+            0x4d => load_reg!(self, a, ^=, AddrMode::Absolute),
+            0x5d => load_reg!(self, a, ^=, AddrMode::AbsoluteX),
+            0x59 => load_reg!(self, a, ^=, AddrMode::AbsoluteY),
+            0x41 => load_reg!(self, a, ^=, AddrMode::IndirectX),
+            0x51 => load_reg!(self, a, ^=, AddrMode::IndirectY),
+
+            // ora
+            0x09 => load_reg!(self, a, |=, AddrMode::Immediate),
+            0x05 => load_reg!(self, a, |=, AddrMode::ZeroPage),
+            0x15 => load_reg!(self, a, |=, AddrMode::ZeroPageX),
+            0x0d => load_reg!(self, a, |=, AddrMode::Absolute),
+            0x1d => load_reg!(self, a, |=, AddrMode::AbsoluteX),
+            0x19 => load_reg!(self, a, |=, AddrMode::AbsoluteY),
+            0x01 => load_reg!(self, a, |=, AddrMode::IndirectX),
+            0x11 => load_reg!(self, a, |=, AddrMode::IndirectY),
+
+            // cmp
+            0xc9 => self.compare(self.a, AddrMode::Immediate),
+            0xc5 => self.compare(self.a, AddrMode::ZeroPage),
+            0xd5 => self.compare(self.a, AddrMode::ZeroPageX),
+            0xcd => self.compare(self.a, AddrMode::Absolute),
+            0xdd => self.compare(self.a, AddrMode::AbsoluteX),
+            0xd9 => self.compare(self.a, AddrMode::AbsoluteY),
+            0xc1 => self.compare(self.a, AddrMode::IndirectX),
+            0xd1 => self.compare(self.a, AddrMode::IndirectY),
+
+            // cpx
+            0xe0 => self.compare(self.x, AddrMode::Immediate),
+            0xe4 => self.compare(self.x, AddrMode::ZeroPage),
+            0xec => self.compare(self.x, AddrMode::Absolute),
+
+            // cpy
+            0xc0 => self.compare(self.y, AddrMode::Immediate),
+            0xc4 => self.compare(self.y, AddrMode::ZeroPage),
+            0xcc => self.compare(self.y, AddrMode::Absolute),
+
+            // Does nothing nop
+            0xea => self.bus.clock_cpu(),
+
+            _ => return Err(CpuError::UnknownOpcode(opcode)),
+        };
+        Ok(())
     }
 
     fn set_zero_neg_flags(&mut self, a: u8) {
@@ -223,6 +304,7 @@ impl Cpu {
         self.flags.set(Flags::NEGATIVE, a & 0b1000_0000 != 0);
     }
 
+    // Set overflow if the resulting addition overflowed a 8-bit number with 2's compliment
     fn set_overflow_flag(&mut self, a: u8, adder: u8, result: u8) {
         let adder_same_sign = (a ^ adder) & 0b1000_0000 == 0;
         let result_changed_sign = (a ^ result) & 0b1000_0000 != 0;
@@ -266,8 +348,28 @@ impl Cpu {
         let address = self.read_operand_address(mode);
         self.bus.write_byte(address, register);
     }
+
+    fn set_flag(&mut self, flag: Flags, value: bool) {
+        self.flags.set(flag, value);
+        self.bus.clock_cpu();
+    }
+
+    fn bit(&mut self, mode: AddrMode) {
+        let value = self.read_operand_value(mode);
+        let result = self.a & value;
+        self.flags.set(Flags::ZERO, result == 0);
+        self.flags.set(Flags::OVERFLOW, value & (0b0100_0000) != 0);
+        self.flags.set(Flags::NEGATIVE, value & (0b1000_0000) != 0);
+    }
+
+    fn compare(&mut self, register: u8, mode: AddrMode) {
+        let value = self.read_operand_value(mode);
+        let result = register - value;
+        self.flags.set(Flags::CARRY, register >= value);
+        self.set_zero_neg_flags(result);
+    }
 }
 
 #[cfg(test)]
-#[path = "./cpu.test.rs"]
+#[path = "cpu.test.rs"]
 mod test;
