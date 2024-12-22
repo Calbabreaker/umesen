@@ -17,8 +17,9 @@ bitflags::bitflags! {
     }
 }
 
+/// Addressing modes (most of them) for instructions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AddressingMode {
+enum AddrMode {
     /// Operand contains the value
     Immediate,
     /// Operand contains the address to the value in the first page (256 bytes)
@@ -61,6 +62,13 @@ pub struct Cpu {
     bus: Bus,
 }
 
+macro_rules! set_reg {
+    ($this: ident, $reg: ident, $value: expr) => {{
+        $this.$reg = $value;
+        $this.set_zero_neg_flags($this.$reg);
+    }};
+}
+
 impl Cpu {
     pub fn execute_next(&mut self) {
         let opcode = self.read_byte_at_pc();
@@ -77,13 +85,13 @@ impl Cpu {
         self.bus.read_word(self.pc - 2)
     }
 
-    fn address_add_offset(&mut self, address: u16, offset: u8, mode: AddressingMode) -> u16 {
+    fn address_add_offset(&mut self, address: u16, offset: u8, mode: AddrMode) -> u16 {
         let address_added = address.wrapping_add(offset as u16);
         let force_clock = matches!(
             mode,
-            AddressingMode::AbsoluteYForceClock
-                | AddressingMode::AbsoluteXForceClock
-                | AddressingMode::IndirectYForceClock
+            AddrMode::AbsoluteYForceClock
+                | AddrMode::AbsoluteXForceClock
+                | AddrMode::IndirectYForceClock
         );
         if force_clock || address & 0xff00 != address_added & 0xff00 {
             self.bus.clock_cpu();
@@ -92,40 +100,40 @@ impl Cpu {
     }
 
     /// Returns the target address based on the addressing mode and the operand
-    fn read_operand_address(&mut self, mode: AddressingMode) -> u16 {
+    fn read_operand_address(&mut self, mode: AddrMode) -> u16 {
         match mode {
-            AddressingMode::Immediate => {
+            AddrMode::Immediate => {
                 self.pc += 1;
                 self.pc - 1
             }
-            AddressingMode::ZeroPage => self.read_byte_at_pc() as u16,
-            AddressingMode::ZeroPageX => {
+            AddrMode::ZeroPage => self.read_byte_at_pc() as u16,
+            AddrMode::ZeroPageX => {
                 self.bus.clock_cpu();
                 self.read_byte_at_pc().wrapping_add(self.x) as u16
             }
-            AddressingMode::ZeroPageY => {
+            AddrMode::ZeroPageY => {
                 self.bus.clock_cpu();
                 self.read_byte_at_pc().wrapping_add(self.y) as u16
             }
-            AddressingMode::Absolute => self.read_word_at_pc(),
-            AddressingMode::AbsoluteX | AddressingMode::AbsoluteXForceClock => {
+            AddrMode::Absolute => self.read_word_at_pc(),
+            AddrMode::AbsoluteX | AddrMode::AbsoluteXForceClock => {
                 let address = self.read_word_at_pc();
                 self.address_add_offset(address, self.x, mode)
             }
-            AddressingMode::AbsoluteY | AddressingMode::AbsoluteYForceClock => {
+            AddrMode::AbsoluteY | AddrMode::AbsoluteYForceClock => {
                 let address = self.read_word_at_pc();
                 self.address_add_offset(address, self.y, mode)
             }
-            AddressingMode::Indirect => {
+            AddrMode::Indirect => {
                 let indirect_address = self.read_byte_at_pc();
                 self.bus.read_word(indirect_address as u16)
             }
-            AddressingMode::IndirectX => {
+            AddrMode::IndirectX => {
                 let indirect_address = self.read_byte_at_pc().wrapping_add(self.x);
                 self.bus.clock_cpu();
                 self.bus.read_word(indirect_address as u16)
             }
-            AddressingMode::IndirectY | AddressingMode::IndirectYForceClock => {
+            AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
                 let indirect_address = self.read_byte_at_pc();
                 let address = self.bus.read_word(indirect_address as u16);
                 self.address_add_offset(address, self.y, mode)
@@ -133,7 +141,7 @@ impl Cpu {
         }
     }
 
-    fn read_operand_value(&mut self, mode: AddressingMode) -> u8 {
+    fn read_operand_value(&mut self, mode: AddrMode) -> u8 {
         let address = self.read_operand_address(mode);
         self.bus.read_byte(address)
     }
@@ -141,70 +149,70 @@ impl Cpu {
     fn execute(&mut self, opcode: u8) {
         match opcode {
             // Arithmetic
-            0x69 => self.adc(AddressingMode::Immediate),
-            0x6d => self.adc(AddressingMode::Absolute),
-            0x7d => self.adc(AddressingMode::AbsoluteX),
-            0x79 => self.adc(AddressingMode::AbsoluteY),
-            0x65 => self.adc(AddressingMode::ZeroPage),
-            0x75 => self.adc(AddressingMode::ZeroPageX),
-            0x61 => self.adc(AddressingMode::IndirectX),
-            0x71 => self.adc(AddressingMode::IndirectY),
+            0x69 => self.adc(AddrMode::Immediate),
+            0x6d => self.adc(AddrMode::Absolute),
+            0x7d => self.adc(AddrMode::AbsoluteX),
+            0x79 => self.adc(AddrMode::AbsoluteY),
+            0x65 => self.adc(AddrMode::ZeroPage),
+            0x75 => self.adc(AddrMode::ZeroPageX),
+            0x61 => self.adc(AddrMode::IndirectX),
+            0x71 => self.adc(AddrMode::IndirectY),
 
-            0xe9 => self.sbc(AddressingMode::Immediate),
-            0xed => self.sbc(AddressingMode::Absolute),
-            0xfd => self.sbc(AddressingMode::AbsoluteX),
-            0xf9 => self.sbc(AddressingMode::AbsoluteY),
-            0xe5 => self.sbc(AddressingMode::ZeroPage),
-            0xf5 => self.sbc(AddressingMode::ZeroPageX),
-            0xe1 => self.sbc(AddressingMode::IndirectX),
-            0xf1 => self.sbc(AddressingMode::IndirectY),
+            0xe9 => self.sbc(AddrMode::Immediate),
+            0xed => self.sbc(AddrMode::Absolute),
+            0xfd => self.sbc(AddrMode::AbsoluteX),
+            0xf9 => self.sbc(AddrMode::AbsoluteY),
+            0xe5 => self.sbc(AddrMode::ZeroPage),
+            0xf5 => self.sbc(AddrMode::ZeroPageX),
+            0xe1 => self.sbc(AddrMode::IndirectX),
+            0xf1 => self.sbc(AddrMode::IndirectY),
 
             // Register loads
-            0xa9 => self.lda(AddressingMode::Immediate),
-            0xa5 => self.lda(AddressingMode::ZeroPage),
-            0xb5 => self.lda(AddressingMode::ZeroPageX),
-            0xad => self.lda(AddressingMode::Absolute),
-            0xbd => self.lda(AddressingMode::AbsoluteX),
-            0xb9 => self.lda(AddressingMode::AbsoluteY),
-            0xa1 => self.lda(AddressingMode::IndirectX),
-            0xb1 => self.lda(AddressingMode::IndirectY),
+            0xa9 => set_reg!(self, a, self.read_operand_value(AddrMode::Immediate)),
+            0xa5 => set_reg!(self, a, self.read_operand_value(AddrMode::ZeroPage)),
+            0xb5 => set_reg!(self, a, self.read_operand_value(AddrMode::ZeroPageX)),
+            0xad => set_reg!(self, a, self.read_operand_value(AddrMode::Absolute)),
+            0xbd => set_reg!(self, a, self.read_operand_value(AddrMode::AbsoluteX)),
+            0xb9 => set_reg!(self, a, self.read_operand_value(AddrMode::AbsoluteY)),
+            0xa1 => set_reg!(self, a, self.read_operand_value(AddrMode::IndirectX)),
+            0xb1 => set_reg!(self, a, self.read_operand_value(AddrMode::IndirectY)),
 
-            0xa2 => self.ldx(AddressingMode::Immediate),
-            0xae => self.ldx(AddressingMode::Absolute),
-            0xbe => self.ldx(AddressingMode::AbsoluteY),
-            0xa6 => self.ldx(AddressingMode::ZeroPage),
-            0xb6 => self.ldx(AddressingMode::ZeroPageY),
+            0xa2 => set_reg!(self, x, self.read_operand_value(AddrMode::Immediate)),
+            0xae => set_reg!(self, x, self.read_operand_value(AddrMode::Absolute)),
+            0xbe => set_reg!(self, x, self.read_operand_value(AddrMode::AbsoluteY)),
+            0xa6 => set_reg!(self, x, self.read_operand_value(AddrMode::ZeroPage)),
+            0xb6 => set_reg!(self, x, self.read_operand_value(AddrMode::ZeroPageY)),
 
-            0xa0 => self.ldy(AddressingMode::Immediate),
-            0xac => self.ldy(AddressingMode::Absolute),
-            0xbc => self.ldy(AddressingMode::AbsoluteX),
-            0xa4 => self.ldy(AddressingMode::ZeroPage),
-            0xb4 => self.ldy(AddressingMode::ZeroPageX),
+            0xa0 => set_reg!(self, y, self.read_operand_value(AddrMode::Immediate)),
+            0xac => set_reg!(self, y, self.read_operand_value(AddrMode::Absolute)),
+            0xbc => set_reg!(self, y, self.read_operand_value(AddrMode::AbsoluteX)),
+            0xa4 => set_reg!(self, y, self.read_operand_value(AddrMode::ZeroPage)),
+            0xb4 => set_reg!(self, y, self.read_operand_value(AddrMode::ZeroPageX)),
 
             // Register stores
-            0x8d => self.sta(AddressingMode::Absolute),
-            0x9d => self.sta(AddressingMode::AbsoluteXForceClock),
-            0x99 => self.sta(AddressingMode::AbsoluteYForceClock),
-            0x85 => self.sta(AddressingMode::ZeroPage),
-            0x95 => self.sta(AddressingMode::ZeroPageX),
-            0x81 => self.sta(AddressingMode::IndirectX),
-            0x91 => self.sta(AddressingMode::IndirectYForceClock),
+            0x8d => self.store(self.a, AddrMode::Absolute),
+            0x9d => self.store(self.a, AddrMode::AbsoluteXForceClock),
+            0x99 => self.store(self.a, AddrMode::AbsoluteYForceClock),
+            0x85 => self.store(self.a, AddrMode::ZeroPage),
+            0x95 => self.store(self.a, AddrMode::ZeroPageX),
+            0x81 => self.store(self.a, AddrMode::IndirectX),
+            0x91 => self.store(self.a, AddrMode::IndirectYForceClock),
 
-            0x8e => self.stx(AddressingMode::Absolute),
-            0x86 => self.stx(AddressingMode::ZeroPage),
-            0x96 => self.stx(AddressingMode::ZeroPageY),
+            0x8e => self.store(self.x, AddrMode::Absolute),
+            0x86 => self.store(self.x, AddrMode::ZeroPage),
+            0x96 => self.store(self.x, AddrMode::ZeroPageY),
 
-            0x8c => self.sty(AddressingMode::Absolute),
-            0x84 => self.sty(AddressingMode::ZeroPage),
-            0x94 => self.sty(AddressingMode::ZeroPageX),
+            0x8c => self.store(self.y, AddrMode::Absolute),
+            0x84 => self.store(self.y, AddrMode::ZeroPage),
+            0x94 => self.store(self.y, AddrMode::ZeroPageX),
 
             // Register transfers
-            0xaa => self.tax(),
-            0xa8 => self.tay(),
-            0xba => self.tsx(),
-            0x8a => self.txa(),
-            0x9a => self.txs(),
-            0x98 => self.tya(),
+            0xaa => set_reg!(self, x, self.a),
+            0xa8 => set_reg!(self, y, self.a),
+            0xba => set_reg!(self, x, self.sp),
+            0x8a => set_reg!(self, a, self.x),
+            0x9a => set_reg!(self, sp, self.x),
+            0x98 => set_reg!(self, a, self.y),
 
             _ => panic!("Unknown instruction with opcode: 0x{opcode:02x}"),
         }
@@ -243,235 +251,23 @@ impl Cpu {
         self.a = result;
     }
 
-    fn adc(&mut self, mode: AddressingMode) {
+    fn adc(&mut self, mode: AddrMode) {
         let adder = self.read_operand_value(mode);
         self.do_adc(adder, self.flags.contains(Flags::CARRY));
     }
 
-    fn sbc(&mut self, mode: AddressingMode) {
+    fn sbc(&mut self, mode: AddrMode) {
         let adder = self.read_operand_value(mode);
         // Inverting results in inverting the sign so the adc can be resued
         self.do_adc(!adder, !self.flags.contains(Flags::CARRY));
     }
 
-    fn lda(&mut self, mode: AddressingMode) {
-        self.a = self.read_operand_value(mode);
-        self.set_zero_neg_flags(self.a);
-    }
-
-    fn ldx(&mut self, mode: AddressingMode) {
-        self.x = self.read_operand_value(mode);
-        self.set_zero_neg_flags(self.x);
-    }
-
-    fn ldy(&mut self, mode: AddressingMode) {
-        self.y = self.read_operand_value(mode);
-        self.set_zero_neg_flags(self.y);
-    }
-
-    fn sta(&mut self, mode: AddressingMode) {
+    fn store(&mut self, register: u8, mode: AddrMode) {
         let address = self.read_operand_address(mode);
-        self.bus.write_byte(address, self.a);
-    }
-
-    fn stx(&mut self, mode: AddressingMode) {
-        let address = self.read_operand_address(mode);
-        self.bus.write_byte(address, self.x);
-    }
-
-    fn sty(&mut self, mode: AddressingMode) {
-        let address = self.read_operand_address(mode);
-        self.bus.write_byte(address, self.y);
-    }
-
-    fn tax(&mut self) {
-        self.x = self.a;
-        self.set_zero_neg_flags(self.x);
-    }
-
-    fn tay(&self) {
-        todo!()
-    }
-
-    fn tsx(&self) {
-        todo!()
-    }
-
-    fn txa(&self) {
-        todo!()
-    }
-
-    fn txs(&self) {
-        todo!()
-    }
-
-    fn tya(&self) {
-        todo!()
+        self.bus.write_byte(address, register);
     }
 }
 
 #[cfg(test)]
-mod test {
-    use crate::cpu::{Cpu, Flags};
-
-    fn execute(cpu: &mut Cpu, rom: &[u8]) {
-        if rom.is_empty() {
-            return;
-        }
-        for (i, x) in rom.iter().enumerate() {
-            cpu.bus.ram[i + cpu.pc as usize] = *x;
-        }
-        cpu.execute_next();
-    }
-
-    fn test(rom: &[u8], assert_fn: impl Fn(Cpu)) {
-        let mut cpu = Cpu {
-            a: 0xff,
-            x: 0xfe,
-            y: 0xfd,
-            ..Default::default()
-        };
-        cpu.bus.ram[0x132] = 69;
-        cpu.bus.ram[0x12] = 69;
-        execute(&mut cpu, rom);
-        assert_fn(cpu);
-    }
-
-    #[test]
-    fn addressing_modes() {
-        // Immediate mode lda
-        test(&[0xa9, 123], |cpu| {
-            assert_eq!(cpu.a, 123);
-            assert_eq!(cpu.bus.cpu_cycles, 2);
-            assert_eq!(cpu.pc, 2);
-        });
-
-        // Zero page mode lda
-        test(&[0xa5, 0x12], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 3);
-            assert_eq!(cpu.pc, 2);
-        });
-
-        // Zero page x mode lda (first ldx)
-        test(&[0xb5, 0x14], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 4);
-            assert_eq!(cpu.pc, 2);
-        });
-
-        // Zero page y mode ldx (first ldy)
-        test(&[0xb6, 0x15], |cpu| {
-            assert_eq!(cpu.x, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 4);
-            assert_eq!(cpu.pc, 2);
-        });
-
-        // Absolute mode lda
-        test(&[0xad, 0x32, 0x01], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 4);
-            assert_eq!(cpu.pc, 3);
-        });
-
-        // Absolute mode x lda
-        test(&[0xbd, 0x34, 0x00], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 5);
-            assert_eq!(cpu.pc, 3);
-        });
-
-        // Absolute mode x lda (no page cross)
-        test(&[0xbd], |cpu| assert_eq!(cpu.bus.cpu_cycles, 4));
-
-        // Absolute mode x sta (always extra clock)
-        test(&[0x9d, 0x13, 0x00], |mut cpu| {
-            assert_eq!(cpu.bus.cpu_cycles, 5);
-            assert_eq!(cpu.bus.read_byte(0x111), 0xff);
-        });
-
-        // Absolute mode y lda
-        test(&[0xb9, 0x35, 0x00], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 5);
-            assert_eq!(cpu.pc, 3);
-        });
-
-        // Indirect x mode lda
-        test(&[0xa1, 0x05, 0, 0x32, 0x01], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 6);
-            assert_eq!(cpu.pc, 2);
-        });
-
-        // Indirect y mode lda
-        test(&[0xb1, 0x03, 0, 0x35, 0x00], |cpu| {
-            assert_eq!(cpu.a, 69);
-            assert_eq!(cpu.bus.cpu_cycles, 6);
-            assert_eq!(cpu.pc, 2);
-        });
-    }
-
-    #[test]
-    fn zero_neg_flags() {
-        // lda immediate
-        test(&[0xa9, 22], |cpu| assert_eq!(cpu.flags, Flags::empty()));
-        test(&[0xa9, 0], |cpu| assert_eq!(cpu.flags, Flags::ZERO));
-        test(&[0xa9, 128], |cpu| assert_eq!(cpu.flags, Flags::NEGATIVE));
-    }
-
-    #[test]
-    fn adc() {
-        test(&[0x69, 69], |mut cpu| {
-            assert_eq!(cpu.a, 68);
-            assert_eq!(cpu.flags, Flags::CARRY);
-
-            execute(&mut cpu, &[0x69, 69]);
-            assert_eq!(cpu.a, 138);
-            assert_eq!(cpu.flags, Flags::OVERFLOW | Flags::NEGATIVE);
-
-            cpu.flags.set(Flags::DECIMAL, true);
-            execute(&mut cpu, &[0x69, 0x69]);
-            assert_eq!(cpu.a, 0x59);
-            assert_eq!(cpu.flags, Flags::CARRY | Flags::DECIMAL);
-        });
-    }
-
-    #[test]
-    fn sbc() {
-        test(&[0xe9, 69], |cpu| {
-            assert_eq!(cpu.a, 186);
-            assert_eq!(cpu.flags, Flags::CARRY | Flags::NEGATIVE);
-        });
-    }
-
-    #[test]
-    fn lda() {
-        test(&[0xa9, 123], |cpu| assert_eq!(cpu.a, 123));
-    }
-
-    #[test]
-    fn ldx() {
-        test(&[0xa2, 69], |cpu| assert_eq!(cpu.x, 69));
-    }
-
-    #[test]
-    fn ldy() {
-        test(&[0xa0, 69], |cpu| assert_eq!(cpu.y, 69));
-    }
-
-    #[test]
-    fn sta() {
-        test(&[0x85, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xff));
-    }
-
-    #[test]
-    fn stx() {
-        test(&[0x86, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xfe));
-    }
-
-    #[test]
-    fn sty() {
-        test(&[0x84, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), 0xfd));
-    }
-}
+#[path = "./cpu.test.rs"]
+mod test;
