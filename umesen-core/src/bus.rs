@@ -1,6 +1,6 @@
 #[derive(Clone)]
 pub struct Bus {
-    pub ram: [u8; 0xffff],
+    pub ram: [u8; 0x10000],
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
 }
@@ -8,7 +8,7 @@ pub struct Bus {
 impl Default for Bus {
     fn default() -> Self {
         Self {
-            ram: [0; 0xffff],
+            ram: [0; 0x10000],
             cpu_cycles: 0,
         }
     }
