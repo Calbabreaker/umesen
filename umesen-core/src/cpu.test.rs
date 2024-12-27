@@ -209,7 +209,7 @@ fn iny() {
 
 #[test]
 fn dex() {
-    test(&[0xca], |cpu| assert_eq!(cpu.y, X.wrapping_sub(1)));
+    test(&[0xca], |cpu| assert_eq!(cpu.x, X.wrapping_sub(1)));
 }
 
 #[test]
