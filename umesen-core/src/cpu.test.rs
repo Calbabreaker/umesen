@@ -428,8 +428,11 @@ fn brk() {
         execute(&mut cpu, &[0x00]);
         assert_eq!(cpu.bus.cpu_cycles, 7);
         assert_eq!(cpu.pc, 0x02);
-        assert_eq!(cpu.flags, Flags::BREAK);
-        assert_eq!(cpu.stack_pop(false), Flags::BREAK.bits());
+        assert_eq!(cpu.flags, Flags::INTERRUPT | Flags::BREAK);
+        assert_eq!(
+            Flags::from_bits(cpu.stack_pop(false)).unwrap(),
+            Flags::empty(),
+        );
         assert_eq!(cpu.stack_pop_word(), 1);
     });
 }
@@ -442,7 +445,7 @@ fn rti() {
         execute(&mut cpu, &[0x00, STOP, 0x40]);
         assert_eq!(cpu.bus.cpu_cycles, 7 + 6);
         assert_eq!(cpu.pc, 1);
-        assert_eq!(cpu.flags, Flags::BREAK | Flags::NEGATIVE);
+        assert_eq!(cpu.flags, Flags::NEGATIVE);
     });
 }
 
@@ -499,4 +502,13 @@ fn bvs() {
 #[test]
 fn nop() {
     test(&[0xea], |cpu| assert_eq!(cpu.bus.cpu_cycles, 2));
+}
+
+#[test]
+fn reset() {
+    test(&[], |mut cpu| {
+        cpu.reset();
+        assert_eq!(cpu.bus.cpu_cycles, 7);
+        assert_eq!(cpu.pc, 0);
+    });
 }

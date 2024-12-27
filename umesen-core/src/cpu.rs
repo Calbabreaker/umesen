@@ -69,6 +69,23 @@ impl Cpu {
         self.execute(opcode)
     }
 
+    pub fn irq(&mut self) {
+        if !self.flags.contains(Flags::INTERRUPT) {
+            self.interrupt(0xfffe);
+        }
+    }
+
+    pub fn nmi(&mut self) {
+        self.interrupt(0xfffa);
+    }
+
+    pub fn reset(&mut self) {
+        self.pc = self.bus.read_word(0xfffc);
+        for _ in 0..5 {
+            self.bus.clock_cpu();
+        }
+    }
+
     fn read_byte_at_pc(&mut self) -> u8 {
         self.pc += 1;
         self.bus.read_byte(self.pc - 1)
@@ -537,10 +554,15 @@ impl Cpu {
     }
 
     fn brk(&mut self) {
-        self.stack_push_word(self.pc);
+        self.interrupt(0xfffe);
         self.flags.set(Flags::BREAK, true);
+    }
+
+    fn interrupt(&mut self, load_vector: u16) {
+        self.stack_push_word(self.pc);
         self.stack_push(self.flags.bits(), false);
-        self.pc = self.bus.read_word(0xfffe);
+        self.flags.set(Flags::INTERRUPT, true);
+        self.pc = self.bus.read_word(load_vector);
     }
 
     fn branch(&mut self, condition: bool) {
