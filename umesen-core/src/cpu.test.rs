@@ -429,10 +429,7 @@ fn brk() {
         assert_eq!(cpu.bus.cpu_cycles, 7);
         assert_eq!(cpu.pc, 0x02);
         assert_eq!(cpu.flags, Flags::INTERRUPT | Flags::BREAK);
-        assert_eq!(
-            Flags::from_bits(cpu.stack_pop(false)).unwrap(),
-            Flags::empty(),
-        );
+        assert_eq!(Flags::from_bits(cpu.stack_pop()).unwrap(), Flags::empty(),);
         assert_eq!(cpu.stack_pop_word(), 1);
     });
 }

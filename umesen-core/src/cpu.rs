@@ -175,8 +175,8 @@ impl Cpu {
         use AddrMode::*;
         match opcode {
             // -- Stack --
-            0x48 => self.stack_push(self.a, true), // pha
-            0x08 => self.stack_push(self.flags.bits(), true), // php
+            0x48 => self.stack_push(self.a),            // pha
+            0x08 => self.stack_push(self.flags.bits()), // php
             0x68 => self.pla(),
             0x28 => self.plp(),
 
@@ -398,39 +398,43 @@ impl Cpu {
         value
     }
 
-    fn stack_push(&mut self, register: u8, should_clock: bool) {
-        self.bus.write_byte(0x100 + self.sp as u16, register);
+    fn unclocked_stack_push(&mut self, value: u8) {
+        self.bus.write_byte(0x100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
-        if should_clock {
-            self.bus.clock_cpu();
-        }
+    }
+
+    fn stack_push(&mut self, value: u8) {
+        self.unclocked_stack_push(value);
+        self.bus.clock_cpu();
     }
 
     fn stack_push_word(&mut self, value: u16) {
-        self.stack_push((value >> 8) as u8, true);
-        self.stack_push(value as u8, false);
+        self.unclocked_stack_push((value >> 8) as u8);
+        self.stack_push(value as u8);
     }
 
-    fn stack_pop(&mut self, should_clock: bool) -> u8 {
+    fn unclocked_stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
-        if should_clock {
-            self.bus.clock_cpu();
-            self.bus.clock_cpu();
-        }
         self.bus.read_byte(0x100 + self.sp as u16)
     }
 
+    fn stack_pop(&mut self) -> u8 {
+        self.bus.clock_cpu();
+        self.bus.clock_cpu();
+        self.unclocked_stack_pop()
+    }
+
     fn stack_pop_word(&mut self) -> u16 {
-        self.stack_pop(true) as u16 | (self.stack_pop(false) as u16) << 8
+        self.unclocked_stack_pop() as u16 | (self.stack_pop() as u16) << 8
     }
 
     fn pla(&mut self) {
-        self.a = self.stack_pop(true);
+        self.a = self.stack_pop();
         self.set_zero_neg_flags(self.a);
     }
 
     fn plp(&mut self) {
-        self.flags = Flags::from_bits(self.stack_pop(true)).unwrap();
+        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
     }
 
     fn shift(&mut self, value: u8, dir: char, contains_carry: bool) -> u8 {
@@ -549,7 +553,7 @@ impl Cpu {
     }
 
     fn rti(&mut self) {
-        self.flags = Flags::from_bits(self.stack_pop(false)).unwrap();
+        self.flags = Flags::from_bits(self.unclocked_stack_pop()).unwrap();
         self.pc = self.stack_pop_word();
     }
 
@@ -560,7 +564,7 @@ impl Cpu {
 
     fn interrupt(&mut self, load_vector: u16) {
         self.stack_push_word(self.pc);
-        self.stack_push(self.flags.bits(), false);
+        self.unclocked_stack_push(self.flags.bits());
         self.flags.set(Flags::INTERRUPT, true);
         self.pc = self.bus.read_word(load_vector);
     }
