@@ -1,4 +1,10 @@
-use crate::{bus::Bus, CpuError};
+#[cfg(test)]
+mod test;
+
+mod bus;
+
+use crate::CpuError;
+use bus::CpuBus;
 
 bitflags::bitflags! {
     /// Flags for the cpu register
@@ -55,12 +61,12 @@ pub struct Cpu {
     sp: u8,
     // Accumulator
     a: u8,
-    // Index x register
+    // X register
     x: u8,
-    // Index y register
+    // Y register
     y: u8,
     flags: Flags,
-    pub bus: Bus,
+    pub bus: CpuBus,
 }
 
 impl Cpu {
@@ -82,7 +88,7 @@ impl Cpu {
     pub fn reset(&mut self) {
         self.pc = self.bus.read_word(0xfffc);
         for _ in 0..5 {
-            self.bus.clock_cpu();
+            self.bus.clock();
         }
     }
 
@@ -106,7 +112,7 @@ impl Cpu {
         );
         // Check page cross
         if force_clock || address & 0xff00 != address_added & 0xff00 {
-            self.bus.clock_cpu();
+            self.bus.clock();
         }
         address_added
     }
@@ -120,11 +126,11 @@ impl Cpu {
             }
             AddrMode::ZeroPage => self.read_byte_at_pc() as u16,
             AddrMode::ZeroPageX => {
-                self.bus.clock_cpu();
+                self.bus.clock();
                 self.read_byte_at_pc().wrapping_add(self.x) as u16
             }
             AddrMode::ZeroPageY => {
-                self.bus.clock_cpu();
+                self.bus.clock();
                 self.read_byte_at_pc().wrapping_add(self.y) as u16
             }
             AddrMode::Absolute => self.read_word_at_pc(),
@@ -150,7 +156,7 @@ impl Cpu {
             }
             AddrMode::IndirectX => {
                 let indirect_address = self.read_byte_at_pc().wrapping_add(self.x);
-                self.bus.clock_cpu();
+                self.bus.clock();
                 self.bus.read_word(indirect_address as u16)
             }
             AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
@@ -380,7 +386,7 @@ impl Cpu {
             0x70 => self.branch(self.flags.contains(Flags::OVERFLOW)), // bvs
 
             // Does nothing nop
-            0xea => self.bus.clock_cpu(),
+            0xea => self.bus.clock(),
 
             _ => return Err(CpuError::UnknownOpcode(opcode)),
         };
@@ -393,7 +399,7 @@ impl Cpu {
     }
 
     fn copy_val(&mut self, value: u8) -> u8 {
-        self.bus.clock_cpu();
+        self.bus.clock();
         self.set_zero_neg_flags(value);
         value
     }
@@ -405,7 +411,7 @@ impl Cpu {
 
     fn stack_push(&mut self, value: u8) {
         self.unclocked_stack_push(value);
-        self.bus.clock_cpu();
+        self.bus.clock();
     }
 
     fn stack_push_word(&mut self, value: u16) {
@@ -419,8 +425,8 @@ impl Cpu {
     }
 
     fn stack_pop(&mut self) -> u8 {
-        self.bus.clock_cpu();
-        self.bus.clock_cpu();
+        self.bus.clock();
+        self.bus.clock();
         self.unclocked_stack_pop()
     }
 
@@ -518,7 +524,7 @@ impl Cpu {
 
     fn set_flag(&mut self, flag: Flags, value: bool) {
         self.flags.set(flag, value);
-        self.bus.clock_cpu();
+        self.bus.clock();
     }
 
     fn bit(&mut self, mode: AddrMode) {
@@ -549,7 +555,7 @@ impl Cpu {
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_word() + 1;
-        self.bus.clock_cpu();
+        self.bus.clock();
     }
 
     fn rti(&mut self) {
@@ -572,16 +578,12 @@ impl Cpu {
     fn branch(&mut self, condition: bool) {
         let address = self.read_operand_address(AddrMode::Relative);
         if condition {
-            self.bus.clock_cpu();
+            self.bus.clock();
             if address & 0xff00 != self.pc & 0xff00 {
-                self.bus.clock_cpu();
-                self.bus.clock_cpu();
+                self.bus.clock();
+                self.bus.clock();
             }
             self.pc = address;
         }
     }
 }
-
-#[cfg(test)]
-#[path = "cpu.test.rs"]
-mod test;

@@ -1,7 +1,9 @@
-mod bus;
+mod cartridge;
 mod cpu;
 mod error;
+mod ppu;
 
-pub use bus::Bus;
+pub use cartridge::*;
 pub use cpu::Cpu;
-pub use error::CpuError;
+pub use error::*;
+pub use ppu::Ppu;
