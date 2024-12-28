@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::{cartridge::CartridgeBoard, Cartridge, CartridgeData};
+use crate::cartridge::CartridgeBoard;
 
 #[derive(Clone)]
 pub struct CpuBus {
@@ -8,32 +8,48 @@ pub struct CpuBus {
     pub ram: [u8; 2048],
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
-    pub cartridge: Rc<RefCell<dyn CartridgeBoard>>,
+    pub cartridge: Option<Rc<RefCell<dyn CartridgeBoard>>>,
 }
 
 impl Default for CpuBus {
     fn default() -> Self {
-        Self::new(Cartridge::new(CartridgeData::default()).unwrap())
+        Self {
+            ram: [0; 2048],
+            cpu_cycles: 0,
+            cartridge: None,
+        }
     }
 }
 
 impl CpuBus {
-    pub fn new(cartridge: Rc<RefCell<dyn CartridgeBoard>>) -> Self {
-        Self {
-            ram: [0; 2048],
-            cpu_cycles: 0,
-            cartridge,
-        }
-    }
-
     pub fn read_byte(&mut self, address: u16) -> u8 {
         self.clock();
-        *self.index_byte(address as usize)
+        match address {
+            // 2kb of ram is mirrored 3 times
+            0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()],
+            0x4020..=0xffff => {
+                if let Some(cartridge) = self.cartridge.as_ref() {
+                    cartridge.borrow().prg_read(address)
+                } else {
+                    0
+                }
+            }
+            _ => 0,
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
         self.clock();
-        *self.index_byte(address as usize) = value;
+        match address {
+            // 2kb of ram is mirrored 3 times
+            0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()] = value,
+            0x4020..=0xffff => {
+                if let Some(cartridge) = self.cartridge.as_mut() {
+                    cartridge.borrow_mut().prg_write(address, value);
+                }
+            }
+            _ => (),
+        }
     }
 
     pub fn read_word(&mut self, address: u16) -> u16 {
@@ -52,16 +68,5 @@ impl CpuBus {
     pub fn clock(&mut self) {
         // Every cpu clock is 12 master clocks
         self.cpu_cycles += 1;
-    }
-
-    // Cpu memory map: https://www.nesdev.org/wiki/CPU_memory_map
-    fn index_byte(&mut self, address: usize) -> &mut u8 {
-        match address as u16 {
-            // 2kb of ram is mirrored 3 times
-            // 0x0000..=0x1fff => self.ram.get_mut(address & 0x07ff).unwrap(),
-            0x0000..=0xffff => self.ram.get_mut(address & 0x07ff).unwrap(),
-            // 0x2000..=0x3fff => self.ppu.write_register(address & 0x0007, data),
-            // _ => ,
-        }
     }
 }

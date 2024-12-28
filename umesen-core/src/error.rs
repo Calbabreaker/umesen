@@ -6,8 +6,8 @@ pub enum CpuError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum NesParseError {
-    #[error("header did not contain NES magic number")]
-    InvalidMagicNumber,
+    #[error("magic number '{0}' in header is not a valid")]
+    InvalidMagicNumber(String),
     #[error("mapper id {0} is not supported")]
     UnsupportedMapper(u8),
     #[error(transparent)]

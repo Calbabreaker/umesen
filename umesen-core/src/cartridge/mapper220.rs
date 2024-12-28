@@ -1,24 +1,24 @@
 use crate::cartridge::{CartridgeBoard, CartridgeData};
 
-/// INES designation for NROM boards
-/// https://www.nesdev.org/wiki/NROM
-pub struct Mapper000 {
+/// Mapper is not assigned by INES to anything useful so this will be used as a mapper for testing
+/// This is just going to have ram
+pub struct Mapper220 {
     data: CartridgeData,
 }
 
-impl Mapper000 {
+impl Mapper220 {
     pub fn new(data: CartridgeData) -> Self {
         Self { data }
     }
 }
 
-impl CartridgeBoard for Mapper000 {
+impl CartridgeBoard for Mapper220 {
     fn prg_read(&self, address: u16) -> u8 {
-        todo!()
+        self.data.prg_ram.mirrored_read(0x4000, address)
     }
 
     fn prg_write(&mut self, address: u16, value: u8) {
-        todo!()
+        self.data.prg_ram.mirrored_write(0x4000, address, value)
     }
 
     fn chr_read(&self, address: u16) -> u8 {

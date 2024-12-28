@@ -13,7 +13,8 @@ pub struct CartridgeHeader {
 impl CartridgeHeader {
     pub fn from_nes(data: [u8; 16]) -> Result<Self, NesParseError> {
         if &data[0..4] != b"NES\x1a" {
-            return Err(NesParseError::InvalidMagicNumber);
+            let magic_number = String::from_utf8_lossy(&data[0..4]).to_string();
+            return Err(NesParseError::InvalidMagicNumber(magic_number));
         }
 
         let is_v2 = data[7] & 0b0011_0000 == 0b0001_0000;
