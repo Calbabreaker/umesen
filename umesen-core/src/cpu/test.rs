@@ -1,6 +1,6 @@
 use crate::{
     cpu::{Cpu, Flags},
-    Cartridge, CartridgeData, CartridgeHeader,
+    Cartridge,
 };
 
 const STOP: u8 = 0xe2;

@@ -3,7 +3,9 @@ mod test;
 
 mod bus;
 
-use crate::CpuError;
+use std::{cell::RefCell, rc::Rc};
+
+use crate::{CartridgeBoard, CpuError};
 use bus::CpuBus;
 
 bitflags::bitflags! {

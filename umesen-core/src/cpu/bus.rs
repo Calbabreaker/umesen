@@ -28,11 +28,8 @@ impl CpuBus {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()],
             0x4020..=0xffff => {
-                if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.borrow().prg_read(address)
-                } else {
-                    0
-                }
+                let catridge = self.cartridge.as_ref().expect("no cartridge was attached");
+                catridge.borrow().prg_read(address)
             }
             _ => 0,
         }
@@ -44,9 +41,8 @@ impl CpuBus {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()] = value,
             0x4020..=0xffff => {
-                if let Some(cartridge) = self.cartridge.as_mut() {
-                    cartridge.borrow_mut().prg_write(address, value);
-                }
+                let catridge = self.cartridge.as_ref().expect("no cartridge was attached");
+                catridge.borrow_mut().prg_write(address, value);
             }
             _ => (),
         }

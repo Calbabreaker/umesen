@@ -28,20 +28,20 @@ impl Cartridge {
         mut data: impl std::io::Read,
     ) -> Result<Rc<RefCell<dyn CartridgeBoard>>, NesParseError> {
         let mut header_data = [0; 16];
-        data.read_exact(&mut header_data)?;
+        read_bytes(&mut data, &mut header_data, 16)?;
         let header = CartridgeHeader::from_nes(header_data)?;
+
         if header.has_trainer {
             let mut trainer_data = [0; 512];
-            data.read_exact(&mut trainer_data)?;
+            read_bytes(&mut data, &mut trainer_data, header.total_size())?;
         }
+
+        dbg!(&header);
 
         let mut prg_rom = vec![0; header.prg_rom_size];
-        data.read_exact(&mut prg_rom)?;
-
+        read_bytes(&mut data, &mut prg_rom, header.total_size())?;
         let mut chr_rom = vec![0; header.chr_rom_size];
-        if !chr_rom.is_empty() {
-            data.read_exact(&mut chr_rom)?;
-        }
+        read_bytes(&mut data, &mut chr_rom, header.total_size())?;
 
         Self::new_board(CartridgeData::new(header, prg_rom, chr_rom))
     }
@@ -68,4 +68,16 @@ impl Cartridge {
         ))
         .unwrap()
     }
+}
+
+fn read_bytes(
+    data: &mut impl std::io::Read,
+    buffer: &mut [u8],
+    total_size: usize,
+) -> Result<(), NesParseError> {
+    if !buffer.is_empty() {
+        data.read_exact(buffer)
+            .map_err(|_| NesParseError::NotEnough(total_size))?;
+    }
+    Ok(())
 }

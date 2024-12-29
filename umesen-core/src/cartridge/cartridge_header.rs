@@ -32,10 +32,18 @@ impl CartridgeHeader {
             // 8KiB per unit in header
             chr_rom_size: (data[5] as usize) * 8 * 1024,
             mapper_id: data[6] >> 4 | data[7] & 0xf0,
-            has_trainer: data[6] & 0b0010_0000 != 0,
+            has_trainer: data[6] & 0b0000_0100 != 0,
             prg_ram_size,
             is_v2,
         })
+    }
+
+    pub fn total_size(&self) -> usize {
+        let mut size = 16 + self.chr_rom_size + self.prg_rom_size;
+        if self.has_trainer {
+            size += 512;
+        }
+        size
     }
 }
 
@@ -46,7 +54,7 @@ mod test {
     #[test]
     fn parse_correctly() {
         let header = CartridgeHeader::from_nes([
-            0x4E, 0x45, 0x53, 0x1A, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x4E, 0x45, 0x53, 0x1A, 0x02, 0x01, 0x31, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00,
         ])
         .unwrap();
@@ -54,7 +62,7 @@ mod test {
         assert_eq!(
             header,
             CartridgeHeader {
-                mapper_id: 0,
+                mapper_id: 3,
                 prg_rom_size: 32 * 1024,
                 chr_rom_size: 8 * 1024,
                 prg_ram_size: 8 * 1024,

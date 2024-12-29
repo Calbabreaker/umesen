@@ -10,6 +10,6 @@ pub enum NesParseError {
     InvalidMagicNumber(String),
     #[error("mapper id {0} is not supported")]
     UnsupportedMapper(u8),
-    #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    #[error("expected at least {0} bytes of data")]
+    NotEnough(usize),
 }
