@@ -3,9 +3,7 @@ mod test;
 
 mod bus;
 
-use std::{cell::RefCell, rc::Rc};
-
-use crate::{CartridgeBoard, CpuError};
+use crate::CpuError;
 use bus::CpuBus;
 
 bitflags::bitflags! {
@@ -55,7 +53,7 @@ enum AddrMode {
     Relative,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct Cpu {
     /// Program counter
     pc: u16,
@@ -442,7 +440,7 @@ impl Cpu {
     }
 
     fn plp(&mut self) {
-        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
+        self.flags = Flags::from_bits_retain(self.stack_pop());
     }
 
     fn shift(&mut self, value: u8, dir: char, contains_carry: bool) -> u8 {
@@ -561,7 +559,7 @@ impl Cpu {
     }
 
     fn rti(&mut self) {
-        self.flags = Flags::from_bits(self.unclocked_stack_pop()).unwrap();
+        self.flags = Flags::from_bits_retain(self.unclocked_stack_pop());
         self.pc = self.stack_pop_word();
     }
 

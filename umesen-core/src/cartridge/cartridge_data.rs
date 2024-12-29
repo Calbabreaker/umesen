@@ -9,29 +9,24 @@ impl MemoryBank {
         Self { memory }
     }
 
-    pub fn mirrored_write(&mut self, start_address: u16, address: u16, value: u8) {
+    pub fn mirrored_write(&mut self, address: u16, value: u8) {
         if self.memory.is_empty() {
             return;
         }
-        let index = self.index(start_address, address);
+        let index = self.index(address);
         self.memory[index] = value;
     }
 
-    pub fn mirrored_read(&self, start_address: u16, address: u16) -> u8 {
+    pub fn mirrored_read(&self, address: u16) -> u8 {
         if self.memory.is_empty() {
             return 0;
         }
-        let index = self.index(start_address, address);
+        let index = self.index(address);
         self.memory[index]
     }
 
-    fn index(&self, start_address: u16, address: u16) -> usize {
-        let address = address as usize;
-        let start_address = start_address as usize;
-        let size = self.memory.len();
-        let offset = start_address % size;
-        debug_assert_eq!((start_address - offset) % size, 0);
-        (address - offset) % size
+    fn index(&self, address: u16) -> usize {
+        (address as usize) % self.memory.len()
     }
 }
 
@@ -58,5 +53,3 @@ impl CartridgeData {
         }
     }
 }
-
-

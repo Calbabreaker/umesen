@@ -1,13 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::cartridge::CartridgeBoard;
+use crate::{cartridge::CartridgeBoard, Ppu};
 
-#[derive(Clone)]
 pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: [u8; 2048],
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
+    pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<dyn CartridgeBoard>>>,
 }
 
@@ -17,19 +17,25 @@ impl Default for CpuBus {
             ram: [0; 2048],
             cpu_cycles: 0,
             cartridge: None,
+            ppu: Ppu::default(),
         }
     }
 }
 
 impl CpuBus {
+    /// https://www.nesdev.org/wiki/CPU_memory_map
     pub fn read_byte(&mut self, address: u16) -> u8 {
         self.clock();
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()],
+            0x2000..=0x3fff => self.ppu.registers.read(address),
             0x4020..=0xffff => {
-                let catridge = self.cartridge.as_ref().expect("no cartridge was attached");
-                catridge.borrow().prg_read(address)
+                if let Some(cartridge) = self.cartridge.as_ref() {
+                    cartridge.borrow().prg_read(address)
+                } else {
+                    0
+                }
             }
             _ => 0,
         }
@@ -40,9 +46,11 @@ impl CpuBus {
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()] = value,
+            0x2000..=0x3fff => self.ppu.registers.write(address, value),
             0x4020..=0xffff => {
-                let catridge = self.cartridge.as_ref().expect("no cartridge was attached");
-                catridge.borrow_mut().prg_write(address, value);
+                if let Some(cartridge) = self.cartridge.as_ref() {
+                    cartridge.borrow_mut().prg_write(address, value)
+                };
             }
             _ => (),
         }
