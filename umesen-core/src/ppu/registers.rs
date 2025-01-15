@@ -1,9 +1,9 @@
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     struct Control: u8 {
-        /// Low bit of base nametable addresses (0 = 0x2000, 1 = 0x2400, 2 = 0x2800, 3 = 0x2c00)
+        /// Low bit of base nametable addresses
         const NAMETABLE_LOW = 1;
-        /// High bit of base nametable addresses (0 = 0x2000, 1 = 0x2400, 2 = 0x2800, 3 = 0x2c00)
+        /// High bit of base nametable addresses
         const NAMETABLE_HIGH = 1 << 1;
         /// (0: add 1 going across, 1: add 32 going down)
         const VRAM_INCREMENT = 1 << 2;
@@ -13,7 +13,7 @@ bitflags::bitflags! {
         const BACKGROUND_TABLE_OFFSET = 1 << 4;
         /// (0: 8x8 pixels, 1: 8x16 pixels)
         const TALL_SPRITES = 1 << 5;
-        /// (0: read backdrop from EXT pins; 1: output color on EXT pins)
+        /// (0: read backdrop from EXT pins, 1: output color on EXT pins)
         const PPU_SELECT = 1 << 6;
         const VBLANK_NMI = 1 << 7;
     }

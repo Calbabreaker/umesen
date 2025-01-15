@@ -53,7 +53,7 @@ enum AddrMode {
     Relative,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Cpu {
     /// Program counter
     pc: u16,
@@ -149,7 +149,7 @@ impl Cpu {
                     let lsb = self.bus.read_byte(indirect_address) as u16;
                     // Get MSB from start of page
                     let msb = self.bus.read_byte(indirect_address & 0xff00) as u16;
-                    msb << 8 | lsb
+                    (msb << 8) | lsb
                 } else {
                     self.bus.read_word(indirect_address)
                 }

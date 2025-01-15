@@ -1,6 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::{cartridge::CartridgeBoard, Ppu};
+use crate::{cartridge::Catridge, Ppu};
 
 pub struct CpuBus {
     // 2kb of cpu ram
@@ -8,7 +6,7 @@ pub struct CpuBus {
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
     pub ppu: Ppu,
-    pub cartridge: Option<Rc<RefCell<dyn CartridgeBoard>>>,
+    pub cartridge: Option<Catridge>,
 }
 
 impl Default for CpuBus {
@@ -22,6 +20,12 @@ impl Default for CpuBus {
     }
 }
 
+impl std::fmt::Debug for CpuBus {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
 impl CpuBus {
     /// https://www.nesdev.org/wiki/CPU_memory_map
     pub fn read_byte(&mut self, address: u16) -> u8 {
@@ -32,7 +36,7 @@ impl CpuBus {
             0x2000..=0x3fff => self.ppu.registers.read(address),
             0x4020..=0xffff => {
                 if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.borrow().prg_read(address)
+                    cartridge.cpu_read(address)
                 } else {
                     0
                 }
@@ -48,8 +52,8 @@ impl CpuBus {
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()] = value,
             0x2000..=0x3fff => self.ppu.registers.write(address, value),
             0x4020..=0xffff => {
-                if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.borrow_mut().prg_write(address, value)
+                if let Some(cartridge) = self.cartridge.as_mut() {
+                    cartridge.cpu_write(address, value)
                 };
             }
             _ => (),

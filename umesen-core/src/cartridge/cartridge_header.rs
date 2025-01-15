@@ -6,6 +6,7 @@ pub struct CartridgeHeader {
     pub prg_rom_size: usize,
     pub prg_ram_size: usize,
     pub chr_rom_size: usize,
+    pub chr_ram_size: usize,
     pub has_trainer: bool,
     pub is_v2: bool,
 }
@@ -26,13 +27,26 @@ impl CartridgeHeader {
             (units as usize) * 8 * 1024
         };
 
+        // 16KiB per unit in header
+        let prg_rom_size = (data[4] as usize) * 16 * 1024;
+
+        // 8KiB per unit in header
+        let chr_rom_size = (data[5] as usize) * 8 * 1024;
+
+        let chr_ram_size = if is_v2 {
+            64 << ((data[11] & 0xf) as usize)
+        } else if chr_rom_size == 0 {
+            8 * 1024
+        } else {
+            0
+        };
+
         Ok(Self {
-            // 16KiB per unit in header
-            prg_rom_size: (data[4] as usize) * 16 * 1024,
-            // 8KiB per unit in header
-            chr_rom_size: (data[5] as usize) * 8 * 1024,
-            mapper_id: data[6] >> 4 | data[7] & 0xf0,
+            prg_rom_size,
+            chr_rom_size,
+            mapper_id: (data[6] >> 4) | (data[7] & 0xf0),
             has_trainer: data[6] & 0b0000_0100 != 0,
+            chr_ram_size,
             prg_ram_size,
             is_v2,
         })
@@ -67,6 +81,7 @@ mod test {
                 chr_rom_size: 8 * 1024,
                 prg_ram_size: 8 * 1024,
                 has_trainer: false,
+                chr_ram_size: 0,
                 is_v2: false
             }
         )

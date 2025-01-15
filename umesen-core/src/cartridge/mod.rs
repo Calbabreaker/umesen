@@ -12,21 +12,20 @@ use crate::{
 pub use cartridge_data::CartridgeData;
 pub use cartridge_header::CartridgeHeader;
 
-pub trait CartridgeBoard {
-    // R/W access for cpu bus line
-    fn prg_read(&self, address: u16) -> u8;
-    fn prg_write(&mut self, address: u16, value: u8);
-    // R/W access for PPU bus line
-    fn chr_read(&self, address: u16) -> u8;
-    fn chr_write(&mut self, address: u16, value: u8);
+/// Generic trait for underlying circuitry inside a catridge
+pub trait Mapper {
+    fn cpu_read(&self, address: u16) -> u8;
+    fn cpu_write(&mut self, address: u16, value: u8);
+    fn ppu_read(&self, address: u16) -> u8;
+    fn ppu_write(&mut self, address: u16, value: u8);
 }
 
-pub struct Cartridge;
+/// Wraps the Mapper trait
+#[derive(Clone)]
+pub struct Catridge(Rc<RefCell<dyn Mapper>>);
 
-impl Cartridge {
-    pub fn from_nes(
-        mut data: impl std::io::Read,
-    ) -> Result<Rc<RefCell<dyn CartridgeBoard>>, NesParseError> {
+impl Catridge {
+    pub fn from_nes(mut data: impl std::io::Read) -> Result<Self, NesParseError> {
         let mut header_data = [0; 16];
         read_bytes(&mut data, &mut header_data, 16)?;
         let header = CartridgeHeader::from_nes(header_data)?;
@@ -36,37 +35,56 @@ impl Cartridge {
             read_bytes(&mut data, &mut trainer_data, header.total_size())?;
         }
 
-        dbg!(&header);
-
         let mut prg_rom = vec![0; header.prg_rom_size];
         read_bytes(&mut data, &mut prg_rom, header.total_size())?;
         let mut chr_rom = vec![0; header.chr_rom_size];
         read_bytes(&mut data, &mut chr_rom, header.total_size())?;
 
-        Self::new_board(CartridgeData::new(header, prg_rom, chr_rom))
+        Self::from_data(CartridgeData::new(header, prg_rom, chr_rom))
     }
 
-    pub fn new_board(
-        data: CartridgeData,
-    ) -> Result<Rc<RefCell<dyn CartridgeBoard>>, NesParseError> {
-        Ok(match data.header.mapper_id {
+    pub fn from_data(data: CartridgeData) -> Result<Self, NesParseError> {
+        Ok(Catridge(match data.header.mapper_id {
             0 => Rc::new(RefCell::new(Mapper000::new(data))),
             220 => Rc::new(RefCell::new(Mapper220::new(data))),
             _ => return Err(NesParseError::UnsupportedMapper(data.header.mapper_id)),
-        })
+        }))
     }
 
-    pub fn new_only_ram(ram_size: usize) -> Rc<RefCell<dyn CartridgeBoard>> {
-        Cartridge::new_board(CartridgeData::new(
-            CartridgeHeader {
-                mapper_id: 220,
-                prg_ram_size: ram_size,
-                ..Default::default()
-            },
-            vec![],
-            vec![],
-        ))
-        .unwrap()
+    /// New catridge with only prg_ram (for testing)
+    pub fn new_only_ram(ram_size: usize) -> Self {
+        Self::new(220, vec![], vec![], ram_size)
+    }
+
+    pub fn new(mapper_id: u8, prg_rom: Vec<u8>, chr_rom: Vec<u8>, prg_ram_size: usize) -> Self {
+        let header = CartridgeHeader {
+            mapper_id,
+            prg_rom_size: prg_rom.len(),
+            chr_rom_size: chr_rom.len(),
+            prg_ram_size,
+            ..Default::default()
+        };
+        Self::from_data(CartridgeData::new(header, prg_rom, chr_rom)).unwrap()
+    }
+
+    pub fn cpu_read(&self, address: u16) -> u8 {
+        debug_assert!((0x4020..=0xffff).contains(&address));
+        self.0.borrow().cpu_read(address)
+    }
+
+    pub fn cpu_write(&mut self, address: u16, value: u8) {
+        debug_assert!((0x4020..=0xffff).contains(&address));
+        self.0.borrow_mut().cpu_write(address, value);
+    }
+
+    pub fn ppu_read(&self, address: u16) -> u8 {
+        debug_assert!((0x0000..=0x1fff).contains(&address));
+        self.0.borrow().ppu_read(address)
+    }
+
+    pub fn ppu_write(&mut self, address: u16, value: u8) {
+        debug_assert!((0x0000..=0x1fff).contains(&address));
+        self.0.borrow_mut().ppu_write(address, value);
     }
 }
 

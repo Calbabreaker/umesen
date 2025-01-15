@@ -1,6 +1,6 @@
 use crate::{
+    cartridge::{self, Catridge},
     cpu::{Cpu, Flags},
-    Cartridge,
 };
 
 const STOP: u8 = 0xe2;
@@ -32,7 +32,7 @@ fn test(rom: &[u8], assert_fn: impl Fn(Cpu)) {
     };
     cpu.bus.ram[0x132] = 69;
     cpu.bus.ram[0x12] = 69;
-    cpu.bus.cartridge = Some(Cartridge::new_only_ram(32 * 1024));
+    cpu.bus.cartridge = Some(Catridge::new_only_ram(32 * 1024));
     execute(&mut cpu, rom);
     assert_fn(cpu);
 }
