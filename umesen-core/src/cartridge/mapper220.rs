@@ -1,4 +1,4 @@
-use crate::cartridge::{Mapper, CartridgeData};
+use crate::cartridge::{CartridgeData, Mapper};
 
 /// Mapper is not assigned by INES to anything useful so this will be used as a mapper for testing
 /// This is just going to have ram
@@ -21,11 +21,9 @@ impl Mapper for Mapper220 {
         self.data.prg_ram.mirrored_write(address, value)
     }
 
-    fn ppu_read(&self, address: u16) -> u8 {
-        todo!()
+    fn ppu_read(&self, _: u16) -> u8 {
+        0
     }
 
-    fn ppu_write(&mut self, address: u16, value: u8) {
-        todo!()
-    }
+    fn ppu_write(&mut self, _: u16, _: u8) {}
 }

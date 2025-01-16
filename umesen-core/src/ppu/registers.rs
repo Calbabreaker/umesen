@@ -51,6 +51,7 @@ pub struct PpuRegisters {
     control: Control,
     mask: Mask,
     status: Status,
+    oam_address: u8,
 }
 
 impl PpuRegisters {
@@ -75,7 +76,7 @@ impl PpuRegisters {
             0 => self.control = Control::from_bits_retain(value),
             1 => self.mask = Mask::from_bits_retain(value),
             2 => (),
-            3 => (),
+            3 => self.oam_address = value,
             4 => (),
             5 => (),
             6 => (),

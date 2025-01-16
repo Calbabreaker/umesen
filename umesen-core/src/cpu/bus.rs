@@ -63,7 +63,7 @@ impl CpuBus {
     pub fn read_word(&mut self, address: u16) -> u16 {
         let lsb = self.read_byte(address) as u16;
         let msb = self.read_byte(address + 1) as u16;
-        msb << 8 | lsb
+        (msb << 8) | lsb
     }
 
     pub fn write_word(&mut self, address: u16, value: u16) {

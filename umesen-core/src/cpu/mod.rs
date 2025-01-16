@@ -431,7 +431,7 @@ impl Cpu {
     }
 
     fn stack_pop_word(&mut self) -> u16 {
-        self.unclocked_stack_pop() as u16 | (self.stack_pop() as u16) << 8
+        (self.unclocked_stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
     }
 
     fn pla(&mut self) {

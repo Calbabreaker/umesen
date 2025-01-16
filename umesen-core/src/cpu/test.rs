@@ -1,5 +1,5 @@
 use crate::{
-    cartridge::{self, Catridge},
+    cartridge::Catridge,
     cpu::{Cpu, Flags},
 };
 
@@ -176,7 +176,7 @@ fn lsr() {
 fn rol() {
     test(&[0x2a, 0x2a], |cpu| {
         assert_eq!(cpu.flags, Flags::CARRY | Flags::NEGATIVE);
-        assert_eq!(cpu.a, A << 2 | 1);
+        assert_eq!(cpu.a, (A << 2) | 1);
     });
 }
 

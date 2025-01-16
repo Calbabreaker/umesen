@@ -25,20 +25,20 @@ pub trait Mapper {
 pub struct Catridge(Rc<RefCell<dyn Mapper>>);
 
 impl Catridge {
-    pub fn from_nes(mut data: impl std::io::Read) -> Result<Self, NesParseError> {
+    pub fn from_nes(mut bytes: impl std::io::Read) -> Result<Self, NesParseError> {
         let mut header_data = [0; 16];
-        read_bytes(&mut data, &mut header_data, 16)?;
+        read_bytes(&mut bytes, &mut header_data, 16)?;
         let header = CartridgeHeader::from_nes(header_data)?;
 
         if header.has_trainer {
             let mut trainer_data = [0; 512];
-            read_bytes(&mut data, &mut trainer_data, header.total_size())?;
+            read_bytes(&mut bytes, &mut trainer_data, header.total_size())?;
         }
 
         let mut prg_rom = vec![0; header.prg_rom_size];
-        read_bytes(&mut data, &mut prg_rom, header.total_size())?;
+        read_bytes(&mut bytes, &mut prg_rom, header.total_size())?;
         let mut chr_rom = vec![0; header.chr_rom_size];
-        read_bytes(&mut data, &mut chr_rom, header.total_size())?;
+        read_bytes(&mut bytes, &mut chr_rom, header.total_size())?;
 
         Self::from_data(CartridgeData::new(header, prg_rom, chr_rom))
     }
