@@ -20,6 +20,4 @@ fn scanline() {
     for i in 0..1000 {
         cpu.execute_next().unwrap();
     }
-
-    panic!();
 }

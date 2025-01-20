@@ -1,10 +1,10 @@
-use crate::ppu::registers::PpuRegisters;
+use crate::ppu::registers::Registers;
 
 mod registers;
 
 #[derive(Default)]
 pub struct Ppu {
-    pub registers: PpuRegisters,
+    pub registers: Registers,
 }
 
 impl Ppu {}

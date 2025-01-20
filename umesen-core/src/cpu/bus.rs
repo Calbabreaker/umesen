@@ -29,8 +29,7 @@ impl std::fmt::Debug for CpuBus {
 impl CpuBus {
     /// https://www.nesdev.org/wiki/CPU_memory_map
     pub fn read_byte(&mut self, address: u16) -> u8 {
-        self.clock();
-        match address {
+        let byte = match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()],
             0x2000..=0x3fff => self.ppu.registers.read(address),
@@ -42,11 +41,12 @@ impl CpuBus {
                 }
             }
             _ => 0,
-        }
+        };
+        self.clock();
+        byte
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
-        self.clock();
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()] = value,
@@ -58,6 +58,7 @@ impl CpuBus {
             }
             _ => (),
         }
+        self.clock();
     }
 
     pub fn read_word(&mut self, address: u16) -> u16 {
@@ -76,5 +77,6 @@ impl CpuBus {
     pub fn clock(&mut self) {
         // Every cpu clock is 12 master clocks
         self.cpu_cycles += 1;
+        for _ in 0..3 {}
     }
 }

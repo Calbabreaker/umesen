@@ -1,10 +1,10 @@
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     struct Control: u8 {
-        /// Low bit of base nametable addresses
-        const NAMETABLE_LOW = 1;
-        /// High bit of base nametable addresses
-        const NAMETABLE_HIGH = 1 << 1;
+        /// Bit 8 of the X scroll position
+        const X_SCROLL_HIGH_BIT = 1;
+        /// Bit 8 of the Y scroll position
+        const Y_SCROLL_HIGH_BIT = 1 << 1;
         /// (0: add 1 going across, 1: add 32 going down)
         const VRAM_INCREMENT = 1 << 2;
         /// (0: 0x0000, 1: 0x1000)
@@ -47,14 +47,19 @@ bitflags::bitflags! {
 }
 
 #[derive(Default)]
-pub struct PpuRegisters {
+pub struct Registers {
     control: Control,
     mask: Mask,
     status: Status,
     oam_address: u8,
+    oam_data: u8,
+    /// Low 8 bits of the x scroll
+    scroll_x: u8,
+    /// Low 9 bits of the y scroll
+    scroll_y: u8,
 }
 
-impl PpuRegisters {
+impl Registers {
     pub fn read(&mut self, address: u16) -> u8 {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         match address % 8 {
@@ -62,7 +67,7 @@ impl PpuRegisters {
             1 => 0,
             2 => self.status.bits(),
             3 => 0,
-            4 => 0,
+            4 => self.oam_data,
             5 => 0,
             6 => 0,
             7 => 0,
@@ -77,7 +82,10 @@ impl PpuRegisters {
             1 => self.mask = Mask::from_bits_retain(value),
             2 => (),
             3 => self.oam_address = value,
-            4 => (),
+            4 => {
+                self.oam_data = value;
+                self.oam_address = self.oam_address.wrapping_add(1);
+            }
             5 => (),
             6 => (),
             7 => (),

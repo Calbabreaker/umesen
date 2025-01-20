@@ -8,7 +8,7 @@ pub enum CpuError {
 pub enum NesParseError {
     #[error("magic number '{0}' in header is not a valid NES header")]
     InvalidMagicNumber(String),
-    #[error("mapper id {0} is not supported")]
+    #[error("mapper id '{0}' is not supported")]
     UnsupportedMapper(u8),
     #[error("expected at least {0} bytes of data")]
     NotEnough(usize),

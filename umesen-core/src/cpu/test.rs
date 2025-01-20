@@ -6,15 +6,17 @@ use crate::{
 const STOP: u8 = 0xe2;
 
 fn execute(cpu: &mut Cpu, rom: &[u8]) {
-    let start_pc = cpu.pc;
     for (i, x) in rom.iter().enumerate() {
-        cpu.bus.write_byte(i as u16 + start_pc, *x);
+        cpu.bus.write_byte(i as u16 + cpu.pc, *x);
     }
     cpu.bus.cpu_cycles = 0;
-    while rom
-        .get((cpu.pc.wrapping_sub(start_pc)) as usize)
-        .is_some_and(|v| *v != STOP)
-    {
+
+    let start_pc = cpu.pc;
+    loop {
+        let offset = cpu.pc.wrapping_sub(start_pc);
+        if *rom.get(offset as usize).unwrap_or(&STOP) == STOP {
+            break;
+        }
         cpu.execute_next().unwrap();
     }
 }
@@ -132,7 +134,10 @@ fn pha() {
 fn php() {
     test(&[0x38, 0x08], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 2 + 3);
-        assert_eq!(cpu.bus.read_byte(0x100), Flags::CARRY.bits())
+        assert_eq!(
+            Flags::from_bits(cpu.bus.read_byte(0x100)).unwrap(),
+            Flags::CARRY | Flags::BREAK | Flags::UNUSED
+        )
     });
 }
 
@@ -419,8 +424,9 @@ fn jsr() {
 
 #[test]
 fn rts() {
-    test(&[0x20, 0x04, 0x00, STOP, 0x60], |cpu| {
-        assert_eq!(cpu.bus.cpu_cycles, 12);
+    test(&[0x20, 0x04, 0x00, STOP], |mut cpu| {
+        execute(&mut cpu, &[0x60]);
+        assert_eq!(cpu.bus.cpu_cycles, 6);
         assert_eq!(cpu.pc, 3);
     });
 }
@@ -432,8 +438,11 @@ fn brk() {
         execute(&mut cpu, &[0x00]);
         assert_eq!(cpu.bus.cpu_cycles, 7);
         assert_eq!(cpu.pc, 0x02);
-        assert_eq!(cpu.flags, Flags::INTERRUPT | Flags::BREAK);
-        assert_eq!(Flags::from_bits(cpu.stack_pop()).unwrap(), Flags::empty(),);
+        assert_eq!(cpu.flags, Flags::INTERRUPT);
+        assert_eq!(
+            Flags::from_bits(cpu.stack_pop()).unwrap(),
+            Flags::UNUSED | Flags::BREAK
+        );
         assert_eq!(cpu.stack_pop_word(), 1);
     });
 }
@@ -443,8 +452,10 @@ fn rti() {
     test(&[], |mut cpu| {
         cpu.bus.write_word(0xfffe, 0x02);
         cpu.flags.set(Flags::NEGATIVE, true);
-        execute(&mut cpu, &[0x00, STOP, 0x40]);
-        assert_eq!(cpu.bus.cpu_cycles, 7 + 6);
+        // BRK then RTI
+        execute(&mut cpu, &[0x00, STOP]);
+        execute(&mut cpu, &[0x40]);
+        assert_eq!(cpu.bus.cpu_cycles, 6);
         assert_eq!(cpu.pc, 1);
         assert_eq!(cpu.flags, Flags::NEGATIVE);
     });
@@ -456,11 +467,13 @@ fn bcs() {
         assert_eq!(cpu.pc, 2);
         assert_eq!(cpu.bus.cpu_cycles, 2);
         cpu.flags.set(Flags::CARRY, true);
+
         execute(&mut cpu, &[0xb0, 1]);
         assert_eq!(cpu.bus.cpu_cycles, 3);
         assert_eq!(cpu.pc, 5);
+
         execute(&mut cpu, &[0xb0, (-8i8) as u8]);
-        assert_eq!(cpu.bus.cpu_cycles, 5);
+        assert_eq!(cpu.bus.cpu_cycles, 4);
         assert_eq!(cpu.pc, 0xffff);
     });
 }
@@ -508,8 +521,38 @@ fn nop() {
 #[test]
 fn reset() {
     test(&[], |mut cpu| {
+        cpu.bus.write_byte(0xfffc, 2);
         cpu.reset();
         assert_eq!(cpu.bus.cpu_cycles, 7);
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.pc, 2);
+        assert_eq!(cpu.flags, Flags::empty());
+    });
+}
+
+#[test]
+fn irq() {
+    test(&[], |mut cpu| {
+        cpu.bus.write_byte(0xfffe, 2);
+        cpu.bus.cpu_cycles = 0;
+        for _ in 0..2 {
+            cpu.irq();
+            assert_eq!(cpu.pc, 2);
+            assert_eq!(cpu.bus.cpu_cycles, 7);
+            cpu.flags.set(Flags::INTERRUPT, true);
+        }
+    });
+}
+
+#[test]
+fn nmi() {
+    test(&[], |mut cpu| {
+        cpu.bus.write_byte(0xfffa, 2);
+        cpu.bus.cpu_cycles = 0;
+        for i in 1..3 {
+            cpu.nmi();
+            assert_eq!(cpu.pc, 2);
+            assert_eq!(cpu.bus.cpu_cycles, i * 7);
+            cpu.flags.set(Flags::INTERRUPT, true);
+        }
     });
 }

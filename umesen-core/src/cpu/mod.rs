@@ -16,6 +16,7 @@ bitflags::bitflags! {
         /// Flag for binary coded decimal where hex 0x00->0x99 is decimal 0->99
         const DECIMAL = 1 << 3;
         const BREAK = 1 << 4;
+        // UNUSED should always be set but not internally for easier testing
         const UNUSED = 1 << 5;
         /// Set if arithmetic overflowed 8-bit signed number
         const OVERFLOW = 1 << 6;
@@ -78,27 +79,36 @@ impl Cpu {
     pub fn irq(&mut self) {
         if !self.flags.contains(Flags::INTERRUPT) {
             self.interrupt(0xfffe);
+            self.bus.clock();
         }
     }
 
     pub fn nmi(&mut self) {
         self.interrupt(0xfffa);
+        self.bus.clock();
     }
 
     pub fn reset(&mut self) {
+        self.a = 0;
+        self.x = 0;
+        self.y = 0;
+        self.flags = Flags::empty();
+
+        self.bus.cpu_cycles = 0;
         self.pc = self.bus.read_word(0xfffc);
+        self.sp = 0xff;
         for _ in 0..5 {
             self.bus.clock();
         }
     }
 
     fn read_byte_at_pc(&mut self) -> u8 {
-        self.pc += 1;
+        self.pc = self.pc.wrapping_add(1);
         self.bus.read_byte(self.pc - 1)
     }
 
     fn read_word_at_pc(&mut self) -> u16 {
-        self.pc += 2;
+        self.pc = self.pc.wrapping_add(2);
         self.bus.read_word(self.pc - 2)
     }
 
@@ -117,12 +127,13 @@ impl Cpu {
         address_added
     }
 
-    /// Returns the target address based on the addressing mode and the operand
+    /// Returns the target address of the value based on the addressing mode and the operand
     fn read_operand_address(&mut self, mode: AddrMode) -> u16 {
         match mode {
             AddrMode::Immediate => {
-                self.pc += 1;
-                self.pc - 1
+                let address = self.pc;
+                self.pc = self.pc.wrapping_add(1);
+                address
             }
             AddrMode::ZeroPage => self.read_byte_at_pc() as u16,
             AddrMode::ZeroPageX => {
@@ -181,8 +192,8 @@ impl Cpu {
         use AddrMode::*;
         match opcode {
             // -- Stack --
-            0x48 => self.stack_push(self.a),            // pha
-            0x08 => self.stack_push(self.flags.bits()), // php
+            0x48 => self.pha(), // pha
+            0x08 => self.php(), // php
             0x68 => self.pla(),
             0x28 => self.plp(),
 
@@ -398,49 +409,56 @@ impl Cpu {
         self.flags.set(Flags::NEGATIVE, value & 0b1000_0000 != 0);
     }
 
+    // This just returns the value but also clocks the bus and sets zero and neg flags for certain instructions
     fn copy_val(&mut self, value: u8) -> u8 {
         self.bus.clock();
         self.set_zero_neg_flags(value);
         value
     }
 
-    fn unclocked_stack_push(&mut self, value: u8) {
+    fn stack_push(&mut self, value: u8) {
         self.bus.write_byte(0x100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
     }
 
-    fn stack_push(&mut self, value: u8) {
-        self.unclocked_stack_push(value);
-        self.bus.clock();
-    }
-
     fn stack_push_word(&mut self, value: u16) {
-        self.unclocked_stack_push((value >> 8) as u8);
+        self.stack_push((value >> 8) as u8);
         self.stack_push(value as u8);
     }
 
-    fn unclocked_stack_pop(&mut self) -> u8 {
+    fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         self.bus.read_byte(0x100 + self.sp as u16)
     }
 
-    fn stack_pop(&mut self) -> u8 {
-        self.bus.clock();
-        self.bus.clock();
-        self.unclocked_stack_pop()
+    fn stack_pop_word(&mut self) -> u16 {
+        (self.stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
     }
 
-    fn stack_pop_word(&mut self) -> u16 {
-        (self.unclocked_stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
+    fn pha(&mut self) {
+        self.stack_push(self.a);
+        self.bus.clock();
+    }
+
+    fn php(&mut self) {
+        let flags = self.flags | Flags::UNUSED | Flags::BREAK;
+        self.stack_push(flags.bits());
+        self.bus.clock();
     }
 
     fn pla(&mut self) {
         self.a = self.stack_pop();
         self.set_zero_neg_flags(self.a);
+        self.bus.clock();
+        self.bus.clock();
     }
 
     fn plp(&mut self) {
-        self.flags = Flags::from_bits_retain(self.stack_pop());
+        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
+        self.flags.remove(Flags::BREAK);
+        self.flags.remove(Flags::UNUSED);
+        self.bus.clock();
+        self.bus.clock();
     }
 
     fn shift(&mut self, value: u8, dir: char, contains_carry: bool) -> u8 {
@@ -477,7 +495,7 @@ impl Cpu {
         value
     }
 
-    // Set overflow if the resulting addition overflowed a 8-bit number with 2's compliment
+    // Set overflow if the resulting addition overflowed a (negative) 8-bit number with 2's compliment
     fn set_overflow_flag(&mut self, a: u8, adder: u8, result: u8) {
         let adder_same_sign = (a ^ adder) & 0b1000_0000 == 0;
         let result_changed_sign = (a ^ result) & 0b1000_0000 != 0;
@@ -488,6 +506,7 @@ impl Cpu {
     fn add_carry(&mut self, adder: u8, carry: bool) {
         let mut result_word = adder as u16 + self.a as u16 + carry as u16;
 
+        // Convert result back into binary if decimal enabled
         if self.flags.contains(Flags::DECIMAL) {
             // Account for adding going into between 0xa and 0xf
             if (self.a & 0xf) + (adder & 0xf) + carry as u8 > 9 {
@@ -550,29 +569,34 @@ impl Cpu {
     fn jsr(&mut self) {
         let address = self.read_operand_address(AddrMode::Absolute);
         self.stack_push_word(self.pc - 1);
+        self.bus.clock();
         self.pc = address;
     }
 
     fn rts(&mut self) {
         self.pc = self.stack_pop_word() + 1;
-        self.bus.clock();
+        for _ in 0..3 {
+            self.bus.clock();
+        }
     }
 
     fn rti(&mut self) {
-        self.flags = Flags::from_bits_retain(self.unclocked_stack_pop());
+        self.plp();
         self.pc = self.stack_pop_word();
     }
 
     fn brk(&mut self) {
-        self.interrupt(0xfffe);
         self.flags.set(Flags::BREAK, true);
+        self.interrupt(0xfffe);
+        self.flags.set(Flags::BREAK, false);
     }
 
     fn interrupt(&mut self, load_vector: u16) {
         self.stack_push_word(self.pc);
-        self.unclocked_stack_push(self.flags.bits());
+        self.stack_push((self.flags | Flags::UNUSED).bits());
         self.flags.set(Flags::INTERRUPT, true);
         self.pc = self.bus.read_word(load_vector);
+        self.bus.clock();
     }
 
     fn branch(&mut self, condition: bool) {
@@ -580,7 +604,6 @@ impl Cpu {
         if condition {
             self.bus.clock();
             if address & 0xff00 != self.pc & 0xff00 {
-                self.bus.clock();
                 self.bus.clock();
             }
             self.pc = address;
