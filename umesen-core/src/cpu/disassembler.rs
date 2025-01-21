@@ -21,7 +21,7 @@ impl<'a> Disassembler<'a> {
         let opcode_byte = self.cpu.bus.unclocked_read_byte(start_address);
         let opcode = match Opcode::from_byte(opcode_byte) {
             Ok(x) => x,
-            Err(_) => return format!("??? 0x{0:02x}", opcode_byte),
+            Err(_) => return format!("??? (0x{0:02x})", opcode_byte),
         };
 
         self.current_address = self.current_address.wrapping_add(1);

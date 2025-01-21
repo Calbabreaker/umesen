@@ -50,7 +50,10 @@ impl App {
             ui.menu_button("View", |ui| {
                 if ui.button("Cpu state...").clicked() {
                     self.view_windows.toggle_open(ViewWindowKind::CpuState);
-                    ui.close_menu();
+                }
+
+                if ui.button("Cpu memory...").clicked() {
+                    self.view_windows.toggle_open(ViewWindowKind::CpuMemory);
                 }
             });
         });
@@ -81,5 +84,11 @@ impl eframe::App for App {
                 egui::warn_if_debug_build(ui);
             });
         });
+
+        ctx.input(|i| {
+            if i.key_pressed(egui::Key::CloseBracket) {
+                self.emulator.step();
+            }
+        })
     }
 }
