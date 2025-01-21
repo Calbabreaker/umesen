@@ -18,13 +18,13 @@ impl<'a> Disassembler<'a> {
 
     pub fn disassemble_next(&mut self) -> String {
         let start_address = self.current_address;
+        self.current_address = self.current_address.wrapping_add(1);
+
         let opcode_byte = self.cpu.bus.unclocked_read_byte(start_address);
         let opcode = match Opcode::from_byte(opcode_byte) {
             Ok(x) => x,
-            Err(_) => return format!("??? (0x{0:02x})", opcode_byte),
+            Err(_) => return format!("${start_address:04x}: ??? (${opcode_byte:02x})"),
         };
-
-        self.current_address = self.current_address.wrapping_add(1);
 
         let operand = match opcode.addr_mode {
             AddrMode::Accumulator => "A".to_owned(),
@@ -40,10 +40,10 @@ impl<'a> Disassembler<'a> {
             AddrMode::AbsoluteY | AddrMode::AbsoluteYForceClock => {
                 format!("{},Y", self.next_word_hex())
             }
-            AddrMode::Indirect => format!("({})", self.next_word_hex()),
-            AddrMode::IndirectX => format!("({},X)", self.next_byte_hex()),
+            AddrMode::Indirect => format!("[{}]", self.next_word_hex()),
+            AddrMode::IndirectX => format!("[{},X]", self.next_byte_hex()),
             AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
-                format!("({}),Y", self.next_byte_hex())
+                format!("[{}],Y", self.next_byte_hex())
             }
             AddrMode::Relative => {
                 let offset = self.next_byte() as i8;
@@ -53,7 +53,7 @@ impl<'a> Disassembler<'a> {
             }
         };
 
-        format!("${0:04x}: {1} {2}", start_address, opcode.name, operand)
+        format!("${start_address:04x}: {} {operand}", opcode.name)
     }
 
     fn next_byte(&mut self) -> u8 {
