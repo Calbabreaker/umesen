@@ -2,10 +2,12 @@
 mod test;
 
 mod bus;
+mod dissassembler;
 mod opcode;
 
 use crate::CpuError;
 use bus::CpuBus;
+pub use dissassembler::Dissassembler;
 pub use opcode::{AddrMode, Opcode};
 
 bitflags::bitflags! {
@@ -104,6 +106,7 @@ impl Cpu {
     /// Returns the target address of the value based on the addressing mode and the operand
     fn read_operand_address(&mut self, mode: AddrMode) -> Option<u16> {
         Some(match mode {
+            AddrMode::Accumulator => return None,
             AddrMode::Implied => return None,
             AddrMode::Immediate => {
                 let address = self.pc;

@@ -1,9 +1,10 @@
-use crate::{Cpu, CpuError};
+use crate::CpuError;
 
 /// Addressing modes (most of them) for instructions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddrMode {
     Implied,
+    Accumulator,
     /// Operand contains the value
     Immediate,
     /// Operand contains the address to the value in the first page (256 bytes)
@@ -31,30 +32,10 @@ pub enum AddrMode {
     Relative,
 }
 
-impl AddrMode {
-    pub fn short_name(&self) -> &'static str {
-        match *self {
-            Self::Immediate => "imm",
-            Self::Implied => "imp",
-            Self::ZeroPage => "zrp",
-            Self::ZeroPageX => "zrx",
-            Self::ZeroPageY => "zry",
-            Self::Absolute => "abs",
-            Self::AbsoluteX | Self::AbsoluteXForceClock => "abx",
-            Self::AbsoluteY | Self::AbsoluteYForceClock => "aby",
-            Self::Indirect => "ind",
-            Self::IndirectX => "inx",
-            Self::IndirectY | Self::IndirectYForceClock => "iny",
-            Self::Relative => "rel",
-        }
-    }
-}
-
 pub struct Opcode {
     pub name: &'static str,
     pub addr_mode: AddrMode,
     pub byte: u8,
-    pub expected_cycles: u8,
 }
 
 impl Opcode {
@@ -63,7 +44,6 @@ impl Opcode {
             name,
             addr_mode,
             byte: 0,
-            expected_cycles: 0,
         }
     }
 
@@ -77,25 +57,25 @@ impl Opcode {
             0x28 => Opcode::new("plp", Implied),
 
             // -- Shift and rotate --
-            0x0a => Opcode::new("asl", Implied),
+            0x0a => Opcode::new("asl", Accumulator),
             0x06 => Opcode::new("asl", ZeroPage),
             0x16 => Opcode::new("asl", ZeroPageX),
             0x0e => Opcode::new("asl", Absolute),
             0x1e => Opcode::new("asl", AbsoluteXForceClock),
 
-            0x4a => Opcode::new("lsr", Implied),
+            0x4a => Opcode::new("lsr", Accumulator),
             0x46 => Opcode::new("lsr", ZeroPage),
             0x56 => Opcode::new("lsr", ZeroPageX),
             0x4e => Opcode::new("lsr", Absolute),
             0x5e => Opcode::new("lsr", AbsoluteXForceClock),
 
-            0x2a => Opcode::new("rol", Implied),
+            0x2a => Opcode::new("rol", Accumulator),
             0x26 => Opcode::new("rol", ZeroPage),
             0x36 => Opcode::new("rol", ZeroPageX),
             0x2e => Opcode::new("rol", Absolute),
             0x3e => Opcode::new("rol", AbsoluteXForceClock),
 
-            0x6a => Opcode::new("ror", Implied),
+            0x6a => Opcode::new("ror", Accumulator),
             0x66 => Opcode::new("ror", ZeroPage),
             0x76 => Opcode::new("ror", ZeroPageX),
             0x6e => Opcode::new("ror", Absolute),
