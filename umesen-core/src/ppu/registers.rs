@@ -60,7 +60,7 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub fn read(&mut self, address: u16) -> u8 {
+    pub fn read(&self, address: u16) -> u8 {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         match address % 8 {
             0 => 0,

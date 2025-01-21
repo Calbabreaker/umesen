@@ -68,7 +68,7 @@ impl Catridge {
     }
 
     pub fn cpu_read(&self, address: u16) -> u8 {
-        debug_assert!((0x4020..=0xffff).contains(&address));
+        debug_assert!((0x4020..=0xffff).contains(&address)); // Sanity check
         self.0.borrow().cpu_read(address)
     }
 

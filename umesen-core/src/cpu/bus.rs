@@ -28,20 +28,17 @@ impl std::fmt::Debug for CpuBus {
 
 impl CpuBus {
     /// https://www.nesdev.org/wiki/CPU_memory_map
-    pub fn read_byte(&mut self, address: u16) -> u8 {
-        let byte = match address {
+    pub fn unclocked_read_byte(&self, address: u16) -> Option<u8> {
+        Some(match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()],
             0x2000..=0x3fff => self.ppu.registers.read(address),
-            0x4020..=0xffff => {
-                if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.cpu_read(address)
-                } else {
-                    0
-                }
-            }
-            _ => 0,
-        };
+            0x4020..=0xffff => self.cartridge.as_ref()?.cpu_read(address),
+            _ => return None,
+        })
+    }
+    pub fn read_byte(&mut self, address: u16) -> u8 {
+        let byte = self.unclocked_read_byte(address).unwrap_or(0);
         self.clock();
         byte
     }
