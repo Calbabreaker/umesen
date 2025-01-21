@@ -88,4 +88,8 @@ impl CpuBus {
         self.cpu_cycles += 1;
         for _ in 0..3 {}
     }
+
+    pub fn attach_catridge(&mut self, catridge: Catridge) {
+        self.cartridge = Some(catridge);
+    }
 }

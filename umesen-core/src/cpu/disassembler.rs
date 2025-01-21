@@ -3,12 +3,12 @@ use crate::{
     Cpu,
 };
 
-pub struct Dissassembler<'a> {
+pub struct Disassembler<'a> {
     cpu: &'a Cpu,
     pub current_address: u16,
 }
 
-impl<'a> Dissassembler<'a> {
+impl<'a> Disassembler<'a> {
     pub fn new(cpu: &'a Cpu) -> Self {
         Self {
             current_address: cpu.pc,
@@ -16,7 +16,7 @@ impl<'a> Dissassembler<'a> {
         }
     }
 
-    pub fn dissassemble_next(&mut self) -> String {
+    pub fn disassemble_next(&mut self) -> String {
         let start_address = self.current_address;
         let opcode_byte = self.cpu.bus.unclocked_read_byte(start_address);
         let opcode = match Opcode::from_byte(opcode_byte) {

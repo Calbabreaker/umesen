@@ -10,7 +10,6 @@ log = "0.4"
 serde = { version = "1", features = ["derive"] }
 umesen-core = { path = "../umesen-core" }
 rfd = "0.15"
-anyhow = "1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

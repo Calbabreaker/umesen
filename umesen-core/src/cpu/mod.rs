@@ -2,12 +2,14 @@
 mod test;
 
 mod bus;
-mod dissassembler;
+mod disassembler;
 mod opcode;
+
+use std::collections::HashMap;
 
 use crate::CpuError;
 use bus::CpuBus;
-pub use dissassembler::Dissassembler;
+pub use disassembler::Disassembler;
 pub use opcode::{AddrMode, Opcode};
 
 bitflags::bitflags! {
@@ -25,6 +27,24 @@ bitflags::bitflags! {
         /// Set if arithmetic overflowed 8-bit signed number
         const OVERFLOW = 1 << 6;
         const NEGATIVE = 1 << 7;
+    }
+}
+
+impl std::fmt::Display for Flags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let flag_map = [
+            (Flags::CARRY, "C"),
+            (Flags::ZERO, "Z"),
+            (Flags::INTERRUPT, "I"),
+            (Flags::DECIMAL, "D"),
+            (Flags::BREAK, "B"),
+            (Flags::OVERFLOW, "O"),
+            (Flags::NEGATIVE, "N"),
+        ];
+        for (flag, name) in flag_map {
+            write!(f, "{} ", if self.contains(flag) { name } else { "-" })?;
+        }
+        Ok(())
     }
 }
 

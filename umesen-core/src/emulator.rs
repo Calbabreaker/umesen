@@ -1,4 +1,4 @@
-use crate::{Catridge, Cpu};
+use crate::{Catridge, Cpu, NesParseError};
 
 /// High level struct for controlling the cpu
 #[derive(Default)]
@@ -11,7 +11,16 @@ impl Emulator {
         todo!()
     }
 
-    pub fn attach_catridge(&mut self, catridge: Catridge) {
-        self.cpu.bus.cartridge = Some(catridge);
+    pub fn step(&mut self) {
+        if let Err(err) = self.cpu.execute_next() {
+            log::error!("{err}")
+        }
+    }
+
+    pub fn load_nes_rom(&mut self, path: &std::path::Path) -> Result<(), NesParseError> {
+        let file = std::fs::File::open(path)?;
+        let catridge = Catridge::from_nes(file)?;
+        self.cpu.bus.attach_catridge(catridge);
+        Ok(())
     }
 }
