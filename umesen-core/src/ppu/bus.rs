@@ -3,7 +3,7 @@ use crate::Cartridge;
 pub struct PpuBus {
     palette_ram: [u8; 32],
     nametable_ram: [u8; 2048],
-    cartridge: Option<Cartridge>,
+    pub cartridge: Option<Cartridge>,
 }
 
 impl Default for PpuBus {

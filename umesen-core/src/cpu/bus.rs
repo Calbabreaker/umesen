@@ -23,6 +23,25 @@ impl Default for CpuBus {
     }
 }
 
+impl std::fmt::Display for CpuBus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for i in 0..0x1000 {
+            let line_address_start = i * 0x10;
+            write!(f, "${line_address_start:04x}:")?;
+
+            for i in 0..0x10 {
+                let byte = self.unclocked_read_byte(line_address_start + i);
+                write!(f, " {byte:02x}")?;
+            }
+
+            if i != 0xfff {
+                writeln!(f)?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl CpuBus {
     /// https://www.nesdev.org/wiki/CPU_memory_map
     pub fn unclocked_read_byte(&self, address: u16) -> u8 {
@@ -59,12 +78,6 @@ impl CpuBus {
         self.clock();
     }
 
-    pub fn unclocked_read_word(&self, address: u16) -> u16 {
-        let lsb = self.unclocked_read_byte(address) as u16;
-        let msb = self.unclocked_read_byte(address + 1) as u16;
-        (msb << 8) | lsb
-    }
-
     pub fn read_word(&mut self, address: u16) -> u16 {
         let lsb = self.read_byte(address) as u16;
         let msb = self.read_byte(address + 1) as u16;
@@ -81,10 +94,13 @@ impl CpuBus {
     // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
         self.cpu_cycles += 1;
-        for _ in 0..3 {}
+        for _ in 0..3 {
+            self.ppu.clock();
+        }
     }
 
     pub fn attach_catridge(&mut self, catridge: Cartridge) {
-        self.cartridge = Some(catridge);
+        self.cartridge = Some(catridge.clone());
+        self.ppu.bus.cartridge = Some(catridge);
     }
 }

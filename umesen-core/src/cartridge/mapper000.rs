@@ -50,7 +50,7 @@ mod test {
 
     #[test]
     fn test() {
-        let mut catridge = Cartridge::new(0, vec![1, 2, 3], vec![1, 2, 3], 69);
+        let catridge = Cartridge::new(0, vec![1, 2, 3], vec![1, 2, 3], 69);
         assert_eq!(catridge.cpu_read(0x8000), 1);
         assert_eq!(catridge.cpu_read(0x8003), 1);
         catridge.cpu_write(0x6000, 2);

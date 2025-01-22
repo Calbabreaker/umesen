@@ -63,9 +63,7 @@ impl<'a> Disassembler<'a> {
     }
 
     fn next_word(&mut self) -> u16 {
-        let address = self.current_address;
-        self.current_address = self.current_address.wrapping_add(2);
-        self.cpu.bus.unclocked_read_word(address)
+        self.next_byte() as u16 | ((self.next_byte() as u16) << 8)
     }
 
     fn next_byte_hex(&mut self) -> String {

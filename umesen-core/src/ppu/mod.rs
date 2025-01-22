@@ -11,4 +11,6 @@ pub struct Ppu {
     pub bus: PpuBus,
 }
 
-impl Ppu {}
+impl Ppu {
+    pub fn clock(&mut self) {}
+}

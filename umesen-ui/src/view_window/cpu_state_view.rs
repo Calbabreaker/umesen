@@ -24,7 +24,7 @@ pub fn show(ui: &mut egui::Ui, emulator: &mut Emulator) {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     let mut dissassembler = umesen_core::cpu::Disassembler::new(&emulator.cpu);
                     ui.label(egui::RichText::new(dissassembler.disassemble_next()).strong());
-                    for _ in 0..64 {
+                    for _ in 0..32 {
                         ui.label(dissassembler.disassemble_next());
                     }
                     ui.allocate_space(egui::Vec2::new(ui.available_width(), 0.));
