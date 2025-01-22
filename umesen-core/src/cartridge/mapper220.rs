@@ -1,4 +1,4 @@
-use crate::cartridge::{CartridgeData, Mapper};
+use crate::cartridge::{CartridgeData, Mapper, MemoryBankExt};
 
 /// Mapper is not assigned by INES to anything useful so this will be used as a mapper for testing
 /// This is just going to have ram

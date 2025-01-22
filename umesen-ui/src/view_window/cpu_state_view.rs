@@ -22,9 +22,9 @@ pub fn show(ui: &mut egui::Ui, emulator: &mut Emulator) {
         .show_unindented(ui, |ui| {
             frame.show(ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    let mut dissassembler = umesen_core::Disassembler::new(&emulator.cpu);
+                    let mut dissassembler = umesen_core::cpu::Disassembler::new(&emulator.cpu);
                     ui.label(egui::RichText::new(dissassembler.disassemble_next()).strong());
-                    for _ in 0..0x80 {
+                    for _ in 0..64 {
                         ui.label(dissassembler.disassemble_next());
                     }
                     ui.allocate_space(egui::Vec2::new(ui.available_width(), 0.));

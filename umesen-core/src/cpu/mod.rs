@@ -5,8 +5,6 @@ mod bus;
 mod disassembler;
 mod opcode;
 
-use std::collections::HashMap;
-
 use crate::CpuError;
 use bus::CpuBus;
 pub use disassembler::Disassembler;
@@ -48,7 +46,7 @@ impl std::fmt::Display for Flags {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Cpu {
     /// Program counter
     pub pc: u16,

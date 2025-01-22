@@ -1,4 +1,7 @@
-use crate::{cartridge::Catridge, Ppu};
+use crate::{
+    cartridge::{Cartridge, MemoryBankExt},
+    Ppu,
+};
 
 pub struct CpuBus {
     // 2kb of cpu ram
@@ -6,7 +9,7 @@ pub struct CpuBus {
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
     pub ppu: Ppu,
-    pub cartridge: Option<Catridge>,
+    pub cartridge: Option<Cartridge>,
 }
 
 impl Default for CpuBus {
@@ -20,29 +23,21 @@ impl Default for CpuBus {
     }
 }
 
-impl std::fmt::Debug for CpuBus {
-    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Ok(())
-    }
-}
-
 impl CpuBus {
     /// https://www.nesdev.org/wiki/CPU_memory_map
     pub fn unclocked_read_byte(&self, address: u16) -> u8 {
         match address {
             // 2kb of ram is mirrored 3 times
-            0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()],
+            0x0000..=0x1fff => self.ram.mirrored_read(address),
             0x2000..=0x3fff => self.ppu.registers.read(address),
-            0x4020..=0xffff => {
-                if let Some(catridge) = self.cartridge.as_ref() {
-                    catridge.cpu_read(address)
-                } else {
-                    0
-                }
-            }
+            0x4020..=0xffff => match self.cartridge.as_ref() {
+                Some(cartridge) => cartridge.cpu_read(address),
+                None => 0,
+            },
             _ => 0,
         }
     }
+
     pub fn read_byte(&mut self, address: u16) -> u8 {
         let byte = self.unclocked_read_byte(address);
         self.clock();
@@ -52,12 +47,12 @@ impl CpuBus {
     pub fn write_byte(&mut self, address: u16, value: u8) {
         match address {
             // 2kb of ram is mirrored 3 times
-            0x0000..=0x1fff => self.ram[(address as usize) % self.ram.len()] = value,
+            0x0000..=0x1fff => self.ram.mirrored_write(address, value),
             0x2000..=0x3fff => self.ppu.registers.write(address, value),
             0x4020..=0xffff => {
                 if let Some(cartridge) = self.cartridge.as_mut() {
-                    cartridge.cpu_write(address, value)
-                };
+                    cartridge.cpu_write(address, value);
+                }
             }
             _ => (),
         }
@@ -83,13 +78,13 @@ impl CpuBus {
         self.write_byte(address + 1, msb);
     }
 
+    // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
-        // Every cpu clock is 12 master clocks
         self.cpu_cycles += 1;
         for _ in 0..3 {}
     }
 
-    pub fn attach_catridge(&mut self, catridge: Catridge) {
+    pub fn attach_catridge(&mut self, catridge: Cartridge) {
         self.cartridge = Some(catridge);
     }
 }
