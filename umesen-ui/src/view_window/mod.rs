@@ -18,13 +18,12 @@ impl ViewWindowSet {
     }
 
     pub fn show(&mut self, ctx: &egui::Context, emulator: &mut Emulator) {
-        self.set
-            .retain(|window_kind| show(ctx, emulator, window_kind));
+        self.set.retain(|kind| show(ctx, emulator, kind));
     }
 
     pub fn remove_popups(&mut self) {
         self.set
-            .retain(|window_kind| !matches!(window_kind, ViewWindowKind::Popup { .. }));
+            .retain(|kind| !matches!(kind, ViewWindowKind::Popup { .. }));
     }
 }
 

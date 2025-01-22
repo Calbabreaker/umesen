@@ -3,6 +3,8 @@
 mod app;
 mod view_window;
 
+pub use app::App;
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
     env_logger::builder()
@@ -15,7 +17,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Umesen App",
         native_options,
-        Box::new(|cc| Ok(Box::new(app::App::new(cc)))),
+        Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )
 }
 

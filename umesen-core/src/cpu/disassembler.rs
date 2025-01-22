@@ -1,6 +1,6 @@
 use crate::{
     cpu::{AddrMode, Opcode},
-    Cpu,
+    Cpu, CpuError,
 };
 
 pub struct Disassembler<'a> {
@@ -16,61 +16,86 @@ impl<'a> Disassembler<'a> {
         }
     }
 
-    pub fn disassemble_next(&mut self) -> String {
-        let start_address = self.current_address;
-        self.current_address = self.current_address.wrapping_add(1);
+    pub fn disassemble_lines(&mut self, mut amount: usize) -> String {
+        let mut output = String::new();
+        loop {
+            self.disassemble_next(&mut output).unwrap();
+            if amount <= 1 {
+                break;
+            }
+            output += "\n";
+            amount -= 1;
+        }
+        output
+    }
 
-        let opcode_byte = self.cpu.bus.unclocked_read_byte(start_address);
+    pub fn disassemble_next(&mut self, mut f: impl std::fmt::Write) -> std::fmt::Result {
+        write!(f, "${:04x}: ", self.current_address)?;
+
+        let opcode_byte = self.cpu.bus.unclocked_read_byte(self.current_address);
         let opcode = match Opcode::from_byte(opcode_byte) {
             Ok(x) => x,
-            Err(_) => return format!("${start_address:04x}: ??? (${opcode_byte:02x})"),
+            Err(CpuError::UnknownOpcode(byte)) => {
+                write!(f, "??? (${byte:02x})")?;
+                return Ok(());
+            }
         };
 
-        let operand = match opcode.addr_mode {
-            AddrMode::Accumulator => "A".to_owned(),
-            AddrMode::Implied => "".to_owned(),
-            AddrMode::Immediate => format!("#{}", self.next_byte_hex()),
-            AddrMode::ZeroPage => self.next_byte_hex().to_string(),
-            AddrMode::ZeroPageX => format!("{},X", self.next_byte_hex()),
-            AddrMode::ZeroPageY => format!("{},y", self.next_byte_hex()),
-            AddrMode::Absolute => self.next_word_hex(),
+        self.current_address = self.current_address.wrapping_add(1);
+        write!(f, "{} ", opcode.name)?;
+
+        match opcode.addr_mode {
+            AddrMode::Accumulator => write!(f, "A")?,
+            AddrMode::Implied => (),
+            AddrMode::Immediate => write!(f, "#{}", self.next_byte())?,
+            AddrMode::ZeroPage => write!(f, "{}", self.next_byte())?,
+            AddrMode::ZeroPageX => write!(f, "{},X", self.next_byte())?,
+            AddrMode::ZeroPageY => write!(f, "{},Y", self.next_byte())?,
+            AddrMode::Absolute => write!(f, "{}", self.next_word())?,
             AddrMode::AbsoluteX | AddrMode::AbsoluteXForceClock => {
-                format!("{},X", self.next_word_hex())
+                write!(f, "{},X", self.next_word())?
             }
             AddrMode::AbsoluteY | AddrMode::AbsoluteYForceClock => {
-                format!("{},Y", self.next_word_hex())
+                write!(f, "{},Y", self.next_word())?
             }
-            AddrMode::Indirect => format!("[{}]", self.next_word_hex()),
-            AddrMode::IndirectX => format!("[{},X]", self.next_byte_hex()),
+            AddrMode::Indirect => write!(f, "[{}]", self.next_word())?,
+            AddrMode::IndirectX => write!(f, "[{},X]", self.next_byte())?,
             AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
-                format!("[{}],Y", self.next_byte_hex())
+                write!(f, "[{}],Y", self.next_byte())?
             }
             AddrMode::Relative => {
-                let offset = self.next_byte() as i8;
-                let address = (start_address + 2) as i16 + offset as i16;
+                let offset = self.next_byte().0 as i16;
+                let address = U16HexDisplay((self.current_address as i16 + offset) as u16);
                 let sign = if offset >= 0 { '+' } else { '-' };
-                format!("*{0}{1} (${2:04x})", sign, offset.abs(), address)
+                write!(f, "*{sign}{} ({address})", offset.abs())?
             }
         };
 
-        format!("${start_address:04x}: {} {operand}", opcode.name)
+        Ok(())
     }
 
-    fn next_byte(&mut self) -> u8 {
+    fn next_byte(&mut self) -> U8HexDisplay {
         let address = self.current_address;
         self.current_address = self.current_address.wrapping_add(1);
-        self.cpu.bus.unclocked_read_byte(address)
+        U8HexDisplay(self.cpu.bus.unclocked_read_byte(address))
     }
 
-    fn next_word(&mut self) -> u16 {
-        self.next_byte() as u16 | ((self.next_byte() as u16) << 8)
+    fn next_word(&mut self) -> U16HexDisplay {
+        U16HexDisplay(self.next_byte().0 as u16 | ((self.next_byte().0 as u16) << 8))
     }
+}
 
-    fn next_byte_hex(&mut self) -> String {
-        format!("${0:02x}", self.next_byte())
+struct U16HexDisplay(u16);
+struct U8HexDisplay(u8);
+
+impl std::fmt::Display for U8HexDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "${0:02x}", self.0)
     }
+}
 
-    fn next_word_hex(&mut self) -> String {
-        format!("${0:04x}", self.next_word())
+impl std::fmt::Display for U16HexDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "${0:04x}", self.0)
     }
 }
