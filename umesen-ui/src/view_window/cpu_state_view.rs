@@ -1,18 +1,18 @@
-pub fn show(ui: &mut egui::Ui, emulator: &mut umesen_core::Emulator) {
+pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-    ui.label(format!("PC: ${0:02x}", emulator.cpu.pc));
-    ui.label(format!("SP: ${0:02x}", emulator.cpu.sp));
-    ui.label(format!("A:  ${0:02x}", emulator.cpu.a));
-    ui.label(format!("X:  ${0:02x}", emulator.cpu.x));
-    ui.label(format!("Y:  ${0:02x}", emulator.cpu.y));
-    ui.label(format!("FLAGS: {}", emulator.cpu.flags));
+    ui.label(format!("PC: ${0:02x}", state.emulator.cpu.pc));
+    ui.label(format!("SP: ${0:02x}", state.emulator.cpu.sp));
+    ui.label(format!("A:  ${0:02x}", state.emulator.cpu.a));
+    ui.label(format!("X:  ${0:02x}", state.emulator.cpu.x));
+    ui.label(format!("Y:  ${0:02x}", state.emulator.cpu.y));
+    ui.label(format!("FLAGS: {}", state.emulator.cpu.flags));
 
     if ui.button("Step (])").clicked() {
-        emulator.step();
+        state.step_emulator();
     }
     ui.separator();
 
-    let mut disassembler = umesen_core::cpu::Disassembler::new(&emulator.cpu);
+    let mut disassembler = umesen_core::cpu::Disassembler::new(&state.emulator.cpu);
 
     let frame = egui::Frame::canvas(ui.style())
         .inner_margin(6.0)

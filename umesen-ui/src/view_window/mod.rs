@@ -3,6 +3,7 @@ use umesen_core::Emulator;
 
 mod cpu_memory_view;
 mod cpu_state_view;
+mod ppu_memory_view;
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 pub struct ViewWindowSet {
@@ -17,8 +18,8 @@ impl ViewWindowSet {
         };
     }
 
-    pub fn show(&mut self, ctx: &egui::Context, emulator: &mut Emulator) {
-        self.set.retain(|kind| show(ctx, emulator, kind));
+    pub fn show(&mut self, ctx: &egui::Context, state: &mut crate::State) {
+        self.set.retain(|kind| show(ctx, state, kind));
     }
 
     pub fn remove_popups(&mut self) {
@@ -31,17 +32,19 @@ impl ViewWindowSet {
 pub enum ViewWindowKind {
     CpuState,
     CpuMemory,
+    PpuMemory,
     Popup { heading: String, message: String },
 }
 
 // Returns whether the window is still open
-fn show(ctx: &egui::Context, emulator: &mut Emulator, kind: &ViewWindowKind) -> bool {
+fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) -> bool {
     let mut open = true;
 
     let title = match kind {
         ViewWindowKind::CpuState => "Cpu state",
         ViewWindowKind::CpuMemory => "Cpu memory",
         ViewWindowKind::Popup { .. } => "Error",
+        ViewWindowKind::PpuMemory { .. } => "Ppu palettes",
     };
 
     if let ViewWindowKind::Popup { heading, message } = kind {
@@ -67,8 +70,9 @@ fn show(ctx: &egui::Context, emulator: &mut Emulator, kind: &ViewWindowKind) -> 
             .open(&mut open);
 
         window.show(ctx, |ui| match kind {
-            ViewWindowKind::CpuState => cpu_state_view::show(ui, emulator),
-            ViewWindowKind::CpuMemory => cpu_memory_view::show(ui, emulator),
+            ViewWindowKind::CpuState => cpu_state_view::show(ui, state),
+            ViewWindowKind::CpuMemory => cpu_memory_view::show(ui, state),
+            ViewWindowKind::PpuMemory => ppu_memory_view::show(ui, state),
             ViewWindowKind::Popup { .. } => unreachable!(),
         });
     }

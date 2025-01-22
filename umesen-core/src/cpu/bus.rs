@@ -3,9 +3,11 @@ use crate::{
     Ppu,
 };
 
+// 2kb of cpu ram
+const RAM_SIZE: usize = 2048;
+
 pub struct CpuBus {
-    // 2kb of cpu ram
-    pub ram: [u8; 2048],
+    pub ram: [u8; RAM_SIZE],
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
     pub ppu: Ppu,
@@ -15,7 +17,7 @@ pub struct CpuBus {
 impl Default for CpuBus {
     fn default() -> Self {
         Self {
-            ram: [0; 2048],
+            ram: [0; RAM_SIZE],
             cpu_cycles: 0,
             cartridge: None,
             ppu: Ppu::default(),

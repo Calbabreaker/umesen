@@ -2650,7 +2650,6 @@ name = "umesen-core"
 version = "0.0.0"
 dependencies = [
  "bitflags 2.6.0",
- "log",
  "thiserror 2.0.9",
 ]
 

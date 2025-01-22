@@ -11,12 +11,6 @@ impl Emulator {
         todo!()
     }
 
-    pub fn step(&mut self) {
-        if let Err(err) = self.cpu.execute_next() {
-            log::error!("{err}")
-        }
-    }
-
     pub fn load_nes_rom(&mut self, path: &std::path::Path) -> Result<(), NesParseError> {
         let file = std::fs::File::open(path)?;
         let catridge = Cartridge::from_nes(file)?;

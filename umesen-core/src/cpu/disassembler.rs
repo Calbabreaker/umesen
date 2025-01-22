@@ -64,8 +64,8 @@ impl<'a> Disassembler<'a> {
                 write!(f, "[{}],Y", self.next_byte())?
             }
             AddrMode::Relative => {
-                let offset = self.next_byte().0 as i16;
-                let address = U16HexDisplay((self.current_address as i16 + offset) as u16);
+                let offset = self.next_byte().0 as i8;
+                let address = U16HexDisplay((self.current_address as i16 + offset as i16) as u16);
                 let sign = if offset >= 0 { '+' } else { '-' };
                 write!(f, "*{sign}{} ({address})", offset.abs())?
             }

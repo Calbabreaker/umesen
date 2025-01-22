@@ -6,7 +6,7 @@ pub struct App {
     view_windows: ViewWindowSet,
 
     #[serde(skip)]
-    emulator: umesen_core::Emulator,
+    state: crate::State,
 }
 
 impl App {
@@ -19,22 +19,18 @@ impl App {
         Default::default()
     }
 
-    fn run_emulator(&mut self) {
-        self.emulator.cpu.reset();
-    }
-
     fn pick_nes_rom(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("NES ROM", &["nes"])
             .pick_file()
         {
-            if let Err(err) = self.emulator.load_nes_rom(&path) {
+            if let Err(err) = self.state.emulator.load_nes_rom(&path) {
                 self.view_windows.set.insert(ViewWindowKind::Popup {
                     heading: "Failed to load NES ROM!".to_string(),
                     message: format!("{}", err),
                 });
             }
-            self.run_emulator();
+            self.state.run_emulator();
         }
     }
 
@@ -48,12 +44,16 @@ impl App {
             });
 
             ui.menu_button("View", |ui| {
-                if ui.button("Cpu state...").clicked() {
+                if ui.button("CPU state...").clicked() {
                     self.view_windows.toggle_open(ViewWindowKind::CpuState);
                 }
 
-                if ui.button("Cpu memory...").clicked() {
+                if ui.button("CPU memory...").clicked() {
                     self.view_windows.toggle_open(ViewWindowKind::CpuMemory);
+                }
+
+                if ui.button("PPU memory...").clicked() {
+                    self.view_windows.toggle_open(ViewWindowKind::PpuMemory);
                 }
             });
         });
@@ -77,7 +77,7 @@ impl eframe::App for App {
                 self.show_top_panel(ui);
             });
 
-        self.view_windows.show(ctx, &mut self.emulator);
+        self.view_windows.show(ctx, &mut self.state);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
@@ -87,7 +87,7 @@ impl eframe::App for App {
 
         ctx.input(|i| {
             if i.key_pressed(egui::Key::CloseBracket) {
-                self.emulator.step();
+                self.state.step_emulator();
             }
         })
     }
