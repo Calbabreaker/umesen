@@ -1,5 +1,3 @@
-use umesen_core::Emulator;
-
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
 

@@ -1,5 +1,4 @@
 use egui::ahash::HashSet;
-use umesen_core::Emulator;
 
 mod cpu_memory_view;
 mod cpu_state_view;
@@ -44,7 +43,7 @@ fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) ->
         ViewWindowKind::CpuState => "Cpu state",
         ViewWindowKind::CpuMemory => "Cpu memory",
         ViewWindowKind::Popup { .. } => "Error",
-        ViewWindowKind::PpuMemory { .. } => "Ppu palettes",
+        ViewWindowKind::PpuMemory { .. } => "Ppu memory",
     };
 
     if let ViewWindowKind::Popup { heading, message } = kind {

@@ -19,26 +19,26 @@ impl App {
         Default::default()
     }
 
-    fn pick_nes_rom(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("NES ROM", &["nes"])
-            .pick_file()
-        {
-            if let Err(err) = self.state.emulator.load_nes_rom(&path) {
-                self.view_windows.set.insert(ViewWindowKind::Popup {
-                    heading: "Failed to load NES ROM!".to_string(),
-                    message: format!("{}", err),
-                });
-            }
-            self.state.run_emulator();
+    fn load_nes_rom(&mut self, path: &std::path::Path) {
+        if let Err(err) = self.state.emulator.load_nes_rom(path) {
+            self.view_windows.set.insert(ViewWindowKind::Popup {
+                heading: "Failed to load NES ROM!".to_string(),
+                message: format!("{}", err),
+            });
         }
+        self.state.run_emulator();
     }
 
     fn show_top_panel(&mut self, ui: &mut egui::Ui) {
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
                 if ui.button("Open File...").clicked() {
-                    self.pick_nes_rom();
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("NES ROM", &["nes"])
+                        .pick_file()
+                    {
+                        self.load_nes_rom(&path);
+                    }
                     ui.close_menu();
                 }
             });
@@ -85,10 +85,16 @@ impl eframe::App for App {
             });
         });
 
-        ctx.input(|i| {
+        ctx.input_mut(|i| {
             if i.key_pressed(egui::Key::CloseBracket) {
                 self.state.step_emulator();
             }
+
+            let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);
+            if let Some(path) = file_path {
+                self.load_nes_rom(&path);
+            }
+            i.raw.dropped_files.clear();
         })
     }
 }

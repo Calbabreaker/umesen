@@ -10,6 +10,20 @@ impl Texture {
         self.handle
             .set(self.image_buffer.clone(), egui::TextureOptions::NEAREST);
     }
+
+    pub fn set_pixel(&mut self, x: usize, y: usize, color: egui::Color32) {
+        debug_assert!(x < self.image_buffer.size[0] && y < self.image_buffer.size[1]);
+        let index = y * self.image_buffer.size[1] + x;
+        self.image_buffer.pixels[index] = color;
+    }
+
+    pub fn set_pixels(&mut self, get_pixel: impl Fn(usize, usize) -> egui::Color32) {
+        for x in 0..self.image_buffer.size[0] {
+            for y in 0..self.image_buffer.size[1] {
+                self.set_pixel(x, y, get_pixel(x, y));
+            }
+        }
+    }
 }
 
 #[derive(Default)]

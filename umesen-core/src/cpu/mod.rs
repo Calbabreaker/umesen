@@ -46,6 +46,7 @@ impl std::fmt::Display for Flags {
     }
 }
 
+/// Emulated 6502 CPU
 #[derive(Default)]
 pub struct Cpu {
     /// Program counter
