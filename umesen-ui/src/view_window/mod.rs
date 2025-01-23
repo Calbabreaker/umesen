@@ -35,19 +35,23 @@ pub enum ViewWindowKind {
     Popup { heading: String, message: String },
 }
 
+impl ViewWindowKind {
+    pub fn title(&self) -> &'static str {
+        match self {
+            ViewWindowKind::CpuState => "Cpu state",
+            ViewWindowKind::CpuMemory => "Cpu memory",
+            ViewWindowKind::Popup { .. } => "Error",
+            ViewWindowKind::PpuMemory { .. } => "Ppu memory",
+        }
+    }
+}
+
 // Returns whether the window is still open
 fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) -> bool {
     let mut open = true;
 
-    let title = match kind {
-        ViewWindowKind::CpuState => "Cpu state",
-        ViewWindowKind::CpuMemory => "Cpu memory",
-        ViewWindowKind::Popup { .. } => "Error",
-        ViewWindowKind::PpuMemory { .. } => "Ppu memory",
-    };
-
     if let ViewWindowKind::Popup { heading, message } = kind {
-        egui::Window::new(title)
+        egui::Window::new(kind.title())
             .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .movable(false)
             .open(&mut open)
@@ -62,7 +66,7 @@ fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) ->
                 })
             });
     } else {
-        let window = egui::Window::new(title)
+        let window = egui::Window::new(kind.title())
             .pivot(egui::Align2::CENTER_CENTER)
             .min_width(200.)
             .default_pos(ctx.screen_rect().size().to_pos2() / 2.)

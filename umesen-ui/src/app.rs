@@ -4,6 +4,7 @@ use crate::view_window::{ViewWindowKind, ViewWindowSet};
 #[serde(default)]
 pub struct App {
     view_windows: ViewWindowSet,
+    recent_file_paths: Vec<std::path::PathBuf>,
 
     #[serde(skip)]
     state: crate::State,
@@ -12,14 +13,22 @@ pub struct App {
 impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
+        cc.storage
+            .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
+            .unwrap_or_default()
+    }
 
-        Default::default()
+    pub fn init(&mut self) {
+        if let Some(path) = self.recent_file_paths.last().cloned() {
+            self.load_nes_rom(&path);
+        }
     }
 
     fn load_nes_rom(&mut self, path: &std::path::Path) {
+        self.recent_file_paths.retain(|x| x != path);
+        self.recent_file_paths.push(path.to_path_buf());
+        self.recent_file_paths.truncate(10);
+
         if let Err(err) = self.state.emulator.load_nes_rom(path) {
             self.view_windows.set.insert(ViewWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
@@ -30,9 +39,12 @@ impl App {
     }
 
     fn show_top_panel(&mut self, ui: &mut egui::Ui) {
+        // Doing ui.style_mut doesn't actually set the style so you have to do this for some stupid reason
+        ui.ctx().style_mut(|style| style.spacing.menu_width = 1000.);
+
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("Open File...").clicked() {
+                if ui.button("Open ROM...").clicked() {
                     if let Some(path) = rfd::FileDialog::new()
                         .add_filter("NES ROM", &["nes"])
                         .pick_file()
@@ -41,19 +53,27 @@ impl App {
                     }
                     ui.close_menu();
                 }
+
+                ui.menu_button("Recent ROMS", |ui| {
+                    let path = self.recent_file_paths.iter().rev().find(|path| {
+                        //
+                        ui.button(path.to_string_lossy()).clicked()
+                    });
+                    if let Some(path) = path.cloned() {
+                        self.load_nes_rom(&path);
+                        ui.close_menu();
+                    }
+                });
             });
 
             ui.menu_button("View", |ui| {
-                if ui.button("CPU state...").clicked() {
-                    self.view_windows.toggle_open(ViewWindowKind::CpuState);
-                }
-
-                if ui.button("CPU memory...").clicked() {
-                    self.view_windows.toggle_open(ViewWindowKind::CpuMemory);
-                }
-
-                if ui.button("PPU memory...").clicked() {
-                    self.view_windows.toggle_open(ViewWindowKind::PpuMemory);
+                use ViewWindowKind::*;
+                for kind in [CpuState, CpuMemory, PpuMemory] {
+                    let mut open = self.view_windows.set.contains(&kind);
+                    let text = format!("{}...", kind.title());
+                    if ui.toggle_value(&mut open, text).clicked() {
+                        self.view_windows.toggle_open(kind);
+                    }
                 }
             });
         });

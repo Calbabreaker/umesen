@@ -19,7 +19,11 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Umesen App",
         native_options,
-        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+        Box::new(|cc| {
+            let mut app = App::new(cc);
+            app.init();
+            Ok(Box::new(app))
+        }),
     )
 }
 
