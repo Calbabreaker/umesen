@@ -1,22 +1,13 @@
-use crate::Cartridge;
+use crate::{cartridge::FixedArray, Cartridge};
 
 const PALETTE_RAM_SIZE: usize = 32;
 const NAMETABLE_RAM_SIZE: usize = 2048;
 
+#[derive(Default)]
 pub struct PpuBus {
-    palette_ram: [u8; PALETTE_RAM_SIZE],
-    nametable_ram: [u8; NAMETABLE_RAM_SIZE],
+    palette_ram: FixedArray<u8, NAMETABLE_RAM_SIZE>,
+    nametable_ram: FixedArray<u8, NAMETABLE_RAM_SIZE>,
     pub cartridge: Option<Cartridge>,
-}
-
-impl Default for PpuBus {
-    fn default() -> Self {
-        Self {
-            palette_ram: [0; PALETTE_RAM_SIZE],
-            nametable_ram: [0; NAMETABLE_RAM_SIZE],
-            cartridge: None,
-        }
-    }
 }
 
 impl PpuBus {

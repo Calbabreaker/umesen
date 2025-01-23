@@ -1,4 +1,4 @@
-use crate::{Cartridge, Cpu, NesParseError};
+use crate::{cartridge::FixedArray, ppu, Cartridge, Cpu, NesParseError};
 
 /// High level struct for controlling the cpu
 #[derive(Default)]
@@ -7,8 +7,13 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn next_frame(&mut self) {
-        todo!()
+    pub fn next_frame(&mut self) -> &FixedArray<u32, { ppu::WIDTH * ppu::HEIGHT }> {
+        // while !self.cpu.bus.ppu.frame_complete() {
+        //     if let Err(err) = self.cpu.execute_next() {
+        //         log::error!("{err}")
+        //     }
+        // }
+        &self.cpu.bus.ppu.screen_pixels
     }
 
     pub fn load_nes_rom(&mut self, path: &std::path::Path) -> Result<(), NesParseError> {

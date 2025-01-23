@@ -2,7 +2,7 @@ pub mod cartridge;
 pub mod cpu;
 mod emulator;
 mod error;
-mod ppu;
+pub mod ppu;
 
 pub use cartridge::Cartridge;
 pub use cpu::Cpu;

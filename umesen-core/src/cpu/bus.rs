@@ -1,28 +1,16 @@
 use crate::{
-    cartridge::{Cartridge, MemoryBankExt},
+    cartridge::{Cartridge, FixedArray, MemoryBankExt},
     Ppu,
 };
 
-// 2kb of cpu ram
-const RAM_SIZE: usize = 2048;
-
+#[derive(Default)]
 pub struct CpuBus {
-    pub ram: [u8; RAM_SIZE],
+    // 2kb of cpu ram
+    pub ram: FixedArray<u8, 2048>,
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
     pub ppu: Ppu,
     pub cartridge: Option<Cartridge>,
-}
-
-impl Default for CpuBus {
-    fn default() -> Self {
-        Self {
-            ram: [0; RAM_SIZE],
-            cpu_cycles: 0,
-            cartridge: None,
-            ppu: Ppu::default(),
-        }
-    }
 }
 
 impl std::fmt::Display for CpuBus {

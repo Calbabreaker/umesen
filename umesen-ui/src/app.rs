@@ -40,7 +40,8 @@ impl App {
 
     fn show_top_panel(&mut self, ui: &mut egui::Ui) {
         // Doing ui.style_mut doesn't actually set the style so you have to do this for some stupid reason
-        ui.ctx().style_mut(|style| style.spacing.menu_width = 1000.);
+        ui.ctx()
+            .style_mut(|style| style.spacing.menu_width = 10000.);
 
         egui::menu::bar(ui, |ui| {
             ui.menu_button("File", |ui| {
@@ -89,7 +90,7 @@ impl eframe::App for App {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         let default_bg = ctx.style().visuals.noninteractive().bg_fill;
         egui::TopBottomPanel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
@@ -99,11 +100,27 @@ impl eframe::App for App {
 
         self.view_windows.show(ctx, &mut self.state);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                egui::warn_if_debug_build(ui);
+        let texture = self.state.texture_map.get(
+            "ppu_output",
+            [umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT],
+            ctx,
+        );
+
+        if self.state.running {
+            let now = ctx.input(|i| i.time);
+            if now - self.state.last_frame_time > umesen_core::ppu::FRAME_TIME {
+                texture.update();
+                // ctx.request_repaint();
+            }
+        }
+
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none())
+            .show(ctx, |ui| {
+                ui.centered_and_justified(|ui| {
+                    ui.add(egui::Image::new(&texture.handle).fit_to_fraction(egui::vec2(1., 1.)));
+                });
             });
-        });
 
         ctx.input_mut(|i| {
             if i.key_pressed(egui::Key::CloseBracket) {
@@ -115,6 +132,6 @@ impl eframe::App for App {
                 self.load_nes_rom(&path);
             }
             i.raw.dropped_files.clear();
-        })
+        });
     }
 }

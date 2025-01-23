@@ -9,7 +9,7 @@ use crate::{
     cartridge::{mapper000::Mapper000, mapper220::Mapper220},
     NesParseError,
 };
-pub use cartridge_data::{CartridgeData, MemoryBankExt};
+pub use cartridge_data::{CartridgeData, FixedArray, MemoryBankExt};
 pub use cartridge_header::CartridgeHeader;
 
 /// Generic trait for underlying circuitry inside a catridge

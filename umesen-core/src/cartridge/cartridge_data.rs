@@ -1,5 +1,27 @@
 use super::CartridgeHeader;
 
+/// Wrapper around a normal slice but allows for deriving Default for an arbitrary size at compile time
+pub struct FixedArray<T, const C: usize>([T; C]);
+
+impl<T: Default + Copy, const C: usize> Default for FixedArray<T, C> {
+    fn default() -> Self {
+        Self([Default::default(); C])
+    }
+}
+
+impl<T, const C: usize> std::ops::Deref for FixedArray<T, C> {
+    type Target = [T; C];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<T, const C: usize> std::ops::DerefMut for FixedArray<T, C> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 pub trait MemoryBankExt {
     fn mirrored_write(&mut self, address: u16, value: u8);
     fn mirrored_read(&self, address: u16) -> u8;

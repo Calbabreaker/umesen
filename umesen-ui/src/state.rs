@@ -52,11 +52,14 @@ impl TextureMap {
 pub struct State {
     pub emulator: umesen_core::Emulator,
     pub texture_map: TextureMap,
+    pub running: bool,
+    pub last_frame_time: f64,
 }
 
 impl State {
     pub fn run_emulator(&mut self) {
         self.emulator.cpu.reset();
+        self.running = true;
     }
 
     pub fn step_emulator(&mut self) {
