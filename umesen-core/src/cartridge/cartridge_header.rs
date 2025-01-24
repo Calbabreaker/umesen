@@ -1,5 +1,12 @@
 use crate::NesParseError;
 
+#[derive(Default, Debug, PartialEq, Clone, Copy)]
+pub enum Mirroring {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct CartridgeHeader {
     pub mapper_id: u8,
@@ -8,6 +15,7 @@ pub struct CartridgeHeader {
     pub chr_rom_size: usize,
     pub chr_ram_size: usize,
     pub has_trainer: bool,
+    pub mirroring: Mirroring,
     pub is_v2: bool,
 }
 
@@ -41,11 +49,18 @@ impl CartridgeHeader {
             0
         };
 
+        let mirroring = if data[6] & 1 != 0 {
+            Mirroring::Horizontal
+        } else {
+            Mirroring::Vertical
+        };
+
         Ok(Self {
             prg_rom_size,
             chr_rom_size,
             mapper_id: (data[6] >> 4) | (data[7] & 0xf0),
             has_trainer: data[6] & 0b0000_0100 != 0,
+            mirroring,
             chr_ram_size,
             prg_ram_size,
             is_v2,
@@ -63,7 +78,7 @@ impl CartridgeHeader {
 
 #[cfg(test)]
 mod test {
-    use crate::cartridge::cartridge_header::CartridgeHeader;
+    use super::*;
 
     #[test]
     fn parse_correctly() {
@@ -77,6 +92,7 @@ mod test {
             header,
             CartridgeHeader {
                 mapper_id: 3,
+                mirroring: Mirroring::Horizontal,
                 prg_rom_size: 32 * 1024,
                 chr_rom_size: 8 * 1024,
                 prg_ram_size: 8 * 1024,

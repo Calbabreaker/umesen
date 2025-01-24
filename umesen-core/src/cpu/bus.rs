@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     cartridge::{Cartridge, FixedArray, MemoryBankExt},
     Ppu,
@@ -10,7 +12,8 @@ pub struct CpuBus {
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
     pub ppu: Ppu,
-    pub cartridge: Option<Cartridge>,
+    pub cartridge: Option<Rc<RefCell<Cartridge>>>,
+    pub open_bus: u8,
 }
 
 impl std::fmt::Display for CpuBus {
@@ -41,20 +44,21 @@ impl CpuBus {
             0x0000..=0x1fff => self.ram.mirrored_read(address),
             0x2000..=0x3fff => self.ppu.registers.immut_read(address),
             0x4020..=0xffff => match self.cartridge.as_ref() {
-                Some(cartridge) => cartridge.cpu_read(address),
-                None => 0,
+                Some(cartridge) => cartridge.borrow().cpu_read(address),
+                None => self.open_bus,
             },
-            _ => 0,
+            _ => self.open_bus,
         }
     }
 
     pub fn read_byte(&mut self, address: u16) -> u8 {
-        let byte = match address {
+        let output = match address {
             0x2000..=0x3fff => self.ppu.registers.read_byte(address),
             _ => self.immut_read_byte(address),
         };
+        self.open_bus = output;
         self.clock();
-        byte
+        output
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
@@ -63,8 +67,8 @@ impl CpuBus {
             0x0000..=0x1fff => self.ram.mirrored_write(address, value),
             0x2000..=0x3fff => self.ppu.registers.write_byte(address, value),
             0x4020..=0xffff => {
-                if let Some(cartridge) = self.cartridge.as_mut() {
-                    cartridge.cpu_write(address, value);
+                if let Some(cartridge) = self.cartridge.as_ref() {
+                    cartridge.borrow_mut().cpu_write(address, value);
                 }
             }
             _ => (),
@@ -94,8 +98,9 @@ impl CpuBus {
     }
 
     pub fn attach_catridge(&mut self, catridge: Cartridge) {
-        self.cartridge = Some(catridge.clone());
-        self.ppu.registers.bus.cartridge = Some(catridge);
+        let catridge_rc = Rc::new(RefCell::new(catridge));
+        self.cartridge = Some(catridge_rc.clone());
+        self.ppu.registers.bus.cartridge = Some(catridge_rc);
     }
 
     pub fn require_nmi(&mut self) -> bool {

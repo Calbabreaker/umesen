@@ -3,6 +3,7 @@ use egui::ahash::HashSet;
 mod cpu_memory_view;
 mod cpu_state_view;
 mod ppu_memory_view;
+mod stats_view;
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 pub struct ViewWindowSet {
@@ -32,6 +33,7 @@ pub enum ViewWindowKind {
     CpuState,
     CpuMemory,
     PpuMemory,
+    Stats,
     Popup { heading: String, message: String },
 }
 
@@ -41,6 +43,7 @@ impl ViewWindowKind {
             ViewWindowKind::CpuState => "Cpu state",
             ViewWindowKind::CpuMemory => "Cpu memory",
             ViewWindowKind::Popup { .. } => "Error",
+            ViewWindowKind::Stats => "Stats",
             ViewWindowKind::PpuMemory { .. } => "Ppu memory",
         }
     }
@@ -76,6 +79,7 @@ fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) ->
             ViewWindowKind::CpuState => cpu_state_view::show(ui, state),
             ViewWindowKind::CpuMemory => cpu_memory_view::show(ui, state),
             ViewWindowKind::PpuMemory => ppu_memory_view::show(ui, state),
+            ViewWindowKind::Stats => stats_view::show(ui, state),
             ViewWindowKind::Popup { .. } => unreachable!(),
         });
     }

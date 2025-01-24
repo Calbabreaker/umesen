@@ -77,7 +77,7 @@ impl App {
 
             ui.menu_button("View", |ui| {
                 use ViewWindowKind::*;
-                for kind in [CpuState, CpuMemory, PpuMemory] {
+                for kind in [CpuState, CpuMemory, PpuMemory, Stats] {
                     let mut open = self.view_windows.set.contains(&kind);
                     let text = format!("{}...", kind.title());
                     if ui.toggle_value(&mut open, text).clicked() {
@@ -98,7 +98,7 @@ impl eframe::App for App {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let default_bg = ctx.style().visuals.noninteractive().bg_fill;
         egui::TopBottomPanel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
@@ -109,11 +109,18 @@ impl eframe::App for App {
         self.view_windows.show(ctx, &mut self.state);
 
         if self.state.running {
+            use umesen_core::ppu::FRAME_INTERVAL;
+
             let now = ctx.input(|i| i.time);
-            if now - self.state.last_frame_time > umesen_core::ppu::FRAME_TIME {
+            let delta = now - self.state.last_frame_time;
+
+            if delta > FRAME_INTERVAL {
+                self.state.stats.frame_rate = 1. / delta;
+                self.state.last_frame_time = now;
                 self.state.next_frame();
-                ctx.request_repaint();
             }
+
+            ctx.request_repaint();
         }
 
         egui::CentralPanel::default()
@@ -136,5 +143,7 @@ impl eframe::App for App {
             }
             i.raw.dropped_files.clear();
         });
+
+        self.state.stats.ui_render_time = frame.info().cpu_usage.unwrap_or(0.);
     }
 }

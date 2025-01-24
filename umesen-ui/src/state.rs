@@ -27,11 +27,19 @@ impl Texture {
 }
 
 #[derive(Default)]
+pub struct Stats {
+    pub ui_render_time: f32,
+    pub emulation_render_time: f32,
+    pub frame_rate: f64,
+}
+
+#[derive(Default)]
 pub struct State {
     pub emulator: umesen_core::Emulator,
     pub texture_map: HashMap<&'static str, Texture>,
     pub running: bool,
     pub last_frame_time: f64,
+    pub stats: Stats,
 }
 
 impl State {
@@ -59,8 +67,10 @@ impl State {
     }
 
     pub fn next_frame(&mut self) {
+        let start_time = std::time::Instant::now();
         self.emulator.next_frame();
         self.update_ppu_texture();
+        self.stats.emulation_render_time = start_time.elapsed().as_secs_f32();
     }
 
     pub fn update_ppu_texture(&mut self) {

@@ -5,7 +5,7 @@ use std::fs::File;
 fn scanline() {
     let rom_file = File::open("tests/scanline.nes").unwrap();
     let mut cpu = umesen_core::Cpu::default();
-    cpu.bus.cartridge = Some(umesen_core::Cartridge::from_nes(rom_file).unwrap());
+    cpu.bus.cartridge = Some(umesen_core::CartridgeRef::from_nes(rom_file).unwrap());
     cpu.reset();
     for i in 0..1000 {
         cpu.execute_next().unwrap();

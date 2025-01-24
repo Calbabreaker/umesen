@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{cartridge::FixedArray, Cartridge};
 
 const PALETTE_RAM_SIZE: usize = 32;
@@ -7,14 +9,14 @@ const NAMETABLE_RAM_SIZE: usize = 2048;
 pub struct PpuBus {
     palette_ram: FixedArray<u8, NAMETABLE_RAM_SIZE>,
     nametable_ram: FixedArray<u8, NAMETABLE_RAM_SIZE>,
-    pub cartridge: Option<Cartridge>,
+    pub cartridge: Option<Rc<RefCell<Cartridge>>>,
 }
 
 impl PpuBus {
     pub fn read_byte(&self, address: u16) -> u8 {
         match address {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
-                Some(cartridge) => cartridge.ppu_read(address),
+                Some(cartridge) => cartridge.borrow().ppu_read(address),
                 None => 0,
             },
             0x2000..=0x3eff => self.nametable_ram[mirror_nametable_address(address)],
@@ -27,7 +29,7 @@ impl PpuBus {
         match address {
             0x0000..=0x1fff => {
                 if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.ppu_write(address, value);
+                    cartridge.borrow_mut().ppu_write(address, value);
                 }
             }
             0x2000..=0x3eff => self.nametable_ram[mirror_nametable_address(address)] = value,

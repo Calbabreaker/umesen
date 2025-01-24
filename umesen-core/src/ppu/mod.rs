@@ -13,7 +13,7 @@ pub use registers::Registers;
 
 pub const WIDTH: usize = 240;
 pub const HEIGHT: usize = 256;
-pub const FRAME_TIME: f64 = 1. / 60.;
+pub const FRAME_INTERVAL: f64 = 1. / 60.;
 
 /// Emulated 2C02 PPU
 #[derive(Default)]
