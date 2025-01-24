@@ -1,11 +1,15 @@
 use crate::{
     cartridge::FixedArray,
-    ppu::{bus::PpuBus, palette::Palette, registers::Registers},
+    ppu::registers::{Control, Status},
 };
 
 mod bus;
 mod palette;
 mod registers;
+
+pub use bus::PpuBus;
+pub use palette::Palette;
+pub use registers::Registers;
 
 pub const WIDTH: usize = 240;
 pub const HEIGHT: usize = 256;
@@ -16,14 +20,41 @@ pub const FRAME_TIME: f64 = 1. / 60.;
 pub struct Ppu {
     pub registers: Registers,
     pub palette: Palette,
-    pub bus: PpuBus,
     scanline: u16,
     cycle: u16,
     pub screen_pixels: FixedArray<u32, { WIDTH * HEIGHT }>,
+    pub frame_complete: bool,
+    pub(crate) require_nmi: bool,
 }
 
 impl Ppu {
     pub fn clock(&mut self) {
+        if self.cycle == 1 {
+            if self.scanline == 241 {
+                self.registers.status.set(Status::VBLANK, true);
+                if self.registers.control.contains(Control::VBLANK_NMI) {
+                    self.require_nmi = true;
+                }
+            } else if self.scanline == 261 {
+                self.registers.status.set(Status::VBLANK, false);
+            }
+        }
+
+        let x = self.cycle as usize + 1;
+        let y = self.scanline as usize;
+        if x < WIDTH && y < HEIGHT {
+            self.screen_pixels[x + y * WIDTH] = (x.wrapping_pow(y as u32)) as u32;
+        }
+
+        self.next_cycle();
+    }
+
+    pub fn get_palette_color(&self, offset: u16) -> u32 {
+        let palette_index = self.registers.bus.read_byte(0x3f00 + offset);
+        self.palette.get(palette_index)
+    }
+
+    fn next_cycle(&mut self) {
         self.cycle += 1;
         if self.cycle == 341 {
             self.cycle = 0;
@@ -31,16 +62,8 @@ impl Ppu {
         }
 
         if self.scanline == 262 {
+            self.frame_complete = true;
             self.scanline = 0;
         }
-    }
-
-    pub fn frame_complete(&self) -> bool {
-        self.scanline == 0
-    }
-
-    pub fn get_palette_color(&self, offset: u16) -> u32 {
-        let palette_index = self.bus.read_byte(0x3f00 + offset);
-        self.palette.get(palette_index)
     }
 }

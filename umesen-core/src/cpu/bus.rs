@@ -20,7 +20,7 @@ impl std::fmt::Display for CpuBus {
             write!(f, "${line_address_start:04x}:")?;
 
             for i in 0..0x10 {
-                let byte = self.unclocked_read_byte(line_address_start + i);
+                let byte = self.immut_read_byte(line_address_start + i);
                 write!(f, " {byte:02x}")?;
             }
 
@@ -33,12 +33,13 @@ impl std::fmt::Display for CpuBus {
 }
 
 impl CpuBus {
-    /// https://www.nesdev.org/wiki/CPU_memory_map
-    pub fn unclocked_read_byte(&self, address: u16) -> u8 {
+    /// Immutable read function for peeking into memory
+    pub fn immut_read_byte(&self, address: u16) -> u8 {
+        // https://www.nesdev.org/wiki/CPU_memory_map
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_read(address),
-            0x2000..=0x3fff => self.ppu.registers.read(address),
+            0x2000..=0x3fff => self.ppu.registers.immut_read(address),
             0x4020..=0xffff => match self.cartridge.as_ref() {
                 Some(cartridge) => cartridge.cpu_read(address),
                 None => 0,
@@ -48,7 +49,10 @@ impl CpuBus {
     }
 
     pub fn read_byte(&mut self, address: u16) -> u8 {
-        let byte = self.unclocked_read_byte(address);
+        let byte = match address {
+            0x2000..=0x3fff => self.ppu.registers.read_byte(address),
+            _ => self.immut_read_byte(address),
+        };
         self.clock();
         byte
     }
@@ -57,7 +61,7 @@ impl CpuBus {
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_write(address, value),
-            0x2000..=0x3fff => self.ppu.registers.write(address, value),
+            0x2000..=0x3fff => self.ppu.registers.write_byte(address, value),
             0x4020..=0xffff => {
                 if let Some(cartridge) = self.cartridge.as_mut() {
                     cartridge.cpu_write(address, value);
@@ -91,6 +95,12 @@ impl CpuBus {
 
     pub fn attach_catridge(&mut self, catridge: Cartridge) {
         self.cartridge = Some(catridge.clone());
-        self.ppu.bus.cartridge = Some(catridge);
+        self.ppu.registers.bus.cartridge = Some(catridge);
+    }
+
+    pub fn require_nmi(&mut self) -> bool {
+        let status = self.ppu.require_nmi;
+        self.ppu.require_nmi = false;
+        status
     }
 }

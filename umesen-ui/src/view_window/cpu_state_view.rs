@@ -7,9 +7,26 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!("Y:  ${0:02x}", state.emulator.cpu.y));
     ui.label(format!("FLAGS: {}", state.emulator.cpu.flags));
 
-    if ui.button("Step (])").clicked() {
-        state.step_emulator();
-    }
+    ui.horizontal(|ui| {
+        if ui.button(if state.running { "⏸" } else { "⏵" }).clicked() {
+            state.running = !state.running;
+        }
+
+        if ui.button("⟳").clicked() {
+            state.emulator.cpu.reset();
+        }
+
+        if ui.button("Step").clicked() {
+            state.running = false;
+            state.step_emulator();
+        }
+
+        if ui.button("Next frame").clicked() {
+            state.running = false;
+            state.next_frame();
+        }
+    });
+
     ui.separator();
 
     let mut disassembler = umesen_core::cpu::Disassembler::new(&state.emulator.cpu);

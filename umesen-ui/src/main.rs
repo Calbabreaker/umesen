@@ -21,7 +21,7 @@ fn main() -> eframe::Result {
         native_options,
         Box::new(|cc| {
             let mut app = App::new(cc);
-            app.init();
+            app.init(&cc.egui_ctx);
             Ok(Box::new(app))
         }),
     )

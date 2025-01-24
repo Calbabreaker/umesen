@@ -18,24 +18,32 @@ impl App {
             .unwrap_or_default()
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self, ctx: &egui::Context) {
+        self.state.add_texture("pattern_0", [8 * 16, 8 * 16], ctx);
+        self.state.add_texture("pattern_1", [8 * 16, 8 * 16], ctx);
+        let screen_size = [umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT];
+        self.state.add_texture("ppu_output", screen_size, ctx);
+
         if let Some(path) = self.recent_file_paths.last().cloned() {
             self.load_nes_rom(&path);
         }
     }
 
     fn load_nes_rom(&mut self, path: &std::path::Path) {
-        self.recent_file_paths.retain(|x| x != path);
-        self.recent_file_paths.push(path.to_path_buf());
-        self.recent_file_paths.truncate(10);
-
+        log::trace!("Loading {path:?}");
         if let Err(err) = self.state.emulator.load_nes_rom(path) {
             self.view_windows.set.insert(ViewWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
-                message: format!("{}", err),
+                message: format!("{err}"),
             });
+            log::error!("{err}");
+        } else {
+            self.recent_file_paths.retain(|x| x != path);
+            self.recent_file_paths.push(path.to_path_buf());
+            self.recent_file_paths.truncate(10);
+
+            self.state.run_emulator();
         }
-        self.state.run_emulator();
     }
 
     fn show_top_panel(&mut self, ui: &mut egui::Ui) {
@@ -100,17 +108,11 @@ impl eframe::App for App {
 
         self.view_windows.show(ctx, &mut self.state);
 
-        let texture = self.state.texture_map.get(
-            "ppu_output",
-            [umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT],
-            ctx,
-        );
-
         if self.state.running {
             let now = ctx.input(|i| i.time);
             if now - self.state.last_frame_time > umesen_core::ppu::FRAME_TIME {
-                texture.update();
-                // ctx.request_repaint();
+                self.state.next_frame();
+                ctx.request_repaint();
             }
         }
 
@@ -118,6 +120,7 @@ impl eframe::App for App {
             .frame(egui::Frame::none())
             .show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
+                    let texture = &self.state.texture_map["ppu_output"];
                     ui.add(egui::Image::new(&texture.handle).fit_to_fraction(egui::vec2(1., 1.)));
                 });
             });

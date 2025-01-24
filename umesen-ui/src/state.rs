@@ -27,44 +27,53 @@ impl Texture {
 }
 
 #[derive(Default)]
-pub struct TextureMap {
-    map: HashMap<String, Texture>,
-}
-
-impl TextureMap {
-    pub fn get(
-        &mut self,
-        name: impl ToString,
-        size: [usize; 2],
-        ctx: &egui::Context,
-    ) -> &mut Texture {
-        self.map.entry(name.to_string()).or_insert_with(|| {
-            let image_buffer = egui::ColorImage::new(size, egui::Color32::PLACEHOLDER);
-            Texture {
-                handle: ctx.load_texture("", image_buffer.clone(), egui::TextureOptions::NEAREST),
-                image_buffer,
-            }
-        })
-    }
-}
-
-#[derive(Default)]
 pub struct State {
     pub emulator: umesen_core::Emulator,
-    pub texture_map: TextureMap,
+    pub texture_map: HashMap<&'static str, Texture>,
     pub running: bool,
     pub last_frame_time: f64,
 }
 
 impl State {
+    pub fn add_texture(&mut self, name: &'static str, size: [usize; 2], ctx: &egui::Context) {
+        let image_buffer = egui::ColorImage::new(size, egui::Color32::BLACK);
+        self.texture_map.insert(
+            name,
+            Texture {
+                handle: ctx.load_texture(name, image_buffer.clone(), egui::TextureOptions::NEAREST),
+                image_buffer,
+            },
+        );
+    }
+
     pub fn run_emulator(&mut self) {
         self.emulator.cpu.reset();
-        self.running = true;
+        // self.running = true;
     }
 
     pub fn step_emulator(&mut self) {
         if let Err(err) = self.emulator.cpu.execute_next() {
             log::error!("{err}")
         }
+        self.update_ppu_texture();
     }
+
+    pub fn next_frame(&mut self) {
+        self.emulator.next_frame();
+        self.update_ppu_texture();
+    }
+
+    pub fn update_ppu_texture(&mut self) {
+        let pixels = &self.emulator.ppu().screen_pixels;
+        let texture = self.texture_map.get_mut("ppu_output").unwrap();
+        for (i, color) in pixels.iter().enumerate() {
+            texture.image_buffer.pixels[i] = to_egui_color(*color);
+        }
+        texture.update();
+    }
+}
+
+pub fn to_egui_color(color: u32) -> egui::Color32 {
+    let bytes = color.to_le_bytes();
+    egui::Color32::from_rgb(bytes[0], bytes[1], bytes[2])
 }

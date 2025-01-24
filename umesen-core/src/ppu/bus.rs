@@ -38,7 +38,7 @@ impl PpuBus {
 }
 
 fn mirror_nametable_address(address: u16) -> usize {
-    todo!()
+    0
 }
 
 fn mirror_palette_address(address: u16) -> usize {

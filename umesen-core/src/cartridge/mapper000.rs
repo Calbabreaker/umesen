@@ -38,8 +38,6 @@ impl Mapper for Mapper000 {
     fn ppu_write(&mut self, address: u16, value: u8) {
         if self.data.chr_rom.is_empty() {
             self.data.chr_ram.mirrored_write(address, value);
-        } else {
-            self.data.chr_rom.mirrored_write(address, value);
         }
     }
 }

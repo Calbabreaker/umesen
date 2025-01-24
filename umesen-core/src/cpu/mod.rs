@@ -66,19 +66,23 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn execute_next(&mut self) -> Result<(), CpuError> {
+        if self.bus.require_nmi() {
+            self.nmi();
+        }
+
         let opcode = Opcode::from_byte(self.read_byte_at_pc())?;
         self.execute(opcode);
         Ok(())
     }
 
-    pub fn irq(&mut self) {
+    fn irq(&mut self) {
         if !self.flags.contains(Flags::INTERRUPT) {
             self.interrupt(0xfffe);
             self.bus.clock();
         }
     }
 
-    pub fn nmi(&mut self) {
+    fn nmi(&mut self) {
         self.interrupt(0xfffa);
         self.bus.clock();
     }
