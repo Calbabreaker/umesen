@@ -27,4 +27,8 @@ impl Emulator {
     pub fn ppu(&self) -> &ppu::Ppu {
         &self.cpu.bus.ppu
     }
+
+    pub fn cartridge(&self) -> Option<std::cell::Ref<Cartridge>> {
+        Some(self.cpu.bus.cartridge.as_ref()?.borrow())
+    }
 }

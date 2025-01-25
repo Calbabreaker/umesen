@@ -6,23 +6,17 @@ pub struct Texture {
 }
 
 impl Texture {
+    pub fn new(size: [usize; 2], ctx: &egui::Context) -> Self {
+        let image_buffer = egui::ColorImage::new(size, egui::Color32::BLACK);
+        Self {
+            handle: ctx.load_texture("", image_buffer.clone(), egui::TextureOptions::NEAREST),
+            image_buffer,
+        }
+    }
+
     pub fn update(&mut self) {
         self.handle
             .set(self.image_buffer.clone(), egui::TextureOptions::NEAREST);
-    }
-
-    pub fn set_pixel(&mut self, x: usize, y: usize, color: egui::Color32) {
-        debug_assert!(x < self.image_buffer.size[0] && y < self.image_buffer.size[1]);
-        let index = y * self.image_buffer.size[1] + x;
-        self.image_buffer.pixels[index] = color;
-    }
-
-    pub fn set_pixels(&mut self, get_pixel: impl Fn(usize, usize) -> egui::Color32) {
-        for x in 0..self.image_buffer.size[0] {
-            for y in 0..self.image_buffer.size[1] {
-                self.set_pixel(x, y, get_pixel(x, y));
-            }
-        }
     }
 }
 
@@ -36,24 +30,13 @@ pub struct Stats {
 #[derive(Default)]
 pub struct State {
     pub emulator: umesen_core::Emulator,
-    pub texture_map: HashMap<&'static str, Texture>,
+    pub texture_map: HashMap<String, Texture>,
     pub running: bool,
     pub last_frame_time: f64,
     pub stats: Stats,
 }
 
 impl State {
-    pub fn add_texture(&mut self, name: &'static str, size: [usize; 2], ctx: &egui::Context) {
-        let image_buffer = egui::ColorImage::new(size, egui::Color32::BLACK);
-        self.texture_map.insert(
-            name,
-            Texture {
-                handle: ctx.load_texture(name, image_buffer.clone(), egui::TextureOptions::NEAREST),
-                image_buffer,
-            },
-        );
-    }
-
     pub fn run_emulator(&mut self) {
         self.emulator.cpu.reset();
         // self.running = true;

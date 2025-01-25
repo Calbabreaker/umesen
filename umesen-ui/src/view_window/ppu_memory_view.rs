@@ -7,17 +7,33 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     egui::CollapsingHeader::new("Palettes")
         .default_open(true)
         .show_unindented(ui, |ui| {
-            show_palette_row(ui, state, 0);
-            show_palette_row(ui, state, 1);
+            for i in 0..2 {
+                show_palette_row(ui, state, i);
+            }
         });
 
     egui::CollapsingHeader::new("Pattern tables")
         .default_open(true)
         .show_unindented(ui, |ui| {
             ui.horizontal(|ui| {
-                show_pattern_table(ui, state, 0, "pattern_0");
-                show_pattern_table(ui, state, 0x1000, "pattern_1");
+                for i in 0..2 {
+                    show_pattern_table(ui, state, i);
+                }
             });
+        });
+
+    let cart = state.emulator.cartridge();
+    let mirroring = cart.map(|c| c.mirroring()).unwrap_or_default();
+    egui::CollapsingHeader::new(format!("Nametables ({:?} mirroring)", mirroring))
+        .default_open(true)
+        .show_unindented(ui, |ui| {
+            for i in 0..2 {
+                ui.horizontal(|ui| {
+                    for j in 0..2 {
+                        show_nametable(ui, state, i * 2 + j);
+                    }
+                });
+            }
         });
 }
 
@@ -41,30 +57,71 @@ fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: usize) {
     });
 }
 
-fn show_pattern_table(
-    ui: &mut egui::Ui,
-    state: &mut crate::State,
-    offset: u16,
-    name: &'static str,
-) {
+fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
+    let name = format!("pattern{table_number}");
+    let get_tile_number_fn = |tile_x, tile_y, _| (table_number << 8) | (tile_y * 16 + tile_x);
+    let get_color_fn = |color_index| egui::Color32::from_gray(color_index * (255 / 3));
+
     // 16 by 16 tiles with 8 pixels each
-    let texture = state.texture_map.get_mut(name).unwrap();
-    let ppu_bus = &state.emulator.ppu().registers.bus;
+    show_ppu_mem_tiles(ui, name, state, [16, 16], get_tile_number_fn, get_color_fn);
+}
 
-    texture.set_pixels(|x, y| {
-        // Every 8 pixels (a tile) go to the next tile index
-        let x_skip = x / 8 * (8 * 2);
-        let y_skip = y / 8 * (8 * 2 * 16);
+fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
+    let name = format!("nametable{table_number}");
+    let get_tile_number_fn = |tile_x, tile_y, ppu: &umesen_core::Ppu| {
+        let nametable_tile_index = tile_y * 32 + tile_x;
+        let offset = 0x2000 + table_number * 0x400;
+        ppu.registers.bus.read_byte(offset + nametable_tile_index) as u16
+    };
 
-        let tile_byte_index = (x_skip + y_skip + y % 8) as u16;
-        let shift = 7 - (x % 8);
-        let lsb_plane = ppu_bus.read_byte(offset + tile_byte_index) >> shift;
-        let msb_plane = ppu_bus.read_byte(offset + tile_byte_index + 8) >> shift;
-        // Get a value between 0 and 3
-        let pixel = (lsb_plane & 1) + ((msb_plane & 1) << 1);
-        egui::Color32::from_gray(pixel * (255 / 3))
-    });
+    let get_color_fn = |color_index| egui::Color32::from_gray(color_index * (255 / 3));
+
+    // 32 by 30 tiles with 8 pixels each
+    show_ppu_mem_tiles(ui, name, state, [32, 30], get_tile_number_fn, get_color_fn);
+}
+
+fn show_ppu_mem_tiles<'a>(
+    ui: &mut egui::Ui,
+    name: String,
+    state: &'a mut crate::State,
+    tile_size: [usize; 2],
+    get_tile_number_fn: impl Fn(u16, u16, &'a umesen_core::Ppu) -> u16,
+    color_index_to_color32_fn: impl Fn(u8) -> egui::Color32,
+) {
+    let image_size = [tile_size[0] * 8, tile_size[1] * 8];
+    let default_fn = || crate::Texture::new(image_size, ui.ctx());
+    let texture = state.texture_map.entry(name).or_insert_with(default_fn);
+    let ppu = state.emulator.ppu();
+
+    for tile_y in 0..tile_size[1] {
+        for tile_x in 0..tile_size[0] {
+            let tile_number = get_tile_number_fn(tile_x as u16, tile_y as u16, ppu);
+            for y in 0..8 {
+                // From nes wiki: https://www.nesdev.org/wiki/PPU_pattern_tables#Addressing
+                // DCBA98 76543210
+                // ---------------
+                // 0HNNNN NNNNPyyy
+                // |||||| |||||+++- T: Fine Y offset, the row number within a tile
+                // |||||| ||||+---- P: Bit plane (0: less significant bit; 1: more significant bit)
+                // ||++++-++++----- N: Tile number from name table
+                // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
+                // +--------------- 0: Pattern table is at $0000-$1FFF
+                let byte_index = (tile_number << 4) + y as u16;
+                let lsb_plane = ppu.registers.bus.read_byte(byte_index);
+                let msb_plane = ppu.registers.bus.read_byte(byte_index + 8);
+                // Get a value between 0 and 3
+                for x in 0..8 {
+                    let shift = 7 - x;
+                    let lsb = (lsb_plane >> shift) & 1;
+                    let msb = (msb_plane >> shift) & 1;
+                    let color_index = lsb + (msb << 1);
+                    let i = (tile_y * 8 + y) * image_size[0] + (tile_x * 8 + x);
+                    texture.image_buffer.pixels[i] = color_index_to_color32_fn(color_index);
+                }
+            }
+        }
+    }
 
     texture.update();
-    ui.add(egui::Image::new(&texture.handle).fit_to_original_size(3.));
+    ui.add(egui::Image::new(&texture.handle).fit_to_original_size(2.));
 }

@@ -19,10 +19,11 @@ impl App {
     }
 
     pub fn init(&mut self, ctx: &egui::Context) {
-        self.state.add_texture("pattern_0", [8 * 16, 8 * 16], ctx);
-        self.state.add_texture("pattern_1", [8 * 16, 8 * 16], ctx);
         let screen_size = [umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT];
-        self.state.add_texture("ppu_output", screen_size, ctx);
+        self.state.texture_map.insert(
+            "ppu_output".to_string(),
+            crate::Texture::new(screen_size, ctx),
+        );
 
         if let Some(path) = self.recent_file_paths.last().cloned() {
             self.load_nes_rom(&path);

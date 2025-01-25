@@ -3,8 +3,6 @@ mod cartridge_header;
 mod mapper000;
 mod mapper220;
 
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
     cartridge::{mapper000::Mapper000, mapper220::Mapper220},
     NesParseError,

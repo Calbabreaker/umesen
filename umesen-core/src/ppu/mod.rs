@@ -11,8 +11,8 @@ pub use bus::PpuBus;
 pub use palette::Palette;
 pub use registers::Registers;
 
-pub const WIDTH: usize = 240;
-pub const HEIGHT: usize = 256;
+pub const WIDTH: usize = 256;
+pub const HEIGHT: usize = 240;
 pub const FRAME_INTERVAL: f64 = 1. / 60.;
 
 /// Emulated 2C02 PPU

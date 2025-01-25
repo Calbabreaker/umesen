@@ -7,7 +7,7 @@ bitflags::bitflags! {
         const X_SCROLL_HIGH_BIT = 1;
         /// Bit 8 of the Y scroll position
         const Y_SCROLL_HIGH_BIT = 1 << 1;
-        /// 0: add 1 going across, 1: add 32 going down
+        /// 0: add 1, 1: add 32
         const VRAM_INCREMENT = 1 << 2;
         /// 0: 0x0000, 1: 0x1000
         const SPRITE_TABLE_OFFSET = 1 << 3;
@@ -64,17 +64,12 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub(crate) fn immut_read(&self, address: u16) -> u8 {
+    pub(crate) fn immut_read_byte(&self, address: u16) -> u8 {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         match address % 8 {
-            0 => self.open_bus,
-            1 => self.open_bus,
             // Fill the unused bits with open bus
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
-            3 => self.open_bus,
             4 => self.oam_data,
-            5 => self.open_bus,
-            6 => self.open_bus,
             7 => {
                 if address >= 0x3f00 {
                     self.bus.read_byte(address)
@@ -82,12 +77,12 @@ impl Registers {
                     self.read_buffer
                 }
             }
-            _ => unreachable!(),
+            _ => self.open_bus,
         }
     }
 
     pub(crate) fn read_byte(&mut self, address: u16) -> u8 {
-        let output = self.immut_read(address);
+        let output = self.immut_read_byte(address);
         match address % 8 {
             2 => {
                 self.status.set(Status::VBLANK, false);
@@ -107,19 +102,25 @@ impl Registers {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         self.open_bus = value;
         match address % 8 {
-            0 => self.control = Control::from_bits_retain(value),
-            1 => self.mask = Mask::from_bits_retain(value),
+            0 => self.control = Control::from_bits(value).unwrap(),
+            1 => self.mask = Mask::from_bits(value).unwrap(),
             2 => (),
             3 => self.oam_address = value,
             4 => {
                 self.oam_data = value;
                 self.oam_address = self.oam_address.wrapping_add(1);
             }
-            5 => (),
+            5 => {
+                if self.latch == 0 {
+                    self.latch = 1;
+                } else {
+                    self.latch = 0;
+                }
+            }
             6 => {
                 let value = value as u16;
                 if self.latch == 0 {
-                    self.vram_address = (self.vram_address & 0x00ff) | (value << 8);
+                    self.vram_address = (self.vram_address & 0x00ff) | ((value & 0x3f) << 8);
                     self.latch = 1;
                 } else {
                     self.vram_address = (self.vram_address & 0xff00) | value;
@@ -139,6 +140,6 @@ impl Registers {
             32
         } else {
             1
-        }
+        };
     }
 }

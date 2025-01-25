@@ -42,7 +42,7 @@ impl CpuBus {
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_read(address),
-            0x2000..=0x3fff => self.ppu.registers.immut_read(address),
+            0x2000..=0x3fff => self.ppu.registers.immut_read_byte(address),
             0x4020..=0xffff => match self.cartridge.as_ref() {
                 Some(cartridge) => cartridge.borrow().cpu_read(address),
                 None => self.open_bus,
