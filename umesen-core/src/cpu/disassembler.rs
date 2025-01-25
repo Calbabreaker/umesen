@@ -1,6 +1,6 @@
 use crate::{
     cpu::{AddrMode, Opcode},
-    Cpu, CpuError,
+    Cpu,
 };
 
 pub struct Disassembler<'a> {
@@ -32,7 +32,7 @@ impl<'a> Disassembler<'a> {
     pub fn disassemble_next(&mut self, mut f: impl std::fmt::Write) -> std::fmt::Result {
         write!(f, "${:04x}: ", self.current_address)?;
 
-        let opcode_byte = self.cpu.bus.immut_read_byte(self.current_address);
+        let opcode_byte = self.cpu.bus.immut_read_u8(self.current_address);
         let opcode = match Opcode::from_byte(opcode_byte) {
             Some(x) => x,
             None => {
@@ -77,7 +77,7 @@ impl<'a> Disassembler<'a> {
     fn next_byte(&mut self) -> HexDisplay<u8> {
         let address = self.current_address;
         self.current_address = self.current_address.wrapping_add(1);
-        HexDisplay(self.cpu.bus.immut_read_byte(address))
+        HexDisplay(self.cpu.bus.immut_read_u8(address))
     }
 
     fn next_word(&mut self) -> HexDisplay<u16> {

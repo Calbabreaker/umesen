@@ -17,8 +17,8 @@ pub const FRAME_INTERVAL: f64 = 1. / 60.;
 pub struct Ppu {
     pub registers: Registers,
     pub palette: Palette,
-    scanline: u16,
-    cycle: u16,
+    pub(crate) scanline: u16,
+    pub(crate) cycle: u16,
     pub screen_pixels: FixedArray<u32, { WIDTH * HEIGHT }>,
     pub frame_complete: bool,
     pub(crate) require_nmi: bool,
@@ -46,8 +46,12 @@ impl Ppu {
         self.next_cycle();
     }
 
-    pub fn get_palette_color(&self, offset: u16) -> u32 {
-        let palette_index = self.registers.bus.read_byte(0x3f00 + offset);
+    /// Gets a RGBA color from a palette id with a 0-3 pixel offset
+    pub fn get_palette_color(&self, palette_id: u8, i: u8) -> u32 {
+        debug_assert!((0..=4).contains(&i));
+        debug_assert!((0..=7).contains(&palette_id));
+        let offset = (palette_id * 4 + i) as u16;
+        let palette_index = self.registers.bus.read_u8(0x3f00 + offset);
         self.palette.get(palette_index)
     }
 

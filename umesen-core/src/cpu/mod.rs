@@ -66,7 +66,15 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn execute_next(&mut self) -> Result<(), CpuError> {
-        let byte = self.read_byte_at_pc();
+        #[cfg(test)]
+        log::trace!(
+            target: "cpu-debug",
+            "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{: >3},{: >3} CYC:{}",
+            self.pc, self.a, self.x, self.y, (self.flags | Flags::UNUSED).bits(), self.sp,
+            self.bus.ppu.scanline, self.bus.ppu.cycle, self.bus.cpu_cycles,
+        );
+
+        let byte = self.read_u8_at_pc();
         let opcode = Opcode::from_byte(byte).ok_or(CpuError::UnknownOpcode(byte))?;
         self.operand_address = self.read_operand_address(opcode.addr_mode);
         self.execute(&opcode);
@@ -78,6 +86,10 @@ impl Cpu {
         if opcode.name == "sta" && self.operand_address == Some(0x4010) {
             return Err(CpuError::DebugTrap);
         }
+
+        // if self.bus.i >= 93405 {
+        //     return Err(CpuError::DebugTrap);
+        // }
 
         Ok(())
     }
@@ -98,26 +110,26 @@ impl Cpu {
         self.a = 0;
         self.x = 0;
         self.y = 0;
-        self.flags = Flags::empty();
+        self.flags = Flags::INTERRUPT;
 
         self.bus.cpu_cycles = 0;
-        self.pc = self.bus.read_word(0xfffc);
-        self.sp = 0xff;
+        self.pc = self.bus.read_u16(0xfffc);
+        self.sp = 0xfd;
         for _ in 0..5 {
             self.bus.clock();
         }
     }
 
-    fn read_byte_at_pc(&mut self) -> u8 {
+    fn read_u8_at_pc(&mut self) -> u8 {
         let pc = self.pc;
         self.pc = self.pc.wrapping_add(1);
-        self.bus.read_byte(pc)
+        self.bus.read_u8(pc)
     }
 
-    fn read_word_at_pc(&mut self) -> u16 {
+    fn read_u16_at_pc(&mut self) -> u16 {
         let pc = self.pc;
         self.pc = self.pc.wrapping_add(2);
-        self.bus.read_word(pc)
+        self.bus.read_u16(pc)
     }
 
     fn address_add_offset(&mut self, address: u16, offset: u8, mode: AddrMode) -> u16 {
@@ -145,48 +157,48 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
                 address
             }
-            AddrMode::ZeroPage => self.read_byte_at_pc() as u16,
+            AddrMode::ZeroPage => self.read_u8_at_pc() as u16,
             AddrMode::ZeroPageX => {
                 self.bus.clock();
-                self.read_byte_at_pc().wrapping_add(self.x) as u16
+                self.read_u8_at_pc().wrapping_add(self.x) as u16
             }
             AddrMode::ZeroPageY => {
                 self.bus.clock();
-                self.read_byte_at_pc().wrapping_add(self.y) as u16
+                self.read_u8_at_pc().wrapping_add(self.y) as u16
             }
-            AddrMode::Absolute => self.read_word_at_pc(),
+            AddrMode::Absolute => self.read_u16_at_pc(),
             AddrMode::AbsoluteX | AddrMode::AbsoluteXForceClock => {
-                let address = self.read_word_at_pc();
+                let address = self.read_u16_at_pc();
                 self.address_add_offset(address, self.x, mode)
             }
             AddrMode::AbsoluteY | AddrMode::AbsoluteYForceClock => {
-                let address = self.read_word_at_pc();
+                let address = self.read_u16_at_pc();
                 self.address_add_offset(address, self.y, mode)
             }
             AddrMode::Indirect => {
-                let indirect_address = self.read_word_at_pc();
+                let indirect_address = self.read_u16_at_pc();
                 // Emulate cross page read bug on original 6502
                 if indirect_address & 0x00ff == 0x00ff {
-                    let lsb = self.bus.read_byte(indirect_address) as u16;
+                    let lsb = self.bus.read_u8(indirect_address) as u16;
                     // Get MSB from start of page
-                    let msb = self.bus.read_byte(indirect_address & 0xff00) as u16;
+                    let msb = self.bus.read_u8(indirect_address & 0xff00) as u16;
                     (msb << 8) | lsb
                 } else {
-                    self.bus.read_word(indirect_address)
+                    self.bus.read_u16(indirect_address)
                 }
             }
             AddrMode::IndirectX => {
-                let indirect_address = self.read_byte_at_pc().wrapping_add(self.x);
+                let indirect_address = self.read_u8_at_pc().wrapping_add(self.x);
                 self.bus.clock();
-                self.bus.read_word(indirect_address as u16)
+                self.bus.read_u16(indirect_address as u16)
             }
             AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
-                let indirect_address = self.read_byte_at_pc();
-                let address = self.bus.read_word(indirect_address as u16);
+                let indirect_address = self.read_u8_at_pc();
+                let address = self.bus.read_u16(indirect_address as u16);
                 self.address_add_offset(address, self.y, mode)
             }
             AddrMode::Relative => {
-                let offset = self.read_byte_at_pc() as i8 as i16;
+                let offset = self.read_u8_at_pc() as i8 as i16;
                 (self.pc as i16).wrapping_add(offset) as u16
             }
         })
@@ -194,7 +206,7 @@ impl Cpu {
 
     fn read_operand_value(&mut self) -> u8 {
         if let Some(address) = self.operand_address {
-            self.bus.read_byte(address)
+            self.bus.read_u8(address)
         } else {
             // Assume we're working with the accumulator for certain instructions
             self.a
@@ -298,21 +310,21 @@ impl Cpu {
     }
 
     fn stack_push(&mut self, value: u8) {
-        self.bus.write_byte(0x100 + self.sp as u16, value);
+        self.bus.write_u8(0x100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
     }
 
-    fn stack_push_word(&mut self, value: u16) {
+    fn stack_push_u16(&mut self, value: u16) {
         self.stack_push((value >> 8) as u8);
         self.stack_push(value as u8);
     }
 
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
-        self.bus.read_byte(0x100 + self.sp as u16)
+        self.bus.read_u8(0x100 + self.sp as u16)
     }
 
-    fn stack_pop_word(&mut self) -> u16 {
+    fn stack_pop_u16(&mut self) -> u16 {
         (self.stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
     }
 
@@ -356,7 +368,7 @@ impl Cpu {
         self.bus.clock();
 
         if let Some(address) = self.operand_address {
-            self.bus.write_byte(address, result);
+            self.bus.write_u8(address, result);
         } else {
             self.a = result;
         }
@@ -370,7 +382,7 @@ impl Cpu {
     fn inc_mem(&mut self, sign: i8) {
         let value = self.read_operand_value();
         let result = self.inc_val(sign, value);
-        self.bus.write_byte(self.operand_address.unwrap(), result);
+        self.bus.write_u8(self.operand_address.unwrap(), result);
     }
 
     fn load_mem(&mut self) -> u8 {
@@ -387,23 +399,24 @@ impl Cpu {
             .set(Flags::OVERFLOW, adder_same_sign && result_changed_sign);
     }
 
-    fn add_carry(&mut self, adder: u8, carry: bool) {
-        let mut result_word = adder as u16 + self.a as u16 + carry as u16;
+    fn add_carry(&mut self, adder: u8) {
+        let carry = self.flags.contains(Flags::CARRY);
+        let mut result_u16 = adder as u16 + self.a as u16 + carry as u16;
 
         // Convert result back into binary if decimal enabled
         if self.flags.contains(Flags::DECIMAL) {
             // Account for adding going into between 0xa and 0xf
             if (self.a & 0xf) + (adder & 0xf) + carry as u8 > 9 {
-                result_word += 0x06;
+                result_u16 += 0x06;
             }
             // Account for adding going into between 0xa0 and 0xff
-            if result_word > 0x99 {
-                result_word += 0x60;
+            if result_u16 > 0x99 {
+                result_u16 += 0x60;
             }
         }
 
-        let result = result_word as u8;
-        self.flags.set(Flags::CARRY, result_word > 0xff);
+        let result = result_u16 as u8;
+        self.flags.set(Flags::CARRY, result_u16 > 0xff);
         self.set_overflow_flag(self.a, adder, result);
         self.set_zero_neg_flags(result);
         self.a = result;
@@ -411,17 +424,17 @@ impl Cpu {
 
     fn adc(&mut self) {
         let adder = self.read_operand_value();
-        self.add_carry(adder, self.flags.contains(Flags::CARRY));
+        self.add_carry(adder);
     }
 
     fn sbc(&mut self) {
         let adder = self.read_operand_value();
         // Inverting results in inverting the sign so the adc can be resued
-        self.add_carry(!adder, !self.flags.contains(Flags::CARRY));
+        self.add_carry(!adder);
     }
 
     fn store_mem(&mut self, register: u8) {
-        self.bus.write_byte(self.operand_address.unwrap(), register);
+        self.bus.write_u8(self.operand_address.unwrap(), register);
     }
 
     fn set_flag(&mut self, flag: Flags, value: bool) {
@@ -454,13 +467,13 @@ impl Cpu {
     }
 
     fn jsr(&mut self) {
-        self.stack_push_word(self.pc - 1);
+        self.stack_push_u16(self.pc - 1);
         self.bus.clock();
         self.pc = self.operand_address.unwrap();
     }
 
     fn rts(&mut self) {
-        self.pc = self.stack_pop_word() + 1;
+        self.pc = self.stack_pop_u16() + 1;
         for _ in 0..3 {
             self.bus.clock();
         }
@@ -468,7 +481,7 @@ impl Cpu {
 
     fn rti(&mut self) {
         self.plp();
-        self.pc = self.stack_pop_word();
+        self.pc = self.stack_pop_u16();
     }
 
     fn brk(&mut self) {
@@ -478,10 +491,10 @@ impl Cpu {
     }
 
     fn interrupt(&mut self, load_vector: u16) {
-        self.stack_push_word(self.pc);
+        self.stack_push_u16(self.pc);
         self.stack_push((self.flags | Flags::UNUSED).bits());
         self.flags.set(Flags::INTERRUPT, true);
-        self.pc = self.bus.read_word(load_vector);
+        self.pc = self.bus.read_u16(load_vector);
         self.bus.clock();
     }
 

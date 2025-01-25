@@ -97,7 +97,7 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub(crate) fn immut_read_byte(&self, address: u16) -> u8 {
+    pub(crate) fn immut_read_u8(&self, address: u16) -> u8 {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         match address % 8 {
             // Fill the unused bits with open bus
@@ -106,7 +106,7 @@ impl Registers {
             7 => {
                 // Palette address gets data returned immediately instead of being buffered
                 if self.v_register.0 >= 0x3f00 {
-                    self.bus.read_byte(self.v_register.0)
+                    self.bus.read_u8(self.v_register.0)
                 } else {
                     self.read_buffer
                 }
@@ -115,15 +115,15 @@ impl Registers {
         }
     }
 
-    pub(crate) fn read_byte(&mut self, address: u16) -> u8 {
-        let output = self.immut_read_byte(address);
+    pub(crate) fn read_u8(&mut self, address: u16) -> u8 {
+        let output = self.immut_read_u8(address);
         match address % 8 {
             2 => {
                 self.status.set(Status::VBLANK, false);
                 self.latch = false;
             }
             7 => {
-                self.read_buffer = self.bus.read_byte(self.v_register.0);
+                self.read_buffer = self.bus.read_u8(self.v_register.0);
                 self.increment_v_register();
             }
             _ => (),
@@ -132,7 +132,7 @@ impl Registers {
         output
     }
 
-    pub(crate) fn write_byte(&mut self, address: u16, value: u8) {
+    pub(crate) fn write_u8(&mut self, address: u16, value: u8) {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         self.open_bus = value;
         match address % 8 {
@@ -182,7 +182,7 @@ impl Registers {
             }
             // VRAM data write
             7 => {
-                self.bus.write_byte(self.v_register.0, value);
+                self.bus.write_u8(self.v_register.0, value);
                 self.increment_v_register();
             }
             _ => unreachable!(),

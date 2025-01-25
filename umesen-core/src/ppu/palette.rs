@@ -11,8 +11,8 @@ impl Palette {
         let mut palette = Palette([0; 64]);
 
         for palette_byte in &mut palette.0 {
-            let mut rgb_bytes = [0; 4];
-            bytes.read_exact(&mut rgb_bytes[1..4])?;
+            let mut rgb_bytes = [0xff; 4];
+            bytes.read_exact(&mut rgb_bytes[0..3])?;
             *palette_byte = u32::from_be_bytes(rgb_bytes);
         }
 
@@ -31,8 +31,8 @@ mod test {
     #[test]
     pub fn parse_correct() {
         let palette = Palette::default();
-        assert_eq!(palette.get(0), 0x626262);
-        assert_eq!(palette.get(1), 0x002e98);
-        assert_eq!(palette.get(2), 0x0c11c2);
+        assert_eq!(palette.get(0), 0x626262ff);
+        assert_eq!(palette.get(1), 0x002e98ff);
+        assert_eq!(palette.get(2), 0x0c11c2ff);
     }
 }

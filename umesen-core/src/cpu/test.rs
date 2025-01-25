@@ -7,7 +7,7 @@ const STOP: u8 = 0xe2;
 
 fn execute(cpu: &mut Cpu, rom: &[u8]) {
     for (i, x) in rom.iter().enumerate() {
-        cpu.bus.write_byte(i as u16 + cpu.pc, *x);
+        cpu.bus.write_u8(i as u16 + cpu.pc, *x);
     }
     cpu.bus.cpu_cycles = 0;
 
@@ -89,7 +89,7 @@ fn addressing_modes() {
     // Absolute mode x sta (always extra clock)
     test(&[0x9d, 0x12, 0x00], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 5);
-        assert_eq!(cpu.bus.read_byte(0x111), A);
+        assert_eq!(cpu.bus.read_u8(0x111), A);
     });
 
     // Absolute mode y lda
@@ -126,7 +126,7 @@ fn zero_neg_flags() {
 fn pha() {
     test(&[0x48], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 3);
-        assert_eq!(cpu.bus.read_byte(0x100), A)
+        assert_eq!(cpu.bus.read_u8(0x100), A)
     });
 }
 
@@ -135,7 +135,7 @@ fn php() {
     test(&[0x38, 0x08], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 2 + 3);
         assert_eq!(
-            Flags::from_bits(cpu.bus.read_byte(0x100)).unwrap(),
+            Flags::from_bits(cpu.bus.read_u8(0x100)).unwrap(),
             Flags::CARRY | Flags::BREAK | Flags::UNUSED
         )
     });
@@ -165,7 +165,7 @@ fn asl() {
         assert_eq!(cpu.flags, Flags::CARRY | Flags::NEGATIVE);
         execute(&mut cpu, &[0x16, 0x13]);
         assert_eq!(cpu.bus.cpu_cycles, 6);
-        assert_eq!(cpu.bus.read_byte(0x12), 69 << 1);
+        assert_eq!(cpu.bus.read_u8(0x12), 69 << 1);
     });
 }
 
@@ -173,9 +173,9 @@ fn asl() {
 fn lsr() {
     test(&[0x46, 0x12], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 5);
-        assert_eq!(cpu.bus.read_byte(0x12), 69 >> 1);
+        assert_eq!(cpu.bus.read_u8(0x12), 69 >> 1);
         execute(&mut cpu, &[0x46, 0x12]);
-        assert_eq!(cpu.bus.read_byte(0x12), 69 >> 2);
+        assert_eq!(cpu.bus.read_u8(0x12), 69 >> 2);
         assert!(cpu.flags == Flags::empty());
     });
 }
@@ -197,7 +197,7 @@ fn ror() {
 fn inc() {
     test(&[0xe6, 0x12], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 5);
-        assert_eq!(cpu.bus.read_byte(0x12), 70);
+        assert_eq!(cpu.bus.read_u8(0x12), 70);
     });
 }
 
@@ -205,7 +205,7 @@ fn inc() {
 fn dec() {
     test(&[0xd6, 0x13], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 6);
-        assert_eq!(cpu.bus.read_byte(0x12), 68);
+        assert_eq!(cpu.bus.read_u8(0x12), 68);
     });
 }
 
@@ -249,7 +249,7 @@ fn adc() {
 #[test]
 fn sbc() {
     test(&[0xe9, 69], |cpu| {
-        assert_eq!(cpu.a, 171);
+        assert_eq!(cpu.a, A - 69 - 1);
         assert_eq!(cpu.flags, Flags::CARRY | Flags::NEGATIVE);
     });
 }
@@ -271,17 +271,17 @@ fn ldy() {
 
 #[test]
 fn sta() {
-    test(&[0x85, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), A));
+    test(&[0x85, 2], |mut cpu| assert_eq!(cpu.bus.read_u8(2), A));
 }
 
 #[test]
 fn stx() {
-    test(&[0x86, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), X));
+    test(&[0x86, 2], |mut cpu| assert_eq!(cpu.bus.read_u8(2), X));
 }
 
 #[test]
 fn sty() {
-    test(&[0x84, 2], |mut cpu| assert_eq!(cpu.bus.read_byte(2), Y));
+    test(&[0x84, 2], |mut cpu| assert_eq!(cpu.bus.read_u8(2), Y));
 }
 
 #[test]
@@ -413,7 +413,7 @@ fn jmp() {
     test(&[0x4c, 0x23, 0x11], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 3);
         assert_eq!(cpu.pc, 0x1123);
-        cpu.bus.write_word(0x00ff, 0x1234);
+        cpu.bus.write_u16(0x00ff, 0x1234);
         execute(&mut cpu, &[0x6c, 0xff]);
         assert_eq!(cpu.bus.cpu_cycles, 5);
         assert_eq!(cpu.pc, 0x4c34);
@@ -424,7 +424,7 @@ fn jmp() {
 fn jsr() {
     test(&[0x20, 0x69, 0x12], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 6);
-        assert_eq!(cpu.stack_pop_word(), 2);
+        assert_eq!(cpu.stack_pop_u16(), 2);
         assert_eq!(cpu.pc, 0x1269);
     });
 }
@@ -441,7 +441,7 @@ fn rts() {
 #[test]
 fn brk() {
     test(&[], |mut cpu| {
-        cpu.bus.write_word(0xfffe, 0x02);
+        cpu.bus.write_u16(0xfffe, 0x02);
         execute(&mut cpu, &[0x00]);
         assert_eq!(cpu.bus.cpu_cycles, 7);
         assert_eq!(cpu.pc, 0x02);
@@ -450,14 +450,14 @@ fn brk() {
             Flags::from_bits(cpu.stack_pop()).unwrap(),
             Flags::UNUSED | Flags::BREAK
         );
-        assert_eq!(cpu.stack_pop_word(), 1);
+        assert_eq!(cpu.stack_pop_u16(), 1);
     });
 }
 
 #[test]
 fn rti() {
     test(&[], |mut cpu| {
-        cpu.bus.write_word(0xfffe, 0x02);
+        cpu.bus.write_u16(0xfffe, 0x02);
         cpu.flags.set(Flags::NEGATIVE, true);
         // BRK then RTI
         execute(&mut cpu, &[0x00, STOP]);
@@ -528,18 +528,17 @@ fn nop() {
 #[test]
 fn reset() {
     test(&[], |mut cpu| {
-        cpu.bus.write_byte(0xfffc, 2);
+        cpu.bus.write_u8(0xfffc, 2);
         cpu.reset();
         assert_eq!(cpu.bus.cpu_cycles, 7);
         assert_eq!(cpu.pc, 2);
-        assert_eq!(cpu.flags, Flags::empty());
     });
 }
 
 #[test]
 fn irq() {
     test(&[], |mut cpu| {
-        cpu.bus.write_byte(0xfffe, 2);
+        cpu.bus.write_u8(0xfffe, 2);
         cpu.bus.cpu_cycles = 0;
         for _ in 0..2 {
             cpu.irq();
@@ -553,7 +552,7 @@ fn irq() {
 #[test]
 fn nmi() {
     test(&[], |mut cpu| {
-        cpu.bus.write_byte(0xfffa, 2);
+        cpu.bus.write_u8(0xfffa, 2);
         cpu.bus.cpu_cycles = 0;
         for i in 1..3 {
             cpu.nmi();

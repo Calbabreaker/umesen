@@ -164,13 +164,13 @@ impl Opcode {
             0x98 => Opcode::new("tya", Implied),
 
             // -- Flag clear and set --
-            0x18 => Opcode::new("clc", AddrMode::Implied),
-            0xd8 => Opcode::new("cld", AddrMode::Implied),
-            0x58 => Opcode::new("cli", AddrMode::Implied),
-            0xb8 => Opcode::new("clv", AddrMode::Implied),
-            0x38 => Opcode::new("sec", AddrMode::Implied),
-            0xf8 => Opcode::new("sed", AddrMode::Implied),
-            0x78 => Opcode::new("sei", AddrMode::Implied),
+            0x18 => Opcode::new("clc", Implied),
+            0xd8 => Opcode::new("cld", Implied),
+            0x58 => Opcode::new("cli", Implied),
+            0xb8 => Opcode::new("clv", Implied),
+            0x38 => Opcode::new("sec", Implied),
+            0xf8 => Opcode::new("sed", Implied),
+            0x78 => Opcode::new("sei", Implied),
 
             // -- Logic --
             0x29 => Opcode::new("and", Immediate),
@@ -228,17 +228,17 @@ impl Opcode {
             0x00 => Opcode::new("brk", Implied),
             0x40 => Opcode::new("rti", Implied),
 
-            0x90 => Opcode::new("bcc", AddrMode::Relative),
-            0xb0 => Opcode::new("bcs", AddrMode::Relative),
-            0xf0 => Opcode::new("beq", AddrMode::Relative),
-            0x30 => Opcode::new("bmi", AddrMode::Relative),
-            0xd0 => Opcode::new("bne", AddrMode::Relative),
-            0x10 => Opcode::new("bpl", AddrMode::Relative),
-            0x50 => Opcode::new("bvc", AddrMode::Relative),
-            0x70 => Opcode::new("bvs", AddrMode::Relative),
+            0x90 => Opcode::new("bcc", Relative),
+            0xb0 => Opcode::new("bcs", Relative),
+            0xf0 => Opcode::new("beq", Relative),
+            0x30 => Opcode::new("bmi", Relative),
+            0xd0 => Opcode::new("bne", Relative),
+            0x10 => Opcode::new("bpl", Relative),
+            0x50 => Opcode::new("bvc", Relative),
+            0x70 => Opcode::new("bvs", Relative),
 
             // Does nothing
-            0xea => Opcode::new("nop", AddrMode::Implied),
+            0xea | 0x04 | 0x14 | 0x34 => Opcode::new("nop", Implied),
             _ => return None,
         };
 

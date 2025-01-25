@@ -16,7 +16,7 @@ pub struct PpuBus {
 }
 
 impl PpuBus {
-    pub fn read_byte(&self, address: u16) -> u8 {
+    pub fn read_u8(&self, address: u16) -> u8 {
         debug_assert!((0x0000..=0x3fff).contains(&address));
         match address {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
@@ -29,7 +29,7 @@ impl PpuBus {
         }
     }
 
-    pub fn write_byte(&mut self, address: u16, value: u8) {
+    pub fn write_u8(&mut self, address: u16, value: u8) {
         debug_assert!((0x0000..=0x3fff).contains(&address));
         match address {
             0x0000..=0x1fff => {
