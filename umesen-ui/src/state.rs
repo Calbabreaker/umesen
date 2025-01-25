@@ -42,16 +42,13 @@ impl State {
         // self.running = true;
     }
 
-    pub fn step_emulator(&mut self) {
-        if let Err(err) = self.emulator.cpu.execute_next() {
-            log::error!("{err}")
-        }
-        self.update_ppu_texture();
-    }
-
     pub fn next_frame(&mut self) {
         let start_time = std::time::Instant::now();
-        self.emulator.next_frame();
+        if let Err(err) = self.emulator.next_frame_debug() {
+            log::warn!("Emulation stopped: {err}");
+            self.running = false;
+        }
+        // self.emulator.next_frame();
         self.update_ppu_texture();
         self.stats.emulation_render_time = start_time.elapsed().as_secs_f32();
     }

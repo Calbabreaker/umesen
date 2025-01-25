@@ -174,6 +174,9 @@ fn lsr() {
     test(&[0x46, 0x12], |mut cpu| {
         assert_eq!(cpu.bus.cpu_cycles, 5);
         assert_eq!(cpu.bus.read_byte(0x12), 69 >> 1);
+        execute(&mut cpu, &[0x46, 0x12]);
+        assert_eq!(cpu.bus.read_byte(0x12), 69 >> 2);
+        assert!(cpu.flags == Flags::empty());
     });
 }
 
@@ -356,7 +359,11 @@ fn sei() {
 
 #[test]
 fn and() {
-    test(&[0x29, 0x69], |cpu| assert_eq!(cpu.a, A & 0x69));
+    test(&[0x29, 0x1], |cpu| {
+        assert_eq!(cpu.bus.cpu_cycles, 2);
+        assert_eq!(cpu.a, 0);
+        assert_eq!(cpu.flags, Flags::ZERO);
+    });
 }
 
 #[test]

@@ -2,6 +2,8 @@
 pub enum CpuError {
     #[error("Unknown instruction with opcode: 0x{0:02x}")]
     UnknownOpcode(u8),
+    #[error("Debug trap was tripped")]
+    DebugTrap,
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -34,9 +34,9 @@ impl<'a> Disassembler<'a> {
 
         let opcode_byte = self.cpu.bus.immut_read_byte(self.current_address);
         let opcode = match Opcode::from_byte(opcode_byte) {
-            Ok(x) => x,
-            Err(CpuError::UnknownOpcode(byte)) => {
-                write!(f, "??? (${byte:02x})")?;
+            Some(x) => x,
+            None => {
+                write!(f, "??? (${opcode_byte:02x})")?;
                 return Ok(());
             }
         };

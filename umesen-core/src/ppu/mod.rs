@@ -1,7 +1,4 @@
-use crate::{
-    cartridge::FixedArray,
-    ppu::registers::{Control, Status},
-};
+use crate::cartridge::FixedArray;
 
 mod bus;
 mod palette;
@@ -9,7 +6,7 @@ mod registers;
 
 pub use bus::PpuBus;
 pub use palette::Palette;
-pub use registers::Registers;
+pub use registers::*;
 
 pub const WIDTH: usize = 256;
 pub const HEIGHT: usize = 240;
@@ -28,7 +25,7 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn clock(&mut self) {
+    pub(crate) fn clock(&mut self) {
         if self.cycle == 1 {
             if self.scanline == 241 {
                 self.registers.status.set(Status::VBLANK, true);

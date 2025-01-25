@@ -1,6 +1,7 @@
 use super::CartridgeHeader;
 
 /// Wrapper around a normal slice but allows for deriving Default for an arbitrary size at compile time
+#[derive(Debug)]
 pub struct FixedArray<T, const C: usize>([T; C]);
 
 impl<T: Default + Copy, const C: usize> Default for FixedArray<T, C> {

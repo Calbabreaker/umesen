@@ -20,7 +20,7 @@ impl Palette {
     }
 
     pub fn get(&self, index: u8) -> u32 {
-        self.0[index as usize]
+        self.0[index as usize % self.0.len()]
     }
 }
 

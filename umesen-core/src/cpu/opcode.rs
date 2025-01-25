@@ -47,7 +47,7 @@ impl Opcode {
         }
     }
 
-    pub fn from_byte(byte: u8) -> Result<Self, CpuError> {
+    pub fn from_byte(byte: u8) -> Option<Self> {
         use AddrMode::*;
         let mut opcode = match byte {
             // -- Stack --
@@ -239,10 +239,10 @@ impl Opcode {
 
             // Does nothing
             0xea => Opcode::new("nop", AddrMode::Implied),
-            _ => return Err(CpuError::UnknownOpcode(byte)),
+            _ => return None,
         };
 
         opcode.byte = byte;
-        Ok(opcode)
+        Some(opcode)
     }
 }

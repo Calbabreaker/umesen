@@ -18,10 +18,20 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
         if ui.button("Step").clicked() {
             state.running = false;
-            state.step_emulator();
+            state.emulator.step();
+            state.update_ppu_texture();
         }
 
-        if ui.button("Next frame").clicked() {
+        if ui.button("Step Over").clicked() {
+            state.running = false;
+            let start_pc = state.emulator.cpu.pc;
+            while state.emulator.cpu.pc <= start_pc {
+                state.emulator.step();
+            }
+            state.update_ppu_texture();
+        }
+
+        if ui.button("Next Frame").clicked() {
             state.running = false;
             state.next_frame();
         }

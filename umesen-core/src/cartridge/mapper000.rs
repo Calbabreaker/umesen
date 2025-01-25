@@ -41,11 +41,14 @@ mod test {
 
     #[test]
     fn test() {
-        let mut catridge = Cartridge::with_rom(0, vec![1, 2, 3], vec![1, 2, 3], 69);
-        assert_eq!(catridge.cpu_read(0x8000), 1);
-        assert_eq!(catridge.cpu_read(0x8003), 1);
+        let mut prg_rom = vec![0; 16 * 1024];
+        prg_rom[2] = 2;
+        let chr_rom = vec![0; 4 * 1024];
+        let mut catridge = Cartridge::with_rom(0, prg_rom, chr_rom, 2048);
         catridge.cpu_write(0x6000, 2);
         assert_eq!(catridge.cpu_read(0x6000), 2);
-        assert_eq!(catridge.ppu_read(0x0000), 1);
+
+        assert_eq!(catridge.cpu_read(0x8002), 2);
+        assert_eq!(catridge.cpu_read(0xc002), 2);
     }
 }

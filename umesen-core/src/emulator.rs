@@ -1,4 +1,4 @@
-use crate::{cartridge::FixedArray, ppu, Cartridge, Cpu, NesParseError};
+use crate::{ppu, Cartridge, Cpu, CpuError, NesParseError};
 
 /// High level struct for controlling the cpu
 #[derive(Default)]
@@ -7,17 +7,28 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn next_frame(&mut self) -> &FixedArray<u32, { ppu::WIDTH * ppu::HEIGHT }> {
-        while !self.cpu.bus.ppu.frame_complete {
-            if let Err(err) = self.cpu.execute_next() {
-                log::error!("{err}")
-            }
+    pub fn step(&mut self) {
+        if let Err(err) = self.cpu.execute_next() {
+            log::error!("{err}")
         }
-        self.cpu.bus.ppu.frame_complete = false;
-        &self.cpu.bus.ppu.screen_pixels
     }
 
-    pub fn load_nes_rom(&mut self, path: &std::path::Path) -> Result<(), NesParseError> {
+    pub fn next_frame(&mut self) {
+        while !self.cpu.bus.ppu.frame_complete {
+            self.step();
+        }
+        self.cpu.bus.ppu.frame_complete = false;
+    }
+
+    pub fn next_frame_debug(&mut self) -> Result<(), CpuError> {
+        while !self.cpu.bus.ppu.frame_complete {
+            self.cpu.execute_next()?;
+        }
+        self.cpu.bus.ppu.frame_complete = false;
+        Ok(())
+    }
+
+    pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {
         let file = std::fs::File::open(path)?;
         let catridge = Cartridge::from_nes(file)?;
         self.cpu.bus.attach_catridge(catridge);

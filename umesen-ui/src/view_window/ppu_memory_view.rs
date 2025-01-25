@@ -1,3 +1,5 @@
+use umesen_core::ppu::Control;
+
 use crate::state::to_egui_color;
 
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
@@ -46,6 +48,9 @@ fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: usize) {
                 ui.allocate_painter(pixel_size * egui::vec2(4., 1.), egui::Sense::hover());
             let offset = row * 16 + col * 4;
             for x in 0..4 {
+                if offset + x >= 64 {
+                    dbg!(x, offset);
+                }
                 painter.rect_filled(
                     egui::Rect::from_min_size(response.rect.min, pixel_size),
                     0.,
@@ -71,7 +76,15 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
     let get_tile_number_fn = |tile_x, tile_y, ppu: &umesen_core::Ppu| {
         let nametable_tile_index = tile_y * 32 + tile_x;
         let offset = 0x2000 + table_number * 0x400;
-        ppu.registers.bus.read_byte(offset + nametable_tile_index) as u16
+        let mut tile_number = ppu.registers.bus.read_byte(offset + nametable_tile_index) as u16;
+        if ppu
+            .registers
+            .control
+            .contains(Control::BACKGROUND_TABLE_OFFSET)
+        {
+            tile_number |= 1 << 8
+        }
+        tile_number
     };
 
     let get_color_fn = |color_index| egui::Color32::from_gray(color_index * (255 / 3));

@@ -8,7 +8,7 @@ use crate::{
 #[derive(Default)]
 pub struct CpuBus {
     // 2kb of cpu ram
-    pub ram: FixedArray<u8, 2048>,
+    pub ram: FixedArray<u8, 0x800>,
     /// Cpu cycles counter for debugging
     pub cpu_cycles: u32,
     pub ppu: Ppu,
@@ -41,13 +41,13 @@ impl CpuBus {
         // https://www.nesdev.org/wiki/CPU_memory_map
         match address {
             // 2kb of ram is mirrored 3 times
-            0x0000..=0x1fff => self.ram.mirrored_read(address),
+            0x0000..=0x1fff => self.ram.mirrored_read(address & 0x7ff),
             0x2000..=0x3fff => self.ppu.registers.immut_read_byte(address),
             0x4020..=0xffff => match self.cartridge.as_ref() {
                 Some(cartridge) => cartridge.borrow().cpu_read(address),
                 None => self.open_bus,
             },
-            _ => self.open_bus,
+            _ => 0,
         }
     }
 

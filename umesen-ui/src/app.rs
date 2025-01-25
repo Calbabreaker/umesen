@@ -78,7 +78,7 @@ impl App {
 
             ui.menu_button("View", |ui| {
                 use ViewWindowKind::*;
-                for kind in [CpuState, CpuMemory, PpuMemory, Stats] {
+                for kind in [CpuState, CpuMemory, PpuMemory, Stats, PpuState] {
                     let mut open = self.view_windows.set.contains(&kind);
                     let text = format!("{}...", kind.title());
                     if ui.toggle_value(&mut open, text).clicked() {
@@ -135,7 +135,8 @@ impl eframe::App for App {
 
         ctx.input_mut(|i| {
             if i.key_pressed(egui::Key::CloseBracket) {
-                self.state.step_emulator();
+                self.state.emulator.step();
+                self.state.update_ppu_texture();
             }
 
             let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);

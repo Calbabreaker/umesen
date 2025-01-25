@@ -66,12 +66,19 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn execute_next(&mut self) -> Result<(), CpuError> {
+        let byte = self.read_byte_at_pc();
+        let opcode = Opcode::from_byte(byte).ok_or(CpuError::UnknownOpcode(byte))?;
+        self.operand_address = self.read_operand_address(opcode.addr_mode);
+        self.execute(&opcode);
+
         if self.bus.require_nmi() {
             self.nmi();
         }
 
-        let opcode = Opcode::from_byte(self.read_byte_at_pc())?;
-        self.execute(opcode);
+        if opcode.name == "sta" && self.operand_address == Some(0x4010) {
+            return Err(CpuError::DebugTrap);
+        }
+
         Ok(())
     }
 
@@ -102,13 +109,15 @@ impl Cpu {
     }
 
     fn read_byte_at_pc(&mut self) -> u8 {
+        let pc = self.pc;
         self.pc = self.pc.wrapping_add(1);
-        self.bus.read_byte(self.pc - 1)
+        self.bus.read_byte(pc)
     }
 
     fn read_word_at_pc(&mut self) -> u16 {
+        let pc = self.pc;
         self.pc = self.pc.wrapping_add(2);
-        self.bus.read_word(self.pc - 2)
+        self.bus.read_word(pc)
     }
 
     fn address_add_offset(&mut self, address: u16, offset: u8, mode: AddrMode) -> u16 {
@@ -192,8 +201,7 @@ impl Cpu {
         }
     }
 
-    fn execute(&mut self, opcode: Opcode) {
-        self.operand_address = self.read_operand_address(opcode.addr_mode);
+    fn execute(&mut self, opcode: &Opcode) {
         match opcode.name {
             // -- Stack --
             "pha" => self.pha(),
@@ -247,10 +255,10 @@ impl Cpu {
             "sei" => self.set_flag(Flags::INTERRUPT, true),
 
             // -- Logic --
-            "and" => self.a &= self.load_mem(),
+            "and" => self.accumulator_op(|a, v| a & v),
             "bit" => self.bit(),
-            "eor" => self.a ^= self.load_mem(),
-            "ora" => self.a |= self.load_mem(),
+            "eor" => self.accumulator_op(|a, v| a ^ v),
+            "ora" => self.accumulator_op(|a, v| a | v),
             "cmp" => self.compare(self.a),
             "cpx" => self.compare(self.x),
             "cpy" => self.compare(self.y),
@@ -343,7 +351,7 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.flags.set(Flags::CARRY, result & carry_mask != 0);
+        self.flags.set(Flags::CARRY, value & carry_mask != 0);
         self.set_zero_neg_flags(result);
         self.bus.clock();
 
@@ -419,6 +427,11 @@ impl Cpu {
     fn set_flag(&mut self, flag: Flags, value: bool) {
         self.flags.set(flag, value);
         self.bus.clock();
+    }
+
+    fn accumulator_op(&mut self, op_fn: impl FnOnce(u8, u8) -> u8) {
+        self.a = op_fn(self.a, self.load_mem());
+        self.set_zero_neg_flags(self.a);
     }
 
     fn bit(&mut self) {

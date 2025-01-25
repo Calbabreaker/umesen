@@ -5,12 +5,12 @@ use crate::{
     Cartridge,
 };
 
-const PALETTE_RAM_SIZE: usize = 32;
-const NAMETABLE_RAM_SIZE: usize = 2048;
+const PALETTE_RAM_SIZE: usize = 0x20;
+const NAMETABLE_RAM_SIZE: usize = 0x800;
 
 #[derive(Default)]
 pub struct PpuBus {
-    palette_ram: FixedArray<u8, PALETTE_RAM_SIZE>,
+    pub palette_ram: FixedArray<u8, PALETTE_RAM_SIZE>,
     pub nametable_ram: FixedArray<u8, NAMETABLE_RAM_SIZE>,
     pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
 }
