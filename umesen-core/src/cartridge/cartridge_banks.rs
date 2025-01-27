@@ -1,6 +1,7 @@
 use super::CartridgeHeader;
 
 /// Wrapper around a normal slice but allows for deriving Default for an arbitrary size at compile time
+/// because rust devs are too pedantic https://github.com/rust-lang/rust/issues/61415
 #[derive(Debug)]
 pub struct FixedArray<T, const C: usize>([T; C]);
 

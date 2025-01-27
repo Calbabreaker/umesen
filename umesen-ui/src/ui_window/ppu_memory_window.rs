@@ -1,4 +1,4 @@
-use umesen_core::ppu::Control;
+use umesen_core::ppu::{Control, TvRegister};
 
 use crate::state::to_egui_color;
 
@@ -74,9 +74,12 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
 fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
     let name = format!("nametable{table_number}");
     let get_tile_info_fn = |tile_x, tile_y, ppu: &umesen_core::Ppu| {
-        let nametable_tile_number = tile_y * 32 + tile_x;
-        let offset = 0x2000 + table_number * 0x400;
-        let mut tile_number = ppu.registers.bus.read_u8(offset + nametable_tile_number) as u16;
+        let mut register = TvRegister::default();
+        register.set(table_number, TvRegister::NAMETABLE);
+        register.set(tile_x, TvRegister::COARSE_X);
+        register.set(tile_y, TvRegister::COARSE_Y);
+
+        let mut tile_number = ppu.registers.bus.read_u8(register.nametable_address()) as u16;
         if ppu
             .registers
             .control
@@ -85,13 +88,11 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
             tile_number |= 1 << 8
         }
 
-        let attribute_index = nametable_tile_number / 4;
-        let attribute_byte = ppu.registers.bus.read_u8(0xc0 + offset + attribute_index) as u16;
-
+        let tile_attribute = ppu.registers.bus.read_u8(register.attribute_address()) as u16;
         let quadrant_x = (tile_x % 4) / 2;
         let quadrant_y = (tile_y % 4) / 2;
-        let shift = quadrant_x + quadrant_y * 2;
-        let palette_id = (attribute_byte << shift) & 0b1100_0000;
+        let shift = (quadrant_x + quadrant_y * 2) * 2;
+        let palette_id = (tile_attribute >> shift) & 0b11;
 
         let mut palette = [0; 4];
         for (i, color) in palette.iter_mut().enumerate() {

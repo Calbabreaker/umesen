@@ -12,7 +12,7 @@ pub const WIDTH: usize = 256;
 pub const HEIGHT: usize = 240;
 pub const FRAME_INTERVAL: f64 = 1. / 60.;
 
-/// Emulated 2C02 PPU
+/// Emulated 2C02 NTSC PPU
 #[derive(Default)]
 pub struct Ppu {
     pub registers: Registers,
@@ -22,25 +22,34 @@ pub struct Ppu {
     pub screen_pixels: FixedArray<u32, { WIDTH * HEIGHT }>,
     pub(crate) frame_complete: bool,
     pub(crate) require_nmi: bool,
+
+    address_to_read: u16,
+    background_tile_number: u8,
+    background_tile_attribute: u8,
 }
 
 impl Ppu {
     pub(crate) fn clock(&mut self) {
-        if self.cycle == 1 {
-            if self.scanline == 241 {
-                self.registers.status.set(Status::VBLANK, true);
-                if self.registers.control.contains(Control::VBLANK_NMI) {
-                    self.require_nmi = true;
+        // See https://www.nesdev.org/w/images/default/4/4f/Ppu.svg
+        match self.scanline {
+            // Scanlines when the PPU is actually drawing to the screen
+            0..=239 => self.clock_drawing_line(),
+            261 => self.clock_prerender_line(),
+            241 => {
+                if self.cycle == 1 {
+                    self.registers.status.set(Status::VBLANK, true);
+                    if self.registers.control.contains(Control::VBLANK_NMI) {
+                        self.require_nmi = true;
+                    }
                 }
-            } else if self.scanline == 261 {
-                self.registers.status.set(Status::VBLANK, false);
             }
+            _ => (),
         }
 
         let x = self.cycle as usize + 1;
         let y = self.scanline as usize;
         if x < WIDTH && y < HEIGHT {
-            self.screen_pixels[x + y * WIDTH] = (x.wrapping_pow(y as u32)) as u32;
+            self.screen_pixels[x + y * WIDTH] = (x as u32).wrapping_pow(y as u32);
         }
 
         self.next_cycle();
@@ -53,6 +62,44 @@ impl Ppu {
         let offset = (palette_id * 4 + i) as u16;
         let palette_index = self.registers.bus.read_u8(0x3f00 + offset);
         self.palette.get(palette_index)
+    }
+
+    fn clock_drawing_line(&mut self) {
+        match self.cycle {
+            1..=256 | 321..=336 => self.clock_drawing_cycle(self.cycle - 1),
+            _ => (),
+        }
+    }
+
+    /// Clock set of 8 repeating cycles to fetch the tile to draw
+    fn clock_drawing_cycle(&mut self, cycle: u16) {
+        match cycle % 8 {
+            0 => {
+                self.address_to_read = self.registers.t_register.nametable_address();
+            }
+            1 => {
+                self.background_tile_number = self.registers.bus.read_u8(self.address_to_read);
+            }
+            2 => {
+                self.address_to_read = self.registers.t_register.attribute_address();
+            }
+            3 => {
+                self.background_tile_attribute = self.registers.bus.read_u8(self.address_to_read);
+            }
+            4 => {}
+            6 => {}
+            7 => {}
+            _ => (),
+        }
+    }
+
+    fn clock_prerender_line(&mut self) {
+        match self.cycle {
+            1 => {
+                self.registers.status.set(Status::VBLANK, false);
+            }
+            _ => (),
+        }
     }
 
     fn next_cycle(&mut self) {
