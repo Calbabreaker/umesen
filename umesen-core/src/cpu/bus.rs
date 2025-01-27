@@ -38,16 +38,18 @@ impl std::fmt::Display for CpuBus {
 impl CpuBus {
     /// Immutable read function for peeking into memory
     pub fn immut_read_u8(&self, address: u16) -> u8 {
+        if let Some(cart) = self.cartridge.as_ref() {
+            if let Some(byte) = cart.borrow().cpu_read(address) {
+                return byte;
+            }
+        }
+
         // https://www.nesdev.org/wiki/CPU_memory_map
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_read(address & 0x7ff),
             0x2000..=0x3fff => self.ppu.registers.immut_read_u8(address),
-            0x4020..=0xffff => match self.cartridge.as_ref() {
-                Some(cartridge) => cartridge.borrow().cpu_read(address),
-                None => self.open_bus,
-            },
-            _ => 0,
+            _ => self.open_bus,
         }
     }
 
@@ -62,15 +64,14 @@ impl CpuBus {
     }
 
     pub fn write_u8(&mut self, address: u16, value: u8) {
+        if let Some(cartridge) = self.cartridge.as_ref() {
+            cartridge.borrow_mut().cpu_write(address, value);
+        }
+
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_write(address, value),
             0x2000..=0x3fff => self.ppu.registers.write_u8(address, value),
-            0x4020..=0xffff => {
-                if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.borrow_mut().cpu_write(address, value);
-                }
-            }
             _ => (),
         }
         self.clock();

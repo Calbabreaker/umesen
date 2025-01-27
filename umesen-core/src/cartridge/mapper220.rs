@@ -7,8 +7,8 @@ pub struct Mapper220 {}
 
 #[allow(unused)]
 impl Mapper for Mapper220 {
-    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> u8 {
-        banks.prg_ram.mirrored_read(address)
+    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
+        Some(banks.prg_ram.mirrored_read(address))
     }
 
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {

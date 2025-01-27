@@ -12,7 +12,7 @@ pub use cartridge_header::{CartridgeHeader, Mirroring};
 
 /// Generic trait for underlying circuitry inside a catridge that will read and write to a catridge memory bank
 pub trait Mapper {
-    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> u8;
+    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8>;
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
     fn ppu_read(&self, banks: &CartridgeBanks, address: u16) -> u8;
     fn ppu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
@@ -82,23 +82,19 @@ impl Cartridge {
         Self::new(header, banks).unwrap()
     }
 
-    pub fn cpu_read(&self, address: u16) -> u8 {
-        debug_assert!((0x4020..=0xffff).contains(&address)); // Sanity check
+    pub fn cpu_read(&self, address: u16) -> Option<u8> {
         self.mapper.cpu_read(&self.banks, address)
     }
 
     pub fn cpu_write(&mut self, address: u16, value: u8) {
-        debug_assert!((0x4020..=0xffff).contains(&address));
         self.mapper.cpu_write(&mut self.banks, address, value);
     }
 
     pub fn ppu_read(&self, address: u16) -> u8 {
-        debug_assert!((0x0000..=0x1fff).contains(&address));
         self.mapper.ppu_read(&self.banks, address)
     }
 
     pub fn ppu_write(&mut self, address: u16, value: u8) {
-        debug_assert!((0x0000..=0x1fff).contains(&address));
         self.mapper.ppu_write(&mut self.banks, address, value);
     }
 

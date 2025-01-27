@@ -31,7 +31,6 @@ impl PpuBus {
 
     pub fn write_u8(&mut self, address: u16, value: u8) {
         debug_assert!((0x0000..=0x3fff).contains(&address));
-        println!("{address:04x}: {value:02x}");
         match address {
             0x0000..=0x1fff => {
                 if let Some(cartridge) = self.cartridge.as_ref() {

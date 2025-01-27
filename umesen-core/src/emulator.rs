@@ -50,7 +50,7 @@ impl Emulator {
             self.cpu.a,
             self.cpu.x,
             self.cpu.y,
-            (self.cpu.flags | crate::cpu::Flags::UNUSED).bits(),
+            self.cpu.flags.bits(),
             self.cpu.sp,
             self.ppu().scanline,
             self.ppu().cycle,

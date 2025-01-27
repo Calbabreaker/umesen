@@ -9,19 +9,26 @@ pub use opcode::{AddrMode, Opcode};
 
 bitflags::bitflags! {
     /// Flags for the cpu register
-    #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Flags: u8 {
         const CARRY = 1;
         const ZERO = 1 << 1;
         const INTERRUPT = 1 << 2;
         /// Flag for binary coded decimal where hex 0x00->0x99 is decimal 0->99
         const DECIMAL = 1 << 3;
+        // Set for pushing with BRK and PHP instructions
         const BREAK = 1 << 4;
-        // UNUSED should always be set but not internally for easier testing
+        /// Always set
         const UNUSED = 1 << 5;
         /// Set if arithmetic overflowed 8-bit signed number
         const OVERFLOW = 1 << 6;
         const NEGATIVE = 1 << 7;
+    }
+}
+
+impl Default for Flags {
+    fn default() -> Self {
+        Self::UNUSED
     }
 }
 
@@ -81,13 +88,13 @@ impl Cpu {
 
     fn irq(&mut self) {
         if !self.flags.contains(Flags::INTERRUPT) {
-            self.interrupt(0xfffe);
+            self.interrupt(0xfffe, Flags::empty());
             self.bus.clock();
         }
     }
 
     fn nmi(&mut self) {
-        self.interrupt(0xfffa);
+        self.interrupt(0xfffa, Flags::empty());
         self.bus.clock();
     }
 
@@ -95,7 +102,7 @@ impl Cpu {
         self.a = 0;
         self.x = 0;
         self.y = 0;
-        self.flags = Flags::INTERRUPT;
+        self.flags = Flags::default() | Flags::INTERRUPT;
 
         self.bus.cpu_cycles = 0;
         self.pc = self.bus.read_u16(0xfffc);
@@ -194,45 +201,75 @@ impl Cpu {
     fn execute(&mut self, opcode: &Opcode) {
         match opcode.name {
             // -- Stack --
-            "pha" => self.pha(),
+            "pha" => self.stack_push_clocked(self.a),
             "php" => self.php(),
-            "pla" => self.pla(),
+            "pla" => self.a = self.stack_pop_clocked(),
             "plp" => self.plp(),
 
             // -- Shift and rotate --
-            "asl" => self.shift('<', false),
-            "lsr" => self.shift('>', false),
-            "rol" => self.shift('<', true),
-            "ror" => self.shift('>', true),
+            "asl" => drop(self.shift('<', false)), // Use drop to return ()
+            "lsr" => drop(self.shift('>', false)),
+            "rol" => drop(self.shift('<', true)),
+            "ror" => drop(self.shift('>', true)),
+
+            "slo" => self.a |= self.shift('<', false), // asl + ora
+            "rla" => self.a &= self.shift('<', true),  // rol + and
+            "sre" => self.a ^= self.shift('>', false), // lsr + eor
+            "rra" => {
+                // ror + adc
+                let adder = self.shift('>', true);
+                self.add_carry(adder);
+            }
 
             // -- Arithmetic --
-            "adc" => self.adc(),
-            "sbc" => self.sbc(),
+            "adc" => {
+                let adder = self.read_operand_value();
+                self.add_carry(adder)
+            }
+            "sbc" => {
+                // Inverting results in inverting the sign so the adc can be resued for sbc
+                let adder = !self.read_operand_value();
+                self.add_carry(adder)
+            }
 
             // -- Increment and decrement --
-            "inc" => self.inc_mem(1),
-            "dec" => self.inc_mem(-1),
-            "inx" => self.x = self.inc_val(1, self.x),
-            "iny" => self.y = self.inc_val(1, self.y),
-            "dex" => self.x = self.inc_val(-1, self.x),
-            "dey" => self.y = self.inc_val(-1, self.y),
+            "inc" => drop(self.inc_mem(1)),
+            "dec" => drop(self.inc_mem(-1)),
+            "inx" => self.x = self.inc_val(self.x, 1),
+            "iny" => self.y = self.inc_val(self.y, 1),
+            "dex" => self.x = self.inc_val(self.x, -1),
+            "dey" => self.y = self.inc_val(self.y, -1),
+
+            "isc" => {
+                let adder = !self.inc_mem(1);
+                self.add_carry(adder);
+            }
+            "dcp" => {
+                let value = self.inc_mem(-1);
+                self.set_compare_flags(self.a, value);
+            }
 
             // -- Register loads --
             "lda" => self.a = self.load_mem(),
             "ldx" => self.x = self.load_mem(),
             "ldy" => self.y = self.load_mem(),
+            "lax" => {
+                self.a = self.load_mem();
+                self.x = self.a;
+            }
 
             // -- Register stores --
             "sta" => self.store_mem(self.a),
             "stx" => self.store_mem(self.x),
             "sty" => self.store_mem(self.y),
+            "sax" => self.store_mem(self.a & self.x),
 
             // -- Register transfers --
             "tax" => self.x = self.transfer(self.a),
             "tay" => self.y = self.transfer(self.a),
             "tsx" => self.x = self.transfer(self.sp),
             "txa" => self.a = self.transfer(self.x),
-            "txs" => self.txs(),
+            "txs" => self.sp = self.x,
             "tya" => self.a = self.transfer(self.y),
 
             // -- Flag clear and set --
@@ -245,19 +282,20 @@ impl Cpu {
             "sei" => self.set_flag(Flags::INTERRUPT, true),
 
             // -- Logic --
-            "and" => self.accumulator_op(|a, v| a & v),
+            "and" => self.a &= self.load_mem(),
+            "eor" => self.a ^= self.load_mem(),
+            "ora" => self.a |= self.load_mem(),
             "bit" => self.bit(),
-            "eor" => self.accumulator_op(|a, v| a ^ v),
-            "ora" => self.accumulator_op(|a, v| a | v),
+
             "cmp" => self.compare(self.a),
             "cpx" => self.compare(self.x),
             "cpy" => self.compare(self.y),
 
             // -- Control flow --
-            "jmp" => self.jmp(),
+            "jmp" => self.pc = self.operand_address.unwrap(),
             "jsr" => self.jsr(),
             "rts" => self.rts(),
-            "brk" => self.brk(),
+            "brk" => self.interrupt(0xfffe, Flags::BREAK),
             "rti" => self.rti(),
 
             "bcc" => self.branch(!self.flags.contains(Flags::CARRY)),
@@ -270,14 +308,27 @@ impl Cpu {
             "bvs" => self.branch(self.flags.contains(Flags::OVERFLOW)),
 
             // Does nothing
-            "nop" => self.bus.clock(),
+            "nop" => (),
             _ => unreachable!("invalid opcode name {}", opcode.name),
+        };
+
+        match opcode.name {
+            "pla" | "and" | "eor" | "ora" | "slo" | "rla" | "sre" => {
+                self.set_zero_neg_flags(self.a)
+            }
+            "nop" | "txs" => self.bus.clock(),
+            _ => (),
         }
     }
 
     fn set_zero_neg_flags(&mut self, value: u8) {
         self.flags.set(Flags::ZERO, value == 0);
         self.flags.set(Flags::NEGATIVE, value & 0b1000_0000 != 0);
+    }
+
+    fn set_compare_flags(&mut self, register: u8, value: u8) {
+        self.flags.set(Flags::CARRY, register >= value);
+        self.set_zero_neg_flags(register.wrapping_sub(value));
     }
 
     // This just returns the value but also clocks the bus and sets zero and neg flags for certain instructions
@@ -287,15 +338,14 @@ impl Cpu {
         value
     }
 
-    // TXS is the only transfer instruction that doesn't set the flags so heres its own special little function because its so
-    fn txs(&mut self) {
-        self.bus.clock();
-        self.sp = self.x;
-    }
-
     fn stack_push(&mut self, value: u8) {
         self.bus.write_u8(0x100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
+    }
+
+    fn stack_push_clocked(&mut self, value: u8) {
+        self.stack_push(value);
+        self.bus.clock();
     }
 
     fn stack_push_u16(&mut self, value: u16) {
@@ -308,37 +358,27 @@ impl Cpu {
         self.bus.read_u8(0x100 + self.sp as u16)
     }
 
+    fn stack_pop_clocked(&mut self) -> u8 {
+        self.bus.clock();
+        self.bus.clock();
+        self.stack_pop()
+    }
+
     fn stack_pop_u16(&mut self) -> u16 {
         (self.stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
     }
 
-    fn pha(&mut self) {
-        self.stack_push(self.a);
-        self.bus.clock();
-    }
-
     fn php(&mut self) {
-        let flags = self.flags | Flags::UNUSED | Flags::BREAK;
-        self.stack_push(flags.bits());
-        self.bus.clock();
-    }
-
-    fn pla(&mut self) {
-        self.a = self.stack_pop();
-        self.set_zero_neg_flags(self.a);
-        self.bus.clock();
-        self.bus.clock();
+        self.stack_push_clocked((self.flags | Flags::BREAK).bits());
     }
 
     fn plp(&mut self) {
-        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
+        self.flags = Flags::from_bits(self.stack_pop_clocked()).unwrap();
+        self.flags.insert(Flags::UNUSED);
         self.flags.remove(Flags::BREAK);
-        self.flags.remove(Flags::UNUSED);
-        self.bus.clock();
-        self.bus.clock();
     }
 
-    fn shift(&mut self, dir: char, contains_carry: bool) {
+    fn shift(&mut self, dir: char, contains_carry: bool) -> u8 {
         let value = self.read_operand_value();
         let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
         let (result, carry_mask) = match dir {
@@ -356,17 +396,19 @@ impl Cpu {
         } else {
             self.a = result;
         }
+        result
     }
 
-    fn inc_val(&mut self, sign: i8, value: u8) -> u8 {
+    fn inc_val(&mut self, value: u8, sign: i8) -> u8 {
         let result = (value as i8).wrapping_add(sign) as u8;
         self.transfer(result)
     }
 
-    fn inc_mem(&mut self, sign: i8) {
+    fn inc_mem(&mut self, sign: i8) -> u8 {
         let value = self.read_operand_value();
-        let result = self.inc_val(sign, value);
-        self.bus.write_u8(self.operand_address.unwrap(), result);
+        let result = self.inc_val(value, sign);
+        self.store_mem(result);
+        result
     }
 
     fn load_mem(&mut self) -> u8 {
@@ -387,6 +429,7 @@ impl Cpu {
         let carry = self.flags.contains(Flags::CARRY);
         let mut result_u16 = adder as u16 + self.a as u16 + carry as u16;
 
+        // Binary coded isn't actually enabled on the NES but I already coded it so
         #[cfg(feature = "bcd")]
         if self.flags.contains(Flags::DECIMAL) {
             // Account for adding going into between 0xa and 0xf
@@ -406,29 +449,13 @@ impl Cpu {
         self.a = result;
     }
 
-    fn adc(&mut self) {
-        let adder = self.read_operand_value();
-        self.add_carry(adder);
-    }
-
-    fn sbc(&mut self) {
-        let adder = self.read_operand_value();
-        // Inverting results in inverting the sign so the adc can be resued
-        self.add_carry(!adder);
-    }
-
-    fn store_mem(&mut self, register: u8) {
-        self.bus.write_u8(self.operand_address.unwrap(), register);
+    fn store_mem(&mut self, value: u8) {
+        self.bus.write_u8(self.operand_address.unwrap(), value);
     }
 
     fn set_flag(&mut self, flag: Flags, value: bool) {
         self.flags.set(flag, value);
         self.bus.clock();
-    }
-
-    fn accumulator_op(&mut self, op_fn: impl FnOnce(u8, u8) -> u8) {
-        self.a = op_fn(self.a, self.load_mem());
-        self.set_zero_neg_flags(self.a);
     }
 
     fn bit(&mut self) {
@@ -441,13 +468,7 @@ impl Cpu {
 
     fn compare(&mut self, register: u8) {
         let value = self.read_operand_value();
-        let result = register.wrapping_sub(value);
-        self.flags.set(Flags::CARRY, register >= value);
-        self.set_zero_neg_flags(result);
-    }
-
-    fn jmp(&mut self) {
-        self.pc = self.operand_address.unwrap();
+        self.set_compare_flags(register, value);
     }
 
     fn jsr(&mut self) {
@@ -468,15 +489,9 @@ impl Cpu {
         self.pc = self.stack_pop_u16();
     }
 
-    fn brk(&mut self) {
-        self.flags.set(Flags::BREAK, true);
-        self.interrupt(0xfffe);
-        self.flags.set(Flags::BREAK, false);
-    }
-
-    fn interrupt(&mut self, load_vector: u16) {
+    fn interrupt(&mut self, load_vector: u16, push_flags: Flags) {
         self.stack_push_u16(self.pc);
-        self.stack_push((self.flags | Flags::UNUSED).bits());
+        self.stack_push((self.flags | push_flags).bits());
         self.flags.set(Flags::INTERRUPT, true);
         self.pc = self.bus.read_u16(load_vector);
         self.bus.clock();

@@ -47,6 +47,7 @@ impl Opcode {
         }
     }
 
+    /// Convert opcode byte into opcode name with addressing mode including unofficial ones
     pub fn from_byte(byte: u8) -> Option<Self> {
         use AddrMode::*;
         let mut opcode = match byte {
@@ -81,6 +82,38 @@ impl Opcode {
             0x6e => Opcode::new("ror", Absolute),
             0x7e => Opcode::new("ror", AbsoluteXForceClock),
 
+            0x07 => Opcode::new("slo", ZeroPage),
+            0x17 => Opcode::new("slo", ZeroPageX),
+            0x0f => Opcode::new("slo", Absolute),
+            0x1f => Opcode::new("slo", AbsoluteX),
+            0x1b => Opcode::new("slo", AbsoluteY),
+            0x03 => Opcode::new("slo", IndirectX),
+            0x13 => Opcode::new("slo", IndirectY),
+
+            0x27 => Opcode::new("rla", ZeroPage),
+            0x37 => Opcode::new("rla", ZeroPageX),
+            0x2f => Opcode::new("rla", Absolute),
+            0x3f => Opcode::new("rla", AbsoluteX),
+            0x3b => Opcode::new("rla", AbsoluteY),
+            0x23 => Opcode::new("rla", IndirectX),
+            0x33 => Opcode::new("rla", IndirectY),
+
+            0x47 => Opcode::new("sre", ZeroPage),
+            0x57 => Opcode::new("sre", ZeroPageX),
+            0x4f => Opcode::new("sre", Absolute),
+            0x5f => Opcode::new("sre", AbsoluteX),
+            0x5b => Opcode::new("sre", AbsoluteY),
+            0x43 => Opcode::new("sre", IndirectX),
+            0x53 => Opcode::new("sre", IndirectY),
+
+            0x67 => Opcode::new("rra", ZeroPage),
+            0x77 => Opcode::new("rra", ZeroPageX),
+            0x6f => Opcode::new("rra", Absolute),
+            0x7f => Opcode::new("rra", AbsoluteX),
+            0x7b => Opcode::new("rra", AbsoluteY),
+            0x63 => Opcode::new("rra", IndirectX),
+            0x73 => Opcode::new("rra", IndirectY),
+
             // -- Arithmetic --
             0x69 => Opcode::new("adc", Immediate),
             0x65 => Opcode::new("adc", ZeroPage),
@@ -91,7 +124,7 @@ impl Opcode {
             0x61 => Opcode::new("adc", IndirectX),
             0x71 => Opcode::new("adc", IndirectY),
 
-            0xe9 => Opcode::new("sbc", Immediate),
+            0xe9 | 0xeb => Opcode::new("sbc", Immediate),
             0xe5 => Opcode::new("sbc", ZeroPage),
             0xf5 => Opcode::new("sbc", ZeroPageX),
             0xed => Opcode::new("sbc", Absolute),
@@ -116,6 +149,22 @@ impl Opcode {
             0xca => Opcode::new("dex", Implied),
             0x88 => Opcode::new("dey", Implied),
 
+            0xe7 => Opcode::new("isc", ZeroPage),
+            0xf7 => Opcode::new("isc", ZeroPageX),
+            0xef => Opcode::new("isc", Absolute),
+            0xff => Opcode::new("isc", AbsoluteX),
+            0xfb => Opcode::new("isc", AbsoluteY),
+            0xe3 => Opcode::new("isc", IndirectX),
+            0xf3 => Opcode::new("isc", IndirectY),
+
+            0xc7 => Opcode::new("dcp", ZeroPage),
+            0xd7 => Opcode::new("dcp", ZeroPageX),
+            0xcf => Opcode::new("dcp", Absolute),
+            0xdf => Opcode::new("dcp", AbsoluteX),
+            0xdb => Opcode::new("dcp", AbsoluteY),
+            0xc3 => Opcode::new("dcp", IndirectX),
+            0xd3 => Opcode::new("dcp", IndirectY),
+
             // -- Register loads --
             0xa9 => Opcode::new("lda", Immediate),
             0xa5 => Opcode::new("lda", ZeroPage),
@@ -138,6 +187,13 @@ impl Opcode {
             0xac => Opcode::new("ldy", Absolute),
             0xbc => Opcode::new("ldy", AbsoluteX),
 
+            0xa7 => Opcode::new("lax", ZeroPage),
+            0xb7 => Opcode::new("lax", ZeroPageY),
+            0xaf => Opcode::new("lax", Absolute),
+            0xbf => Opcode::new("lax", AbsoluteY),
+            0xa3 => Opcode::new("lax", IndirectX),
+            0xb3 => Opcode::new("lax", IndirectY),
+
             // -- Register stores --
             0x85 => Opcode::new("sta", ZeroPage),
             0x95 => Opcode::new("sta", ZeroPageX),
@@ -154,6 +210,11 @@ impl Opcode {
             0x8c => Opcode::new("sty", Absolute),
             0x84 => Opcode::new("sty", ZeroPage),
             0x94 => Opcode::new("sty", ZeroPageX),
+
+            0x87 => Opcode::new("sax", ZeroPage),
+            0x97 => Opcode::new("sax", ZeroPageY),
+            0x8f => Opcode::new("sax", Absolute),
+            0x83 => Opcode::new("sax", IndirectX),
 
             // -- Register transfers --
             0xaa => Opcode::new("tax", Implied),
@@ -237,8 +298,13 @@ impl Opcode {
             0x50 => Opcode::new("bvc", Relative),
             0x70 => Opcode::new("bvs", Relative),
 
-            // Does nothing
-            0xea => Opcode::new("nop", Implied),
+            // Nop madness but like why are there so many nop opcodes
+            0xea | 0x1a | 0x3a | 0x5a | 0x7a | 0xda | 0xfa => Opcode::new("nop", Implied),
+            0x80 => Opcode::new("nop", Immediate),
+            0x04 | 0x44 | 0x64 => Opcode::new("nop", ZeroPage),
+            0x14 | 0x34 | 0x54 | 0x74 | 0xd4 | 0xf4 => Opcode::new("nop", ZeroPageX),
+            0x0c => Opcode::new("nop", Absolute),
+            0x1c | 0x3c | 0x5c | 0x7c | 0xdc | 0xfc => Opcode::new("nop", AbsoluteX),
             _ => return None,
         };
 

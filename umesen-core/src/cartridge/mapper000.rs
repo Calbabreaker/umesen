@@ -6,12 +6,12 @@ use crate::cartridge::{CartridgeBanks, Mapper, MemoryBankExt};
 pub struct Mapper000 {}
 
 impl Mapper for Mapper000 {
-    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> u8 {
-        match address {
+    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
+        Some(match address {
             0x6000..=0x7fff => banks.prg_ram.mirrored_read(address - 0x6000),
             0x8000..=0xffff => banks.prg_rom.mirrored_read(address - 0x8000),
-            _ => 0,
-        }
+            _ => return None,
+        })
     }
 
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {
@@ -46,9 +46,9 @@ mod test {
         let chr_rom = vec![0; 4 * 1024];
         let mut catridge = Cartridge::with_rom(0, prg_rom, chr_rom, 2048);
         catridge.cpu_write(0x6000, 2);
-        assert_eq!(catridge.cpu_read(0x6000), 2);
+        assert_eq!(catridge.cpu_read(0x6000), Some(2));
 
-        assert_eq!(catridge.cpu_read(0x8002), 2);
-        assert_eq!(catridge.cpu_read(0xc002), 2);
+        assert_eq!(catridge.cpu_read(0x8002), Some(2));
+        assert_eq!(catridge.cpu_read(0xc002), Some(2));
     }
 }
