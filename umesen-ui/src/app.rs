@@ -1,9 +1,9 @@
-use crate::view_window::{ViewWindowKind, ViewWindowSet};
+use crate::ui_window::{UiWindowKind, UiWindowSet};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
 pub struct App {
-    view_windows: ViewWindowSet,
+    view_windows: UiWindowSet,
     recent_file_paths: Vec<std::path::PathBuf>,
 
     #[serde(skip)]
@@ -33,7 +33,7 @@ impl App {
     fn load_nes_rom(&mut self, path: &std::path::Path) {
         log::trace!("Loading {path:?}");
         if let Err(err) = self.state.emulator.load_nes_rom(path) {
-            self.view_windows.set.insert(ViewWindowKind::Popup {
+            self.view_windows.set.insert(UiWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
                 message: format!("{err}"),
             });
@@ -77,7 +77,7 @@ impl App {
             });
 
             ui.menu_button("View", |ui| {
-                use ViewWindowKind::*;
+                use UiWindowKind::*;
                 for kind in [CpuState, CpuMemory, PpuMemory, Stats, PpuState] {
                     let mut open = self.view_windows.set.contains(&kind);
                     let text = format!("{}...", kind.title());

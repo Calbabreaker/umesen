@@ -1,18 +1,18 @@
 use egui::ahash::HashSet;
 
-mod cpu_memory_view;
-mod cpu_state_view;
-mod ppu_memory_view;
-mod ppu_state_view;
-mod stats_view;
+mod cpu_memory_window;
+mod cpu_state_window;
+mod ppu_memory_window;
+mod ppu_state_window;
+mod stats_window;
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
-pub struct ViewWindowSet {
-    pub set: HashSet<ViewWindowKind>,
+pub struct UiWindowSet {
+    pub set: HashSet<UiWindowKind>,
 }
 
-impl ViewWindowSet {
-    pub fn toggle_open(&mut self, view_window: ViewWindowKind) {
+impl UiWindowSet {
+    pub fn toggle_open(&mut self, view_window: UiWindowKind) {
         match self.set.contains(&view_window) {
             true => self.set.remove(&view_window),
             false => self.set.insert(view_window),
@@ -25,12 +25,12 @@ impl ViewWindowSet {
 
     pub fn remove_popups(&mut self) {
         self.set
-            .retain(|kind| !matches!(kind, ViewWindowKind::Popup { .. }));
+            .retain(|kind| !matches!(kind, UiWindowKind::Popup { .. }));
     }
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
-pub enum ViewWindowKind {
+pub enum UiWindowKind {
     CpuState,
     CpuMemory,
     PpuMemory,
@@ -39,24 +39,24 @@ pub enum ViewWindowKind {
     Popup { heading: String, message: String },
 }
 
-impl ViewWindowKind {
+impl UiWindowKind {
     pub fn title(&self) -> &'static str {
         match self {
-            ViewWindowKind::CpuState => "Cpu state",
-            ViewWindowKind::CpuMemory => "Cpu memory",
-            ViewWindowKind::Popup { .. } => "Error",
-            ViewWindowKind::Stats => "Stats",
-            ViewWindowKind::PpuMemory { .. } => "Ppu memory",
-            ViewWindowKind::PpuState { .. } => "Ppu state",
+            UiWindowKind::CpuState => "Cpu state",
+            UiWindowKind::CpuMemory => "Cpu memory",
+            UiWindowKind::Popup { .. } => "Error",
+            UiWindowKind::Stats => "Stats",
+            UiWindowKind::PpuMemory { .. } => "Ppu memory",
+            UiWindowKind::PpuState { .. } => "Ppu state",
         }
     }
 }
 
 // Returns whether the window is still open
-fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) -> bool {
+fn show(ctx: &egui::Context, state: &mut crate::State, kind: &UiWindowKind) -> bool {
     let mut open = true;
 
-    if let ViewWindowKind::Popup { heading, message } = kind {
+    if let UiWindowKind::Popup { heading, message } = kind {
         egui::Window::new(kind.title())
             .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
             .movable(false)
@@ -79,12 +79,12 @@ fn show(ctx: &egui::Context, state: &mut crate::State, kind: &ViewWindowKind) ->
             .open(&mut open);
 
         window.show(ctx, |ui| match kind {
-            ViewWindowKind::CpuState => cpu_state_view::show(ui, state),
-            ViewWindowKind::CpuMemory => cpu_memory_view::show(ui, state),
-            ViewWindowKind::PpuMemory => ppu_memory_view::show(ui, state),
-            ViewWindowKind::Stats => stats_view::show(ui, state),
-            ViewWindowKind::PpuState => ppu_state_view::show(ui, state),
-            ViewWindowKind::Popup { .. } => unreachable!(),
+            UiWindowKind::CpuState => cpu_state_window::show(ui, state),
+            UiWindowKind::CpuMemory => cpu_memory_window::show(ui, state),
+            UiWindowKind::PpuMemory => ppu_memory_window::show(ui, state),
+            UiWindowKind::Stats => stats_window::show(ui, state),
+            UiWindowKind::PpuState => ppu_state_window::show(ui, state),
+            UiWindowKind::Popup { .. } => unreachable!(),
         });
     }
 

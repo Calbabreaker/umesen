@@ -2,7 +2,7 @@
 
 mod app;
 mod state;
-mod view_window;
+mod ui_window;
 
 pub use app::App;
 pub use state::{State, Texture};
