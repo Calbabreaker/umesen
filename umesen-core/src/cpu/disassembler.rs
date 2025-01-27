@@ -33,6 +33,8 @@ impl<'a> Disassembler<'a> {
         write!(f, "${:04x}: ", self.current_address)?;
 
         let opcode_byte = self.cpu.bus.immut_read_u8(self.current_address);
+        self.current_address = self.current_address.wrapping_add(1);
+
         let opcode = match Opcode::from_byte(opcode_byte) {
             Some(x) => x,
             None => {
@@ -41,7 +43,6 @@ impl<'a> Disassembler<'a> {
             }
         };
 
-        self.current_address = self.current_address.wrapping_add(1);
         write!(f, "{} ", opcode.name)?;
 
         match opcode.addr_mode {

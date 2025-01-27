@@ -1,4 +1,4 @@
-pub struct Palette([u32; 64]);
+pub struct Palette(pub [u32; 64]);
 
 impl Default for Palette {
     fn default() -> Self {

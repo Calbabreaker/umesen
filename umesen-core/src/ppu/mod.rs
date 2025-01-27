@@ -17,10 +17,10 @@ pub const FRAME_INTERVAL: f64 = 1. / 60.;
 pub struct Ppu {
     pub registers: Registers,
     pub palette: Palette,
-    pub(crate) scanline: u16,
-    pub(crate) cycle: u16,
+    pub scanline: u16,
+    pub cycle: u16,
     pub screen_pixels: FixedArray<u32, { WIDTH * HEIGHT }>,
-    pub frame_complete: bool,
+    pub(crate) frame_complete: bool,
     pub(crate) require_nmi: bool,
 }
 

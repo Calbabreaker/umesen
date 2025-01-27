@@ -91,7 +91,7 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         let quadrant_x = (tile_x % 4) / 2;
         let quadrant_y = (tile_y % 4) / 2;
         let shift = quadrant_x + quadrant_y * 2;
-        let palette_id = (attribute_byte << shift) & 0b11;
+        let palette_id = (attribute_byte << shift) & 0b1100_0000;
 
         let mut palette = [0; 4];
         for (i, color) in palette.iter_mut().enumerate() {

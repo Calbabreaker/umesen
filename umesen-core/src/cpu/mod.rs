@@ -70,14 +70,14 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn execute_next(&mut self) -> Result<(), CpuError> {
+        if self.bus.require_nmi() {
+            self.nmi();
+        }
+
         let byte = self.read_u8_at_pc();
         let opcode = Opcode::from_byte(byte).ok_or(CpuError::UnknownOpcode(byte))?;
         self.operand_address = self.read_operand_address(opcode.addr_mode);
         self.execute(&opcode);
-
-        if self.bus.require_nmi() {
-            self.nmi();
-        }
 
         if opcode.name == "sta" && self.operand_address == Some(0x4010) {
             return Err(CpuError::DebugTrap);
