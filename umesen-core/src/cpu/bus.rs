@@ -82,6 +82,15 @@ impl CpuBus {
         (msb << 8) | lsb
     }
 
+    /// Same as read u16 but the high byte is wrapped to the beggining of the page
+    pub fn read_u16_wrapped(&mut self, address: u16) -> u16 {
+        let lsb = self.read_u8(address) as u16;
+        // Wrap the page by always getting the address high byte from the current page
+        let address_for_msb = (address & 0xff00) | ((address + 1) & 0x00ff);
+        let msb = self.read_u8(address_for_msb) as u16;
+        (msb << 8) | lsb
+    }
+
     pub fn write_u16(&mut self, address: u16, value: u16) {
         let lsb = value as u8;
         let msb = (value << 8) as u8;

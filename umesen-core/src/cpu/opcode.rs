@@ -238,7 +238,7 @@ impl Opcode {
             0x70 => Opcode::new("bvs", Relative),
 
             // Does nothing
-            0xea | 0x04 | 0x14 | 0x34 => Opcode::new("nop", Implied),
+            0xea => Opcode::new("nop", Implied),
             _ => return None,
         };
 

@@ -39,6 +39,11 @@ impl App {
             });
             log::error!("{err}");
         } else {
+            log::trace!(
+                "Loaded cartridge with header: {:?}",
+                self.state.emulator.cartridge().unwrap().header()
+            );
+            // Make sure added path is on top
             self.recent_file_paths.retain(|x| x != path);
             self.recent_file_paths.push(path.to_path_buf());
             self.recent_file_paths.truncate(10);

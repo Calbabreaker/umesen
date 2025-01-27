@@ -42,4 +42,19 @@ impl Emulator {
     pub fn cartridge(&self) -> Option<std::cell::Ref<Cartridge>> {
         Some(self.cpu.bus.cartridge.as_ref()?.borrow())
     }
+
+    pub fn get_debug_state(&self) -> String {
+        format!(
+            "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{: >3},{: >3} CYC:{}",
+            self.cpu.pc,
+            self.cpu.a,
+            self.cpu.x,
+            self.cpu.y,
+            (self.cpu.flags | crate::cpu::Flags::UNUSED).bits(),
+            self.cpu.sp,
+            self.ppu().scanline,
+            self.ppu().cycle,
+            self.cpu.bus.cpu_cycles,
+        )
+    }
 }

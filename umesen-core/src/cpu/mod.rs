@@ -1,6 +1,3 @@
-#[cfg(test)]
-mod test;
-
 mod bus;
 mod disassembler;
 mod opcode;
@@ -66,14 +63,6 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn execute_next(&mut self) -> Result<(), CpuError> {
-        #[cfg(test)]
-        log::trace!(
-            target: "cpu-debug",
-            "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{: >3},{: >3} CYC:{}",
-            self.pc, self.a, self.x, self.y, (self.flags | Flags::UNUSED).bits(), self.sp,
-            self.bus.ppu.scanline, self.bus.ppu.cycle, self.bus.cpu_cycles,
-        );
-
         let byte = self.read_u8_at_pc();
         let opcode = Opcode::from_byte(byte).ok_or(CpuError::UnknownOpcode(byte))?;
         self.operand_address = self.read_operand_address(opcode.addr_mode);
@@ -86,10 +75,6 @@ impl Cpu {
         if opcode.name == "sta" && self.operand_address == Some(0x4010) {
             return Err(CpuError::DebugTrap);
         }
-
-        // if self.bus.i >= 93405 {
-        //     return Err(CpuError::DebugTrap);
-        // }
 
         Ok(())
     }
@@ -177,29 +162,22 @@ impl Cpu {
             }
             AddrMode::Indirect => {
                 let indirect_address = self.read_u16_at_pc();
-                // Emulate cross page read bug on original 6502
-                if indirect_address & 0x00ff == 0x00ff {
-                    let lsb = self.bus.read_u8(indirect_address) as u16;
-                    // Get MSB from start of page
-                    let msb = self.bus.read_u8(indirect_address & 0xff00) as u16;
-                    (msb << 8) | lsb
-                } else {
-                    self.bus.read_u16(indirect_address)
-                }
+                self.bus.read_u16_wrapped(indirect_address)
             }
             AddrMode::IndirectX => {
                 let indirect_address = self.read_u8_at_pc().wrapping_add(self.x);
                 self.bus.clock();
-                self.bus.read_u16(indirect_address as u16)
+                self.bus.read_u16_wrapped(indirect_address as u16)
             }
             AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
                 let indirect_address = self.read_u8_at_pc();
-                let address = self.bus.read_u16(indirect_address as u16);
+                let address = self.bus.read_u16_wrapped(indirect_address as u16);
                 self.address_add_offset(address, self.y, mode)
             }
             AddrMode::Relative => {
-                let offset = self.read_u8_at_pc() as i8 as i16;
-                (self.pc as i16).wrapping_add(offset) as u16
+                // Create a twos complement of the offset then add to pc
+                let offset = self.read_u8_at_pc() as i8 as u16;
+                self.pc.wrapping_add(offset)
             }
         })
     }
@@ -254,7 +232,7 @@ impl Cpu {
             "tay" => self.y = self.transfer(self.a),
             "tsx" => self.x = self.transfer(self.sp),
             "txa" => self.a = self.transfer(self.x),
-            "txs" => self.sp = self.transfer(self.x),
+            "txs" => self.txs(),
             "tya" => self.a = self.transfer(self.y),
 
             // -- Flag clear and set --
@@ -307,6 +285,12 @@ impl Cpu {
         self.bus.clock();
         self.set_zero_neg_flags(value);
         value
+    }
+
+    // TXS is the only transfer instruction that doesn't set the flags so heres its own special little function because its so
+    fn txs(&mut self) {
+        self.bus.clock();
+        self.sp = self.x;
     }
 
     fn stack_push(&mut self, value: u8) {
@@ -403,7 +387,7 @@ impl Cpu {
         let carry = self.flags.contains(Flags::CARRY);
         let mut result_u16 = adder as u16 + self.a as u16 + carry as u16;
 
-        // Convert result back into binary if decimal enabled
+        #[cfg(feature = "bcd")]
         if self.flags.contains(Flags::DECIMAL) {
             // Account for adding going into between 0xa and 0xf
             if (self.a & 0xf) + (adder & 0xf) + carry as u8 > 9 {

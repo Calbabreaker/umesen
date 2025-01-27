@@ -26,33 +26,28 @@ fn nestest() {
     emu.cpu.reset();
     emu.cpu.pc = 0xc000;
 
-    testing_logger::setup();
-    for _ in 0..correct_logs.lines().count() {
-        emu.cpu.execute_next().unwrap();
-    }
+    let mut prev_disassem = "CPU RESET";
+    for (i, correct_line) in correct_logs.lines().enumerate() {
+        let mut line_split = correct_line.split("//");
+        let correct_output = line_split.next().unwrap().trim();
+        assert_eq!(
+            emu.get_debug_state(),
+            correct_output,
+            "Incorrect output on line {i} executing: {prev_disassem}"
+        );
 
-    testing_logger::validate(|captured_logs| {
-        let log_lines = captured_logs
-            .iter()
-            .filter(|log| log.level == log::Level::Trace && log.target == "cpu-debug")
-            .map(|log| log.body.clone())
-            .collect::<Vec<_>>();
+        // Current line actually contains the state of the instruction executed last line
+        prev_disassem = line_split.next().unwrap().trim();
 
-        for (i, correct_line) in correct_logs.lines().enumerate() {
-            let mut line_split = correct_line.split("//");
-            let correct_line = line_split.next().unwrap().trim();
-            let disassem = line_split.next().unwrap();
-            assert_eq!(
-                correct_line, log_lines[i],
-                "Didn't match on line {i}: {disassem}"
-            );
+        if let Err(err) = emu.cpu.execute_next() {
+            panic!("Failed to execute at line {i}: {err} ({prev_disassem})");
         }
-    });
+    }
 }
 
 // https://github.com/christopherpow/nes-test-roms/blob/master/instr_test-v5/readme.txt
 #[test]
-#[ignore]
+#[ignore = "Need mapper 001"]
 fn instr_test() {
     let mut emu = Emulator::default();
     emu.load_nes_rom("tests/instr_test_official.nes").unwrap();

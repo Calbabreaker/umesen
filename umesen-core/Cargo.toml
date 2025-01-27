@@ -8,5 +8,7 @@ bitflags = "2.6"
 thiserror = "2"
 log = "0.4"
 
-[dev-dependencies]
-testing_logger = "0.1"
+[features]
+# Binary coded decimal support for adc and sbc
+# Normal nes doesn't have this
+bcd = []

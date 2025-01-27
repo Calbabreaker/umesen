@@ -109,4 +109,8 @@ impl Cartridge {
             self.header.mirroring
         }
     }
+
+    pub fn header(&self) -> &CartridgeHeader {
+        &self.header
+    }
 }
