@@ -1,6 +1,4 @@
-use crate::CpuError;
-
-/// Addressing modes (most of them) for instructions
+/// Addressing modes for instructions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddrMode {
     Implied,

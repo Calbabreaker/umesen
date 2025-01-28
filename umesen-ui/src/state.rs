@@ -39,7 +39,7 @@ pub struct State {
 impl State {
     pub fn run_emulator(&mut self) {
         self.emulator.cpu.reset();
-        // self.running = true;
+        self.running = true;
     }
 
     pub fn next_frame(&mut self) {

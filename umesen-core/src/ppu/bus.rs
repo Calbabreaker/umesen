@@ -17,8 +17,7 @@ pub struct PpuBus {
 
 impl PpuBus {
     pub fn read_u8(&self, address: u16) -> u8 {
-        debug_assert!((0x0000..=0x3fff).contains(&address));
-        match address {
+        match address % 0x4000 {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
                 Some(cartridge) => cartridge.borrow().ppu_read(address),
                 None => 0,
@@ -30,8 +29,7 @@ impl PpuBus {
     }
 
     pub fn write_u8(&mut self, address: u16, value: u8) {
-        debug_assert!((0x0000..=0x3fff).contains(&address));
-        match address {
+        match address % 0x4000 {
             0x0000..=0x1fff => {
                 if let Some(cartridge) = self.cartridge.as_ref() {
                     cartridge.borrow_mut().ppu_write(address, value);
@@ -46,6 +44,27 @@ impl PpuBus {
         }
     }
 
+    /// Gets the pattern table tile planes
+    /// Return (lsb plane, msb plane)
+    pub fn read_pattern_tile_planes(
+        &self,
+        tile_number: u8,
+        table_number: u8,
+        fine_y: u8,
+    ) -> (u8, u8) {
+        // From nes wiki: https://www.nesdev.org/wiki/PPU_pattern_tables#Addressing
+        // DCBA98 76543210
+        // ---------------
+        // 0HNNNN NNNNPyyy
+        // |||||| |||||+++- T: Fine Y offset, the row number within a tile
+        // |||||| ||||+---- P: Bit plane (0: less significant bit; 1: more significant bit)
+        // ||++++-++++----- N: Tile number from name table
+        // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
+        // +--------------- 0: Pattern table is at $0000-$1FFF
+        let address = ((table_number as u16) << 12) | ((tile_number as u16) << 4) | (fine_y as u16);
+        (self.read_u8(address), self.read_u8(address + 8))
+    }
+
     fn mirror_nametable(&self, address: u16) -> usize {
         let mirroring = if let Some(cartridge) = self.cartridge.as_ref() {
             cartridge.borrow().mirroring()
@@ -56,7 +75,7 @@ impl PpuBus {
     }
 }
 
-pub fn mirror_nametable(address: u16, mirroring: Mirroring) -> usize {
+fn mirror_nametable(address: u16, mirroring: Mirroring) -> usize {
     let address = address as usize % 0x1000;
     match mirroring {
         Mirroring::Horizontal => {

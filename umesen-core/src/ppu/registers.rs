@@ -3,6 +3,8 @@ use crate::ppu::bus::PpuBus;
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Control: u8 {
+        const NAMETABLE_X = 0b01;
+        const NAMETABLE_Y = 0b10;
         /// XY bits of nametable or each unit is 0x400 offset
         const NAMETABLE = 0b11;
         /// 0: add 1, 1: add 32
@@ -38,6 +40,13 @@ bitflags::bitflags! {
     }
 }
 
+impl Mask {
+    /// Is rendering sprite or background
+    pub fn is_rendering(&self) -> bool {
+        self.intersects(Mask::RENDER_SPRITE | Mask::RENDER_BACKGROUND)
+    }
+}
+
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Status: u8 {
@@ -64,6 +73,8 @@ impl TvRegister {
     pub const COARSE_X:    u16 = 0b00000000_00011111;
     pub const COARSE_Y:    u16 = 0b00000011_11100000;
     pub const NAMETABLE:   u16 = 0b00001100_00000000;
+    pub const NAMETABLE_X: u16 = 0b00000100_00000000;
+    pub const NAMETABLE_Y: u16 = 0b00001000_00000000;
     pub const FINE_Y:      u16 = 0b01110000_00000000;
     pub const LOW:         u16 = 0b00000000_11111111;
     pub const HIGH:        u16 = 0b11111111_00000000;
@@ -71,7 +82,7 @@ impl TvRegister {
 
 impl TvRegister {
     #[inline]
-    pub fn set(&mut self, value: impl Into<u16>, select_bits: u16) {
+    pub fn set(&mut self, select_bits: u16, value: impl Into<u16>) {
         let value = value.into();
         let value_shifted = value << select_bits.trailing_zeros();
         self.0 = value_shifted | (self.0 & (!select_bits));
@@ -89,11 +100,60 @@ impl TvRegister {
     }
 
     pub fn attribute_address(&self) -> u16 {
-        let tile_x = self.get(TvRegister::COARSE_X) / 4;
-        let tile_y = self.get(TvRegister::COARSE_Y) / 4;
+        let tile_x = self.get(Self::COARSE_X) / 4;
+        let tile_y = self.get(Self::COARSE_Y) / 4;
         let attribute_number = tile_y * 8 + tile_x;
-        let nametable_offset = 0x2000 + (self.0 & TvRegister::NAMETABLE);
+        let nametable_offset = 0x2000 + (self.0 & Self::NAMETABLE);
         nametable_offset + 0x3c0 + attribute_number
+    }
+
+    /// Shift an attribute byte to get the palette id into the first two bits based on the coarse xy
+    pub fn shift_attribute(&self, attribute: u8) -> u8 {
+        let quadrant_x = (self.get(Self::COARSE_X) % 4) / 2;
+        let quadrant_y = (self.get(Self::COARSE_Y) % 4) / 2;
+        let shift = (quadrant_x + quadrant_y * 2) * 2;
+        (attribute >> shift) & 0b11
+    }
+
+    pub fn scroll_coarse_x(&mut self) {
+        if self.scroll_wrap(Self::COARSE_X, 31) {
+            // Flip nametable x bit to wrap around
+            self.0 ^= Self::NAMETABLE_X;
+        }
+    }
+
+    pub fn scroll_fine_y(&mut self) {
+        if self.scroll_wrap(Self::FINE_Y, 7) {
+            // Scroll coarse y wrappiong at 30 since bottom is taken by attribute data
+            if self.scroll_wrap(Self::COARSE_Y, 29) {
+                self.0 ^= Self::NAMETABLE_Y;
+            } else if self.get(Self::COARSE_Y) == 31 {
+                // 30-31 is invalid but still needs to be wrapped at 32
+                self.set(Self::COARSE_Y, 0u8);
+            }
+        }
+    }
+
+    pub fn set_x(&mut self, other: &TvRegister) {
+        let bits = TvRegister::COARSE_X | TvRegister::NAMETABLE_X;
+        self.set(bits, other.get(bits));
+    }
+
+    pub fn set_y(&mut self, other: &TvRegister) {
+        let bits = TvRegister::COARSE_Y | TvRegister::NAMETABLE_Y | TvRegister::FINE_Y;
+        self.set(bits, other.get(bits));
+    }
+
+    // Increment a value, wrapping at wrap and returning true
+    fn scroll_wrap(&mut self, select_bits: u16, wrap: u16) -> bool {
+        let value = self.get(select_bits);
+        if value == wrap {
+            self.set(select_bits, 0u8);
+            true
+        } else {
+            self.set(select_bits, value + 1);
+            false
+        }
     }
 }
 
@@ -103,8 +163,8 @@ pub struct Registers {
     pub control: Control,
     pub mask: Mask,
     pub status: Status,
-    pub t_register: TvRegister,
-    pub v_register: TvRegister,
+    pub t: TvRegister,
+    pub v: TvRegister,
     pub latch: bool,
     pub fine_x: u8,
     pub oam_address: u8,
@@ -122,8 +182,8 @@ impl Registers {
             4 => self.oam_data,
             7 => {
                 // Palette address gets data returned immediately instead of being buffered
-                if self.v_register.0 >= 0x3f00 {
-                    self.bus.read_u8(self.v_register.0)
+                if self.v.0 >= 0x3f00 {
+                    self.bus.read_u8(self.v.0)
                 } else {
                     self.read_buffer
                 }
@@ -140,7 +200,7 @@ impl Registers {
                 self.latch = false;
             }
             7 => {
-                self.read_buffer = self.bus.read_u8(self.v_register.0);
+                self.read_buffer = self.bus.read_u8(self.v.0);
                 self.increment_v_register();
             }
             _ => (),
@@ -156,7 +216,7 @@ impl Registers {
             0 => {
                 self.control = Control::from_bits(value).unwrap();
                 let nametable_bits = (self.control & Control::NAMETABLE).bits();
-                self.t_register.set(nametable_bits, TvRegister::NAMETABLE);
+                self.t.set(TvRegister::NAMETABLE, nametable_bits);
             }
             1 => self.mask = Mask::from_bits(value).unwrap(),
             2 => (),
@@ -171,31 +231,29 @@ impl Registers {
                 let coarse = value >> 3;
                 if !self.latch {
                     // X scroll
-                    self.t_register.set(coarse, TvRegister::COARSE_X);
+                    self.t.set(TvRegister::COARSE_X, coarse);
                     self.fine_x = fine;
                 } else {
                     // Y Scroll
-                    self.t_register.set(coarse, TvRegister::COARSE_Y);
-                    self.t_register.set(fine, TvRegister::FINE_Y);
+                    self.t.set(TvRegister::COARSE_Y, coarse);
+                    self.t.set(TvRegister::FINE_Y, fine);
                 }
                 self.latch = !self.latch;
             }
             // VRAM address write
             6 => {
                 if !self.latch {
-                    // Write the high byte to t_register with the last bit unset
-                    self.t_register.set(value & 0x3f, TvRegister::HIGH);
+                    self.t.set(TvRegister::HIGH, value);
                 } else {
                     // Write low byte and copy to v_register
-                    self.t_register.set(value, TvRegister::LOW);
-                    // println!("{:x}", self.t_register.0);
-                    self.v_register = self.t_register;
+                    self.t.set(TvRegister::LOW, value);
+                    self.v = self.t;
                 }
                 self.latch = !self.latch;
             }
             // VRAM data write
             7 => {
-                self.bus.write_u8(self.v_register.0, value);
+                self.bus.write_u8(self.v.0, value);
                 self.increment_v_register();
             }
             _ => unreachable!(),
@@ -203,11 +261,12 @@ impl Registers {
     }
 
     fn increment_v_register(&mut self) {
-        self.v_register.0 += if self.control.contains(Control::VRAM_INCREMENT) {
+        let amount = if self.control.contains(Control::VRAM_INCREMENT) {
             32
         } else {
             1
         };
+        self.v.0 = self.v.0.wrapping_add(amount)
     }
 }
 
@@ -218,14 +277,12 @@ mod test {
     #[test]
     fn tv_register() {
         let mut register = TvRegister::default();
-        register.set(10u8, TvRegister::COARSE_X);
-        register.set(15u8, TvRegister::COARSE_Y);
-        register.set(1u8, TvRegister::NAMETABLE);
+        register.set(TvRegister::COARSE_X, 10u8);
+        register.set(TvRegister::COARSE_Y, 15u8);
+        register.set(TvRegister::NAMETABLE, 1u8);
         assert_eq!(register.get(TvRegister::COARSE_X), 10);
         assert_eq!(register.get(TvRegister::COARSE_Y), 15);
         assert_eq!(register.nametable_address(), 0x2400 + 490);
-        // let a_x = dbg!(tile_x / 4);
-        // let a_y = dbg!(tile_y / 4);
         assert_eq!(register.attribute_address(), 0x27da);
     }
 }
