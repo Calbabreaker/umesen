@@ -28,16 +28,11 @@ pub struct Ppu {
     bg_shift_bits_high: u16,
     bg_palette_bits_low: u8,
     bg_palette_bits_high: u8,
+    odd_frame: bool,
 }
 
 impl Ppu {
     pub(crate) fn clock(&mut self) {
-        let x = self.dot as usize + 1;
-        let y = self.scanline as usize;
-        if x < WIDTH && y < HEIGHT {
-            self.render_pixel(x, y);
-        }
-
         // See https://www.nesdev.org/w/images/default/4/4f/Ppu.svg
         match self.scanline {
             0..=239 => self.clock_render_line(),
@@ -49,6 +44,14 @@ impl Ppu {
             }
             261 => self.clock_prerender_line(),
             _ => (),
+        }
+
+        if self.dot >= 1 {
+            let x = (self.dot - 1) as usize;
+            let y = self.scanline as usize;
+            if x < WIDTH && y < HEIGHT {
+                self.render_pixel(x, y);
+            }
         }
 
         self.next_dot();
@@ -66,8 +69,11 @@ impl Ppu {
     // Scanlines when the PPU is actually drawing to the screen
     fn clock_render_line(&mut self) {
         match self.dot {
-            1..=256 | 336 => {
-                if (self.dot - 1) % 8 == 7 {
+            // All visible dots and the last two fetches to load the shift register with the next tiles on the next scanline
+            1..=256 | 328..=336 => {
+                self.shift_registers();
+
+                if (self.dot - 1) % 8 == 0 {
                     self.load_background_shift_bits();
                 }
             }
@@ -86,15 +92,18 @@ impl Ppu {
             1 => {
                 self.registers.status.set(Status::VBLANK, false);
             }
-            304 => {
+            280..=304 => {
                 if self.registers.mask.is_rendering() {
                     self.registers.v.set_y(&self.registers.t);
                 }
             }
-            1..=256 | 336 => {
-                self.clock_render_line();
+            339 => {
+                // Skip last cycle on odd frames
+                if self.registers.mask.is_rendering() && self.odd_frame {
+                    self.dot += 1;
+                }
             }
-            _ => (),
+            _ => self.clock_render_line(),
         }
     }
 
@@ -113,10 +122,10 @@ impl Ppu {
         );
 
         self.bg_shift_bits_low = (self.bg_shift_bits_low & 0xff00) | tile_lsb as u16;
-        self.bg_shift_bits_high = (self.bg_shift_bits_low & 0xff00) | tile_msb as u16;
+        self.bg_shift_bits_high = (self.bg_shift_bits_high & 0xff00) | tile_msb as u16;
 
-        if self.registers.mask.is_rendering() {
-            self.registers.v.scroll_coarse_x();
+        if registers.mask.is_rendering() {
+            registers.v.scroll_coarse_x();
         }
     }
 
@@ -127,8 +136,8 @@ impl Ppu {
 
         let bit_mask = 0b1000_0000 >> self.registers.fine_x;
         let pixel_index = add_bit_planes(
-            self.bg_shift_bits_low as u8,
-            self.bg_shift_bits_high as u8,
+            (self.bg_shift_bits_low >> 8) as u8,
+            (self.bg_shift_bits_high >> 8) as u8,
             bit_mask,
         );
 
@@ -140,16 +149,14 @@ impl Ppu {
 
         let color = self.get_palette_color(palette_id, pixel_index);
         self.screen_pixels[x + y * WIDTH] = color;
-
-        self.shift_registers();
     }
 
     fn shift_registers(&mut self) {
-        let palette_lsb = self.bg_palette_id & 0b01;
-        let palette_msb = (self.bg_palette_id & 0b10) >> 1;
         self.bg_shift_bits_low <<= 1;
         self.bg_shift_bits_high <<= 1;
         // Shift and add new bits to the shift register
+        let palette_lsb = self.bg_palette_id & 0b01;
+        let palette_msb = (self.bg_palette_id & 0b10) >> 1;
         self.bg_palette_bits_low = (self.bg_palette_bits_low << 1) | palette_lsb;
         self.bg_palette_bits_high = (self.bg_palette_bits_high << 1) | palette_msb;
     }
@@ -163,6 +170,7 @@ impl Ppu {
 
         if self.scanline == 262 {
             self.frame_complete = true;
+            self.odd_frame = !self.odd_frame;
             self.scanline = 0;
         }
     }

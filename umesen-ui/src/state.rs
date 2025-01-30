@@ -7,7 +7,7 @@ pub struct Texture {
 
 impl Texture {
     pub fn new(size: [usize; 2], ctx: &egui::Context) -> Self {
-        let image_buffer = egui::ColorImage::new(size, egui::Color32::BLACK);
+        let image_buffer = egui::ColorImage::new(size, egui::Color32::WHITE);
         Self {
             handle: ctx.load_texture("", image_buffer.clone(), egui::TextureOptions::NEAREST),
             image_buffer,
@@ -39,7 +39,7 @@ pub struct State {
 impl State {
     pub fn run_emulator(&mut self) {
         self.emulator.cpu.reset();
-        self.running = true;
+        // self.running = true;
     }
 
     pub fn next_frame(&mut self) {

@@ -84,6 +84,9 @@ impl TvRegister {
     #[inline]
     pub fn set(&mut self, select_bits: u16, value: impl Into<u16>) {
         let value = value.into();
+        // Check value fits into the bits
+        debug_assert!(value <= (select_bits >> select_bits.trailing_zeros()));
+
         let value_shifted = value << select_bits.trailing_zeros();
         self.0 = value_shifted | (self.0 & (!select_bits));
     }
@@ -154,6 +157,19 @@ impl TvRegister {
             self.set(select_bits, value + 1);
             false
         }
+    }
+}
+
+impl std::fmt::Display for TvRegister {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CX: {}, CY: {}, NXY: {:02b}, FY: {}",
+            self.get(TvRegister::COARSE_X),
+            self.get(TvRegister::COARSE_Y),
+            self.get(TvRegister::NAMETABLE),
+            self.get(TvRegister::FINE_Y)
+        )
     }
 }
 
