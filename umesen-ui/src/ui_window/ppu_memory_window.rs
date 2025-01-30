@@ -24,7 +24,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
             });
         });
 
-    let cart = state.emulator.cartridge();
+    let cart = state.emu.cartridge();
     let mirroring = cart.map(|c| c.mirroring()).unwrap_or_default();
     egui::CollapsingHeader::new(format!("Nametables ({:?} mirroring)", mirroring))
         .default_open(true)
@@ -40,7 +40,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 }
 
 fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
-    let ppu = &state.emulator.cpu.bus.ppu;
+    let ppu = &state.emu.cpu.bus.ppu;
     let pixel_size = egui::Vec2::splat(10.);
     ui.horizontal(|ui| {
         for col in 0..4 {
@@ -97,7 +97,7 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         (tile_number, palette)
     };
 
-    let control = &state.emulator.ppu().registers.control;
+    let control = &state.emu.ppu().registers.control;
     let pattern_table_number = control.contains(Control::BACKGROUND_TABLE_OFFSET) as u8;
 
     // 32 by 30 tiles with 8 pixels each
@@ -124,7 +124,7 @@ fn show_ppu_mem_tiles<'a>(
     let image_size = [tile_size[0] * 8, tile_size[1] * 8];
     let default_fn = || crate::Texture::new(image_size, ui.ctx());
     let texture = state.texture_map.entry(name).or_insert_with(default_fn);
-    let ppu = state.emulator.ppu();
+    let ppu = state.emu.ppu();
 
     for tile_y in 0..tile_size[1] {
         for tile_x in 0..tile_size[0] {

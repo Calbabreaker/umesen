@@ -7,6 +7,9 @@ use bus::CpuBus;
 pub use disassembler::Disassembler;
 pub use opcode::{AddrMode, Opcode};
 
+/// Number of clock cycles per second
+pub const CLOCK_SPEED_HZ: u32 = 1789773;
+
 bitflags::bitflags! {
     /// Flags for the cpu register
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,10 +69,13 @@ pub struct Cpu {
     pub flags: Flags,
     pub bus: CpuBus,
     operand_address: Option<u16>,
+
+    /// Cpu cycles counter for debugging
+    pub cpu_cycles_total: u32,
 }
 
 impl Cpu {
-    pub fn execute_next(&mut self) -> Result<(), CpuError> {
+    fn execute_next(&mut self) -> Result<(), CpuError> {
         if self.bus.require_nmi() {
             self.nmi();
         }
@@ -84,6 +90,19 @@ impl Cpu {
         }
 
         Ok(())
+    }
+
+    /// Try to execute the next instructions if waited enough cycles
+    /// Returns true if executed an instruction
+    pub fn clock(&mut self) -> Result<bool, CpuError> {
+        self.bus.cpu_cycles_to_wait -= 1;
+        self.cpu_cycles_total += 1;
+        if self.bus.cpu_cycles_to_wait == 0 {
+            self.execute_next()?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     fn irq(&mut self) {
@@ -104,7 +123,8 @@ impl Cpu {
         self.y = 0;
         self.flags = Flags::default() | Flags::INTERRUPT;
 
-        self.bus.cpu_cycles = 0;
+        self.cpu_cycles_total = 0;
+        self.bus.cpu_cycles_to_wait = 0;
         self.pc = self.bus.read_u16(0xfffc);
         self.sp = 0xfd;
         for _ in 0..5 {

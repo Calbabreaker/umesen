@@ -10,7 +10,6 @@ pub use registers::*;
 
 pub const WIDTH: usize = 256;
 pub const HEIGHT: usize = 240;
-pub const FRAME_INTERVAL: f64 = 1. / 60.;
 
 /// Emulated 2C02 NTSC PPU
 #[derive(Default)]
@@ -109,7 +108,7 @@ impl Ppu {
 
     /// Load the next tile data into the background shift bits for the current tile at the dot scanline
     /// Technically the address calculation and reads are supposed to happen in different
-    /// cycles every 8 cycles but just have it all here for simplicity
+    /// cycles every 8 cycles but just have it all at once for simplicity (maybe slightly less accurate)
     fn load_background_shift_bits(&mut self) {
         let registers = &mut self.registers;
         let tile_number = registers.bus.read_u8(registers.v.nametable_address());

@@ -24,37 +24,26 @@ impl Texture {
 pub struct Stats {
     pub ui_render_time: f32,
     pub emulation_render_time: f32,
-    pub frame_rate: f64,
 }
 
 #[derive(Default)]
 pub struct State {
-    pub emulator: umesen_core::Emulator,
+    pub emu: umesen_core::Emulator,
     pub texture_map: HashMap<String, Texture>,
     pub running: bool,
-    pub last_frame_time: f64,
+    pub last_egui_update_time: f64,
     pub stats: Stats,
+    pub speed: f64,
 }
 
 impl State {
     pub fn run_emulator(&mut self) {
-        self.emulator.cpu.reset();
-        // self.running = true;
-    }
-
-    pub fn next_frame(&mut self) {
-        let start_time = std::time::Instant::now();
-        if let Err(err) = self.emulator.next_frame_debug() {
-            log::warn!("Emulation stopped: {err}");
-            self.running = false;
-        }
-        // self.emulator.next_frame();
-        self.update_ppu_texture();
-        self.stats.emulation_render_time = start_time.elapsed().as_secs_f32();
+        self.emu.cpu.reset();
+        self.running = true;
     }
 
     pub fn update_ppu_texture(&mut self) {
-        let pixels = &self.emulator.ppu().screen_pixels;
+        let pixels = &self.emu.ppu().screen_pixels;
         let texture = self.texture_map.get_mut("ppu_output").unwrap();
         for (i, color) in pixels.iter().enumerate() {
             texture.image_buffer.pixels[i] = to_egui_color(*color);

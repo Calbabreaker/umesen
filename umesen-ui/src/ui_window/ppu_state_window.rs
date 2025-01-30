@@ -1,5 +1,5 @@
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
-    let ppu = &state.emulator.ppu();
+    let ppu = &state.emu.ppu();
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
     ui.label(format!("T: ${0:04x}", ppu.registers.t.0));
     ui.label(format!("V: ${0:04x}", ppu.registers.v.0));

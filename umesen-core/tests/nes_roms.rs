@@ -31,7 +31,7 @@ fn nestest() {
         let mut line_split = correct_line.split("//");
         let correct_output = line_split.next().unwrap().trim();
         assert_eq!(
-            emu.get_debug_state(),
+            emu.get_debug_log(),
             correct_output,
             "Incorrect output on line {i} executing: {prev_disassem}"
         );

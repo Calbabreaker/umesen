@@ -9,8 +9,9 @@ use crate::{
 pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,
-    /// Cpu cycles counter for debugging
-    pub cpu_cycles: u32,
+    /// Number of cycles for the cpu to wait before executing the next instruction
+    /// (aka number of cycles added when executing the previous instruction)
+    pub cpu_cycles_to_wait: u32,
     pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<Cartridge>>>,
     pub open_bus: u8,
@@ -37,6 +38,7 @@ impl std::fmt::Display for CpuBus {
 
 impl CpuBus {
     /// Immutable read function for peeking into memory
+    /// Reads into some address cause side effects
     pub fn immut_read_u8(&self, address: u16) -> u8 {
         if let Some(cart) = self.cartridge.as_ref() {
             if let Some(byte) = cart.borrow().cpu_read(address) {
@@ -101,7 +103,7 @@ impl CpuBus {
 
     // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
-        self.cpu_cycles += 1;
+        self.cpu_cycles_to_wait += 1;
         for _ in 0..3 {
             self.ppu.clock();
         }

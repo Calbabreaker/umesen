@@ -20,6 +20,7 @@ impl App {
 
     pub fn init(&mut self, ctx: &egui::Context) {
         let screen_size = [umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT];
+        self.state.speed = 1.;
         self.state.texture_map.insert(
             "ppu_output".to_string(),
             crate::Texture::new(screen_size, ctx),
@@ -32,7 +33,7 @@ impl App {
 
     fn load_nes_rom(&mut self, path: &std::path::Path) {
         log::trace!("Loading {path:?}");
-        if let Err(err) = self.state.emulator.load_nes_rom(path) {
+        if let Err(err) = self.state.emu.load_nes_rom(path) {
             self.view_windows.set.insert(UiWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
                 message: format!("{err}"),
@@ -41,7 +42,7 @@ impl App {
         } else {
             log::trace!(
                 "Loaded cartridge with header: {:?}",
-                self.state.emulator.cartridge().unwrap().header()
+                self.state.emu.cartridge().unwrap().header()
             );
             // Make sure added path is on top
             self.recent_file_paths.retain(|x| x != path);
@@ -114,20 +115,29 @@ impl eframe::App for App {
 
         self.view_windows.show(ctx, &mut self.state);
 
+        let now = ctx.input(|i| i.time);
+
         if self.state.running {
-            use umesen_core::ppu::FRAME_INTERVAL;
+            let delta = (now - self.state.last_egui_update_time) * self.state.speed;
+            if let Err(err) = self.state.emu.clock_until_caught_up(delta) {
+                log::error!("Emulation stopped: {err}");
+                self.state.running = false;
+            }
 
-            let now = ctx.input(|i| i.time);
-            let delta = now - self.state.last_frame_time;
-
-            if delta > FRAME_INTERVAL {
-                self.state.stats.frame_rate = 1. / delta;
-                self.state.last_frame_time = now;
-                self.state.next_frame();
+            let frame_complete = self.state.emu.frame_complete();
+            // Don't sync to screen if speed is less than 1 for debugging
+            if self.state.speed == 1. {
+                if frame_complete {
+                    self.state.update_ppu_texture();
+                }
+            } else {
+                self.state.update_ppu_texture();
             }
 
             ctx.request_repaint();
         }
+
+        self.state.last_egui_update_time = now;
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
@@ -140,7 +150,7 @@ impl eframe::App for App {
 
         ctx.input_mut(|i| {
             if i.key_pressed(egui::Key::CloseBracket) {
-                self.state.emulator.step();
+                self.state.emu.step();
                 self.state.update_ppu_texture();
             }
 

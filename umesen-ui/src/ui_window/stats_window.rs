@@ -9,6 +9,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ));
     ui.label(format!(
         "Emulation frame rate: {:.3}fps",
-        state.stats.frame_rate
+        state.emu.frame_rate()
     ));
 }
