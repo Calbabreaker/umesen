@@ -12,28 +12,11 @@ pub struct CpuBus {
     /// Number of cycles for the cpu to wait before executing the next instruction
     /// (aka number of cycles added when executing the previous instruction)
     pub cpu_cycles_to_wait: u32,
+    /// Cpu cycles counter for debugging
+    pub cpu_cycles_total: u32,
     pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<Cartridge>>>,
     pub open_bus: u8,
-}
-
-impl std::fmt::Display for CpuBus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for i in 0..0x1000 {
-            let line_address_start = i * 0x10;
-            write!(f, "${line_address_start:04x}:")?;
-
-            for i in 0..0x10 {
-                let byte = self.immut_read_u8(line_address_start + i);
-                write!(f, " {byte:02x}")?;
-            }
-
-            if i != 0xfff {
-                writeln!(f)?;
-            }
-        }
-        Ok(())
-    }
 }
 
 impl CpuBus {
@@ -104,6 +87,7 @@ impl CpuBus {
     // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
         self.cpu_cycles_to_wait += 1;
+        self.cpu_cycles_total += 1;
         for _ in 0..3 {
             self.ppu.clock();
         }
@@ -119,5 +103,28 @@ impl CpuBus {
         let status = self.ppu.require_nmi;
         self.ppu.require_nmi = false;
         status
+    }
+
+    /// Display the memory dump of a range of rows
+    /// Each row shows 16 bytes so 0..0x1000 shows the entire range
+    pub fn dump_memory(
+        &self,
+        row_range: std::ops::Range<usize>,
+        mut f: impl std::fmt::Write,
+    ) -> std::fmt::Result {
+        for i in row_range {
+            let line_address_start = i * 0x10;
+            write!(f, "${line_address_start:04x}:")?;
+
+            for i in 0..0x10 {
+                let byte = self.immut_read_u8(line_address_start as u16 + i);
+                write!(f, " {byte:02x}")?;
+            }
+
+            if i != 0xfff {
+                writeln!(f)?;
+            }
+        }
+        Ok(())
     }
 }

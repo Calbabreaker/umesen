@@ -69,9 +69,6 @@ pub struct Cpu {
     pub flags: Flags,
     pub bus: CpuBus,
     operand_address: Option<u16>,
-
-    /// Cpu cycles counter for debugging
-    pub cpu_cycles_total: u32,
 }
 
 impl Cpu {
@@ -96,7 +93,6 @@ impl Cpu {
     /// Returns true if executed an instruction
     pub fn clock(&mut self) -> Result<bool, CpuError> {
         self.bus.cpu_cycles_to_wait -= 1;
-        self.cpu_cycles_total += 1;
         if self.bus.cpu_cycles_to_wait == 0 {
             self.execute_next()?;
             Ok(true)
@@ -123,7 +119,7 @@ impl Cpu {
         self.y = 0;
         self.flags = Flags::default() | Flags::INTERRUPT;
 
-        self.cpu_cycles_total = 0;
+        self.bus.cpu_cycles_total = 0;
         self.bus.cpu_cycles_to_wait = 0;
         self.pc = self.bus.read_u16(0xfffc);
         self.sp = 0xfd;

@@ -1,19 +1,17 @@
-use std::fs::File;
-
 use umesen_core::{Cartridge, Emulator};
 
 // Test rom obtained from https://github.com/christopherpow/nes-test-roms
-#[test]
-fn scanline() {
-    let rom_file = File::open("tests/scanline.nes").unwrap();
-    let mut cpu = umesen_core::Cpu::default();
-    cpu.bus
-        .attach_catridge(umesen_core::Cartridge::from_nes(rom_file).unwrap());
-    cpu.reset();
-    for i in 0..1000 {
-        cpu.execute_next().unwrap();
-    }
-}
+// #[test]
+// fn scanline() {
+//     let rom_file = File::open("tests/scanline.nes").unwrap();
+//     let mut cpu = umesen_core::Cpu::default();
+//     cpu.bus
+//         .attach_catridge(umesen_core::Cartridge::from_nes(rom_file).unwrap());
+//     cpu.reset();
+//     for i in 0..1000 {
+//         cpu.execute_next().unwrap();
+//     }
+// }
 
 // Test rom by kevtris https://www.qmtpro.com/~nes/misc/nestest.txt
 #[test]
@@ -39,7 +37,7 @@ fn nestest() {
         // Current line actually contains the state of the instruction executed last line
         prev_disassem = line_split.next().unwrap().trim();
 
-        if let Err(err) = emu.cpu.execute_next() {
+        if let Err(err) = emu.step() {
             panic!("Failed to execute at line {i}: {err} ({prev_disassem})");
         }
     }

@@ -13,22 +13,17 @@ pub struct App {
 impl App {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        cc.storage
+        let mut app: App = cc
+            .storage
             .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
-            .unwrap_or_default()
-    }
+            .unwrap_or_default();
 
-    pub fn init(&mut self, ctx: &egui::Context) {
-        let screen_size = [umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT];
-        self.state.speed = 1.;
-        self.state.texture_map.insert(
-            "ppu_output".to_string(),
-            crate::Texture::new(screen_size, ctx),
-        );
-
-        if let Some(path) = self.recent_file_paths.last().cloned() {
-            self.load_nes_rom(&path);
+        if let Some(path) = app.recent_file_paths.last().cloned() {
+            app.load_nes_rom(&path);
         }
+
+        app.state.init(&cc.egui_ctx);
+        app
     }
 
     fn load_nes_rom(&mut self, path: &std::path::Path) {
@@ -115,29 +110,7 @@ impl eframe::App for App {
 
         self.view_windows.show(ctx, &mut self.state);
 
-        let now = ctx.input(|i| i.time);
-
-        if self.state.running {
-            let delta = (now - self.state.last_egui_update_time) * self.state.speed;
-            if let Err(err) = self.state.emu.clock_until_caught_up(delta) {
-                log::error!("Emulation stopped: {err}");
-                self.state.running = false;
-            }
-
-            let frame_complete = self.state.emu.frame_complete();
-            // Don't sync to screen if speed is less than 1 for debugging
-            if self.state.speed == 1. {
-                if frame_complete {
-                    self.state.update_ppu_texture();
-                }
-            } else {
-                self.state.update_ppu_texture();
-            }
-
-            ctx.request_repaint();
-        }
-
-        self.state.last_egui_update_time = now;
+        self.state.update_emulation(ctx);
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none())
@@ -150,7 +123,7 @@ impl eframe::App for App {
 
         ctx.input_mut(|i| {
             if i.key_pressed(egui::Key::CloseBracket) {
-                self.state.emu.step();
+                self.state.emu.step().ok();
                 self.state.update_ppu_texture();
             }
 
@@ -161,6 +134,6 @@ impl eframe::App for App {
             i.raw.dropped_files.clear();
         });
 
-        self.state.stats.ui_render_time = frame.info().cpu_usage.unwrap_or(0.);
+        self.state.ui_render_time = frame.info().cpu_usage.unwrap_or(0.);
     }
 }

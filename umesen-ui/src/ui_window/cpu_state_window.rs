@@ -6,12 +6,16 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!("X:  ${0:02x}", state.emu.cpu.x));
     ui.label(format!("Y:  ${0:02x}", state.emu.cpu.y));
     ui.label(format!("FLAGS: {}", state.emu.cpu.flags));
-    ui.label(format!("CYCLES: {}", state.emu.cpu.cpu_cycles_total));
+    ui.label(format!("CYCLES: {}", state.emu.cpu.bus.cpu_cycles_total));
 
     ui.horizontal(|ui| {
         ui.label("Speed:");
         ui.style_mut().spacing.slider_width = 150.0;
-        ui.add(egui::Slider::new(&mut state.speed, 0.001..=1.000).step_by(0.001));
+        ui.add(
+            egui::Slider::new(&mut state.speed, 0.0001..=1.000)
+                .step_by(0.00001)
+                .logarithmic(true),
+        );
     });
 
     ui.horizontal(|ui| {
@@ -25,7 +29,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
         if ui.button("Step").clicked() {
             state.running = false;
-            state.emu.step();
+            state.emu.step().ok();
             state.update_ppu_texture();
         }
 
@@ -33,7 +37,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
             state.running = false;
             let start_pc = state.emu.cpu.pc;
             while state.emu.cpu.pc <= start_pc {
-                state.emu.step();
+                state.emu.step().ok();
             }
             state.update_ppu_texture();
         }

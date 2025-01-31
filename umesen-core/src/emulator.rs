@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::{ppu, Cartridge, Cpu, CpuError, NesParseError};
 
@@ -20,12 +20,10 @@ impl Default for Emulator {
 }
 
 impl Emulator {
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Result<(), CpuError> {
         loop {
-            match self.cpu.clock() {
-                Err(err) => log::error!("{err}"),
-                Ok(true) => break,
-                Ok(false) => (),
+            if self.cpu.clock()? {
+                return Ok(());
             }
         }
     }
@@ -33,13 +31,15 @@ impl Emulator {
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) {
         while !self.cpu.bus.ppu.frame_complete {
-            self.step();
+            if let Err(err) = self.step() {
+                log::warn!("Emulation error: {err}");
+            }
         }
         self.cpu.bus.ppu.frame_complete = false;
     }
 
-    /// Keep clocking the cpu until it has caught up to the current time
-    pub fn clock_until_caught_up(&mut self, elapsed_secs: impl Into<f64>) -> Result<(), CpuError> {
+    /// Keep clocking the cpu until it has caught up to the ellapsed seconds
+    pub fn clock(&mut self, elapsed_secs: impl Into<f64>) -> Result<(), CpuError> {
         let cycles_to_clock = (elapsed_secs.into() * crate::cpu::CLOCK_SPEED_HZ as f64).round();
         for _ in 0..cycles_to_clock as usize {
             self.cpu.clock()?;
@@ -89,7 +89,7 @@ impl Emulator {
             self.cpu.sp,
             self.ppu().scanline,
             self.ppu().dot,
-            self.cpu.cpu_cycles_total,
+            self.cpu.bus.cpu_cycles_total,
         )
     }
 }
