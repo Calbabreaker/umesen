@@ -67,7 +67,7 @@ impl App {
 
                 ui.menu_button("Recent ROMS", |ui| {
                     let path = self.recent_file_paths.iter().rev().find(|path| {
-                        //
+                        // Make a button for each path and when it is clicked it will return the path from this iterator
                         ui.button(path.to_string_lossy()).clicked()
                     });
                     if let Some(path) = path.cloned() {
@@ -75,6 +75,11 @@ impl App {
                         ui.close_menu();
                     }
                 });
+
+                if ui.button("Preferences...").clicked() {
+                    self.view_windows.set.insert(UiWindowKind::Preferences);
+                    ui.close_menu();
+                }
             });
 
             ui.menu_button("View", |ui| {

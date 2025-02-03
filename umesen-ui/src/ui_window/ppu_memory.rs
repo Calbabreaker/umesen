@@ -74,7 +74,7 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
         [16, 16],
         table_number,
         get_tile_info_fn,
-        3.,
+        2.,
     );
 }
 
@@ -108,7 +108,7 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         [32, 30],
         pattern_table_number,
         get_tile_info_fn,
-        2.,
+        1.,
     );
 }
 

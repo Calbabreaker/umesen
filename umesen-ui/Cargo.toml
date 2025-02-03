@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 egui = "0.30"
-eframe = { version = "0.30", default-features = false, features = ["glow", "persistence", "wayland"] }
+eframe = { version = "0.30", default-features = false, features = ["glow", "persistence", "x11"] }
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 umesen-core = { path = "../umesen-core" }
