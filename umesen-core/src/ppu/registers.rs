@@ -193,9 +193,10 @@ impl Registers {
     pub(crate) fn immut_read_u8(&self, address: u16) -> u8 {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         match address % 8 {
-            // Fill the unused bits with open bus
+            // Get status bits and fill unused with open bus
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
             4 => self.oam_data,
+            // Get PPU memory data
             7 => {
                 // Palette address gets data returned immediately instead of being buffered
                 if self.v.0 >= 0x3f00 {
@@ -212,6 +213,7 @@ impl Registers {
         let output = self.immut_read_u8(address);
         match address % 8 {
             2 => {
+                // Reset latch when read for real
                 self.status.set(Status::VBLANK, false);
                 self.latch = false;
             }

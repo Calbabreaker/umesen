@@ -5,8 +5,6 @@ use crate::ui_window::{UiWindowKind, UiWindowSet};
 pub struct App {
     view_windows: UiWindowSet,
     recent_file_paths: Vec<std::path::PathBuf>,
-
-    #[serde(skip)]
     state: crate::State,
 }
 
@@ -94,6 +92,24 @@ impl App {
             });
         });
     }
+
+    pub fn controller_input(&mut self, number: usize, input: &egui::InputState) {
+        let button_map = &mut self.state.button_maps[number];
+        let controller = &mut self.state.emu.cpu.bus.controllers[number];
+
+        for (button, key) in &button_map.list {
+            controller.state.set(*button, input.key_down(*key));
+        }
+
+        if let Some(key) = input.keys_down.iter().next() {
+            if let Some(button) = button_map.button_waiting_for_press.take() {
+                // Get the first key press
+                // Set it at the button position in the array
+                let i = button_map.list.iter().position(|(b, _)| button == *b);
+                button_map.list[i.unwrap()] = (button, *key);
+            }
+        }
+    }
 }
 
 impl eframe::App for App {
@@ -131,6 +147,9 @@ impl eframe::App for App {
                 self.state.emu.step().ok();
                 self.state.update_ppu_texture();
             }
+
+            self.controller_input(0, i);
+            self.controller_input(1, i);
 
             let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);
             if let Some(path) = file_path {

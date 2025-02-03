@@ -2667,6 +2667,7 @@ version = "0.0.0"
 dependencies = [
  "bitflags 2.6.0",
  "log",
+ "serde",
  "thiserror 2.0.9",
 ]
 

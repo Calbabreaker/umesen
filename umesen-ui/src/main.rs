@@ -1,11 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 mod app;
+mod button_map;
 mod state;
+mod texture;
 mod ui_window;
 
 pub use app::App;
-pub use state::{State, Texture};
+pub use state::State;
+pub use texture::Texture;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {

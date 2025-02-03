@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     cartridge::{Cartridge, FixedArray, MemoryBankExt},
-    Ppu,
+    Controller, Ppu,
 };
 
 #[derive(Default)]
@@ -17,6 +17,7 @@ pub struct CpuBus {
     pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<Cartridge>>>,
     pub open_bus: u8,
+    pub controllers: [Controller; 2],
 }
 
 impl CpuBus {
@@ -41,6 +42,8 @@ impl CpuBus {
     pub fn read_u8(&mut self, address: u16) -> u8 {
         let output = match address {
             0x2000..=0x3fff => self.ppu.registers.read_u8(address),
+            0x4016 => self.controllers[0].read_u8(),
+            0x4017 => self.controllers[1].read_u8(),
             _ => self.immut_read_u8(address),
         };
         self.open_bus = output;
@@ -57,6 +60,10 @@ impl CpuBus {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_write(address, value),
             0x2000..=0x3fff => self.ppu.registers.write_u8(address, value),
+            0x4016 => {
+                self.controllers[0].write_u8(value);
+                self.controllers[1].write_u8(value);
+            }
             _ => (),
         }
         self.clock();

@@ -1,33 +1,19 @@
 use egui::ahash::HashMap;
+use serde::{Deserialize, Serialize};
 
-pub struct Texture {
-    pub handle: egui::TextureHandle,
-    pub image_buffer: egui::ColorImage,
-}
+use crate::{button_map::ButtonMap, texture::Texture};
 
-impl Texture {
-    pub fn new(size: [usize; 2], ctx: &egui::Context) -> Self {
-        let image_buffer = egui::ColorImage::new(size, egui::Color32::WHITE);
-        Self {
-            handle: ctx.load_texture("", image_buffer.clone(), egui::TextureOptions::NEAREST),
-            image_buffer,
-        }
-    }
-
-    pub fn update(&mut self) {
-        self.handle
-            .set(self.image_buffer.clone(), egui::TextureOptions::NEAREST);
-    }
-}
-
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct State {
-    pub emu: umesen_core::Emulator,
+    #[serde(skip)]
+    pub emu: Box<umesen_core::Emulator>,
+    #[serde(skip)]
     pub texture_map: HashMap<String, Texture>,
     pub running: bool,
     pub last_egui_update_time: f64,
     pub ui_render_time: f32,
     pub speed: f64,
+    pub button_maps: [ButtonMap; 2],
 }
 
 impl State {
