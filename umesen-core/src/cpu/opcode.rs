@@ -33,22 +33,17 @@ pub enum AddrMode {
 pub struct Opcode {
     pub name: &'static str,
     pub addr_mode: AddrMode,
-    pub byte: u8,
 }
 
 impl Opcode {
     pub fn new(name: &'static str, addr_mode: AddrMode) -> Self {
-        Self {
-            name,
-            addr_mode,
-            byte: 0,
-        }
+        Self { name, addr_mode }
     }
 
     /// Convert opcode byte into opcode name with addressing mode including unofficial ones
     pub fn from_byte(byte: u8) -> Option<Self> {
         use AddrMode::*;
-        let mut opcode = match byte {
+        Some(match byte {
             // -- Stack --
             0x48 => Opcode::new("pha", Implied),
             0x08 => Opcode::new("php", Implied),
@@ -304,9 +299,6 @@ impl Opcode {
             0x0c => Opcode::new("nop", Absolute),
             0x1c | 0x3c | 0x5c | 0x7c | 0xdc | 0xfc => Opcode::new("nop", AbsoluteX),
             _ => return None,
-        };
-
-        opcode.byte = byte;
-        Some(opcode)
+        })
     }
 }

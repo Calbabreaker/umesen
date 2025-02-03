@@ -7,8 +7,3 @@ edition = "2021"
 bitflags = "2.6"
 thiserror = "2"
 log = "0.4"
-
-[features]
-# Binary coded decimal support for adc and sbc
-# Normal nes doesn't have this
-bcd = []

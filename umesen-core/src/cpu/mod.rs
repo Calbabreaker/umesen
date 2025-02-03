@@ -223,7 +223,7 @@ impl Cpu {
             "plp" => self.plp(),
 
             // -- Shift and rotate --
-            "asl" => drop(self.shift('<', false)), // Use drop to return ()
+            "asl" => drop(self.shift('<', false)), // Use drop to return nothing
             "lsr" => drop(self.shift('>', false)),
             "rol" => drop(self.shift('<', true)),
             "ror" => drop(self.shift('>', true)),
@@ -443,26 +443,12 @@ impl Cpu {
 
     fn add_carry(&mut self, adder: u8) {
         let carry = self.flags.contains(Flags::CARRY);
-        let mut result_u16 = adder as u16 + self.a as u16 + carry as u16;
+        let result = adder as u16 + self.a as u16 + carry as u16;
+        self.flags.set(Flags::CARRY, result > 0xff);
 
-        // Binary coded isn't actually enabled on the NES but I already coded it so
-        #[cfg(feature = "bcd")]
-        if self.flags.contains(Flags::DECIMAL) {
-            // Account for adding going into between 0xa and 0xf
-            if (self.a & 0xf) + (adder & 0xf) + carry as u8 > 9 {
-                result_u16 += 0x06;
-            }
-            // Account for adding going into between 0xa0 and 0xff
-            if result_u16 > 0x99 {
-                result_u16 += 0x60;
-            }
-        }
-
-        let result = result_u16 as u8;
-        self.flags.set(Flags::CARRY, result_u16 > 0xff);
-        self.set_overflow_flag(self.a, adder, result);
-        self.set_zero_neg_flags(result);
-        self.a = result;
+        self.set_overflow_flag(self.a, adder, result as u8);
+        self.set_zero_neg_flags(result as u8);
+        self.a = result as u8;
     }
 
     fn store_mem(&mut self, value: u8) {
