@@ -92,7 +92,7 @@ impl Cpu {
     /// Try to execute the next instructions if waited enough cycles
     /// Returns true if executed an instruction
     pub fn clock(&mut self) -> Result<bool, CpuError> {
-        self.bus.cpu_cycles_to_wait -= 1;
+        self.bus.cpu_cycles_to_wait = self.bus.cpu_cycles_to_wait.saturating_sub(1);
         if self.bus.cpu_cycles_to_wait == 0 {
             self.execute_next()?;
             Ok(true)
@@ -223,17 +223,17 @@ impl Cpu {
             "plp" => self.plp(),
 
             // -- Shift and rotate --
-            "asl" => drop(self.shift('<', false)), // Use drop to return nothing
-            "lsr" => drop(self.shift('>', false)),
-            "rol" => drop(self.shift('<', true)),
-            "ror" => drop(self.shift('>', true)),
+            "asl" => drop(self.shift(true, false)), // Use drop to return nothing
+            "lsr" => drop(self.shift(false, false)),
+            "rol" => drop(self.shift(true, true)),
+            "ror" => drop(self.shift(false, true)),
 
-            "slo" => self.a |= self.shift('<', false), // asl + ora
-            "rla" => self.a &= self.shift('<', true),  // rol + and
-            "sre" => self.a ^= self.shift('>', false), // lsr + eor
+            "slo" => self.a |= self.shift(true, false), // asl + ora
+            "rla" => self.a &= self.shift(true, true),  // rol + and
+            "sre" => self.a ^= self.shift(false, false), // lsr + eor
             "rra" => {
                 // ror + adc
-                let adder = self.shift('>', true);
+                let adder = self.shift(false, true);
                 self.add_carry(adder);
             }
 
@@ -394,13 +394,12 @@ impl Cpu {
         self.flags.remove(Flags::BREAK);
     }
 
-    fn shift(&mut self, dir: char, contains_carry: bool) -> u8 {
+    fn shift(&mut self, left: bool, contains_carry: bool) -> u8 {
         let value = self.read_operand_value();
         let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
-        let (result, carry_mask) = match dir {
-            '<' => ((value << 1) | carry, 0b1000_0000),
-            '>' => ((value >> 1) | (carry << 7), 0b0000_0001),
-            _ => unreachable!(),
+        let (result, carry_mask) = match left {
+            true => ((value << 1) | carry, 0b1000_0000),
+            false => ((value >> 1) | (carry << 7), 0b0000_0001),
         };
 
         self.flags.set(Flags::CARRY, value & carry_mask != 0);

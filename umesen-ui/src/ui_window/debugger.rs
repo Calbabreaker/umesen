@@ -1,3 +1,5 @@
+use crate::ActionKind;
+
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
     ui.label(format!("PC: ${0:02x}", state.emu.cpu.pc));
@@ -20,17 +22,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
     ui.horizontal(|ui| {
         if ui.button(if state.running { "⏸" } else { "⏵" }).clicked() {
-            state.running = !state.running;
+            state.do_action(&ActionKind::Run(!state.running));
         }
 
         if ui.button("⟳").clicked() {
-            state.emu.cpu.reset();
+            state.do_action(&ActionKind::Reset);
         }
 
         if ui.button("Step").clicked() {
-            state.running = false;
-            state.emu.step().ok();
-            state.update_ppu_texture();
+            state.do_action(&ActionKind::Step);
         }
 
         if ui.button("Step Over").clicked() {

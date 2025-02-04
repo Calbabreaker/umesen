@@ -1,19 +1,21 @@
 use egui::ahash::HashMap;
-use serde::{Deserialize, Serialize};
 
-use crate::{button_map::ButtonMap, texture::Texture};
+use crate::{texture::Texture, ActionKind};
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[serde(default)]
+pub struct Preferences {
+    pub key_action_map: crate::KeyActionMap,
+}
+
+#[derive(Default)]
 pub struct State {
-    #[serde(skip)]
     pub emu: Box<umesen_core::Emulator>,
-    #[serde(skip)]
     pub texture_map: HashMap<String, Texture>,
     pub running: bool,
     pub last_egui_update_time: f64,
     pub ui_render_time: f32,
     pub speed: f64,
-    pub button_maps: [ButtonMap; 2],
 }
 
 impl State {
@@ -24,11 +26,6 @@ impl State {
             "ppu_output".to_string(),
             crate::Texture::new(screen_size, ctx),
         );
-    }
-
-    pub fn run_emulator(&mut self) {
-        self.emu.cpu.reset();
-        self.running = true;
     }
 
     pub fn update_emulation(&mut self, ctx: &egui::Context) {
@@ -66,9 +63,24 @@ impl State {
         }
         texture.update();
     }
+
+    pub fn do_action(&mut self, action: &ActionKind) {
+        match action {
+            ActionKind::Reset => {
+                self.emu.cpu.reset();
+                self.running = true;
+            }
+            ActionKind::Run(running) => self.running = *running,
+            ActionKind::Step => {
+                self.running = false;
+                self.emu.step().ok();
+                self.update_ppu_texture();
+            }
+            ActionKind::ControllerInput(_, _) => unreachable!(),
+        }
+    }
 }
 
-#[inline]
 pub fn to_egui_color(color: u32) -> egui::Color32 {
     let bytes = color.to_be_bytes();
     egui::Color32::from_rgb(bytes[0], bytes[1], bytes[2])

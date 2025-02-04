@@ -1,10 +1,15 @@
-use crate::ui_window::{UiWindowKind, UiWindowSet};
+use std::collections::HashSet;
+
+use crate::{ui_window::UiWindowKind, ActionKind, Preferences};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
 pub struct App {
-    view_windows: UiWindowSet,
+    ui_windows: HashSet<UiWindowKind>,
+    preferences: Preferences,
     recent_file_paths: Vec<std::path::PathBuf>,
+
+    #[serde(skip)]
     state: crate::State,
 }
 
@@ -27,7 +32,7 @@ impl App {
     fn load_nes_rom(&mut self, path: &std::path::Path) {
         log::trace!("Loading {path:?}");
         if let Err(err) = self.state.emu.load_nes_rom(path) {
-            self.view_windows.set.insert(UiWindowKind::Popup {
+            self.ui_windows.insert(UiWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
                 message: format!("{err}"),
             });
@@ -42,73 +47,70 @@ impl App {
             self.recent_file_paths.push(path.to_path_buf());
             self.recent_file_paths.truncate(10);
 
-            self.state.run_emulator();
+            self.state.do_action(&ActionKind::Reset);
         }
     }
 
-    fn show_top_panel(&mut self, ui: &mut egui::Ui) {
+    fn show_top_bar(&mut self, ui: &mut egui::Ui) {
         // Doing ui.style_mut doesn't actually set the style so you have to do this for some stupid reason
         ui.ctx()
             .style_mut(|style| style.spacing.menu_width = 10000.);
 
-        egui::menu::bar(ui, |ui| {
-            ui.menu_button("File", |ui| {
-                if ui.button("Open ROM...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("NES ROM", &["nes"])
-                        .pick_file()
-                    {
-                        self.load_nes_rom(&path);
-                    }
-                    ui.close_menu();
+        ui.menu_button("File", |ui| {
+            if ui.button("Open ROM...").clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("NES ROM", &["nes"])
+                    .pick_file()
+                {
+                    self.load_nes_rom(&path);
                 }
-
-                ui.menu_button("Recent ROMS", |ui| {
-                    let path = self.recent_file_paths.iter().rev().find(|path| {
-                        // Make a button for each path and when it is clicked it will return the path from this iterator
-                        ui.button(path.to_string_lossy()).clicked()
-                    });
-                    if let Some(path) = path.cloned() {
-                        self.load_nes_rom(&path);
-                        ui.close_menu();
-                    }
-                });
-
-                if ui.button("Preferences...").clicked() {
-                    self.view_windows.set.insert(UiWindowKind::Preferences);
-                    ui.close_menu();
-                }
-            });
-
-            ui.menu_button("View", |ui| {
-                use UiWindowKind::*;
-                for kind in [CpuState, CpuMemory, PpuMemory, PpuState, Stats] {
-                    let mut open = self.view_windows.set.contains(&kind);
-                    let text = format!("{}...", kind.title());
-                    if ui.toggle_value(&mut open, text).clicked() {
-                        self.view_windows.toggle_open(kind);
-                    }
-                }
-            });
-        });
-    }
-
-    pub fn controller_input(&mut self, number: usize, input: &egui::InputState) {
-        let button_map = &mut self.state.button_maps[number];
-        let controller = &mut self.state.emu.cpu.bus.controllers[number];
-
-        for (button, key) in &button_map.list {
-            controller.state.set(*button, input.key_down(*key));
-        }
-
-        if let Some(key) = input.keys_down.iter().next() {
-            if let Some(button) = button_map.button_waiting_for_press.take() {
-                // Get the first key press
-                // Set it at the button position in the array
-                let i = button_map.list.iter().position(|(b, _)| button == *b);
-                button_map.list[i.unwrap()] = (button, *key);
+                ui.close_menu();
             }
-        }
+
+            ui.menu_button("Recent ROMS", |ui| {
+                let mut paths = self.recent_file_paths.iter().rev();
+                let path = paths.find(|path| ui.button(path.to_string_lossy()).clicked());
+
+                if let Some(path) = path.cloned() {
+                    self.load_nes_rom(&path);
+                    ui.close_menu();
+                }
+            });
+
+            if ui.button("Preferences...").clicked() {
+                self.ui_windows.insert(UiWindowKind::Preferences);
+                ui.close_menu();
+            }
+        });
+
+        ui.menu_button("View", |ui| {
+            use UiWindowKind::*;
+            for kind in [Debugger, CpuMemory, PpuMemory, PpuState, Stats] {
+                let mut open = self.ui_windows.contains(&kind);
+                let text = format!("{}...", kind.title());
+                if ui.toggle_value(&mut open, text).clicked() {
+                    if open {
+                        self.ui_windows.insert(kind);
+                    } else {
+                        self.ui_windows.remove(&kind);
+                    }
+                }
+            }
+        });
+
+        ui.menu_button("Emulation", |ui| {
+            use ActionKind::*;
+            for action in [Run(true), Run(false), Reset] {
+                let shortcut = self.preferences.key_action_map.map[&action].name();
+                if ui
+                    .add(egui::Button::new(action.name()).shortcut_text(shortcut))
+                    .clicked()
+                {
+                    self.state.do_action(&ActionKind::Run(false));
+                    ui.close_menu();
+                }
+            }
+        });
     }
 }
 
@@ -116,7 +118,8 @@ impl eframe::App for App {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         // Remove all popups from being saved
-        self.view_windows.remove_popups();
+        self.ui_windows
+            .retain(|kind| !matches!(kind, UiWindowKind::Popup { .. }));
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
@@ -126,10 +129,13 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
             .show(ctx, |ui| {
-                self.show_top_panel(ui);
+                egui::menu::bar(ui, |ui| {
+                    self.show_top_bar(ui);
+                });
             });
 
-        self.view_windows.show(ctx, &mut self.state);
+        self.ui_windows
+            .retain(|kind| kind.show(ctx, &mut self.state, &mut self.preferences));
 
         self.state.update_emulation(ctx);
 
@@ -143,13 +149,17 @@ impl eframe::App for App {
             });
 
         ctx.input_mut(|i| {
-            if i.key_pressed(egui::Key::CloseBracket) {
-                self.state.emu.step().ok();
-                self.state.update_ppu_texture();
+            for (action, key) in &self.preferences.key_action_map.map {
+                // Check every action for if the correspending key was pressed
+                if let ActionKind::ControllerInput(number, button) = action {
+                    let controller = &mut self.state.emu.cpu.bus.controllers[*number as usize];
+                    controller.state.set(*button, i.key_pressed(*key));
+                } else if i.key_pressed(*key) {
+                    self.state.do_action(action);
+                }
             }
 
-            self.controller_input(0, i);
-            self.controller_input(1, i);
+            self.preferences.key_action_map.check_key_down(i);
 
             let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);
             if let Some(path) = file_path {
