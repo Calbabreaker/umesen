@@ -1,6 +1,6 @@
 use egui::ahash::HashMap;
 
-use crate::{texture::Texture, ActionKind};
+use crate::{texture::Texture, ui_window, ActionKind};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -16,6 +16,7 @@ pub struct State {
     pub last_egui_update_time: f64,
     pub ui_render_time: f32,
     pub speed: f64,
+    pub ppu_tab_open: ui_window::ppu_memory::Tab,
 }
 
 impl State {

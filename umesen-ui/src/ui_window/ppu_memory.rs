@@ -2,33 +2,60 @@ use umesen_core::ppu::{add_bit_planes, Control, TvRegister};
 
 use crate::state::to_egui_color;
 
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum Tab {
+    #[default]
+    Palettes,
+    PatternTables,
+    Nametables,
+    OamData,
+}
+
+impl Tab {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Palettes => "Palettes",
+            Self::PatternTables => "Pattern Tables",
+            Self::Nametables => "Nametables",
+            Self::OamData => "OAM Data",
+        }
+    }
+}
+
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
+    ui.horizontal(|ui| {
+        use Tab::*;
+        for tab in [Palettes, PatternTables, Nametables, OamData] {
+            if ui
+                .selectable_label(tab == state.ppu_tab_open, tab.name())
+                .clicked()
+            {
+                state.ppu_tab_open = tab;
+            }
+        }
+    });
+
+    ui.separator();
+
     ui.style_mut().spacing.item_spacing = egui::vec2(5., 5.);
     ui.style_mut().spacing.interact_size.y = 0.;
-
-    egui::CollapsingHeader::new("Palettes")
-        .default_open(true)
-        .show_unindented(ui, |ui| {
-            for i in 0..2 {
-                show_palette_row(ui, state, i);
-            }
-        });
-
-    egui::CollapsingHeader::new("Pattern tables")
-        .default_open(true)
-        .show_unindented(ui, |ui| {
+    match state.ppu_tab_open {
+        Tab::Palettes => {
+            ui.label("Foreground:");
+            show_palette_row(ui, state, 0);
+            ui.label("Background:");
+            show_palette_row(ui, state, 1);
+        }
+        Tab::PatternTables => {
             ui.horizontal(|ui| {
                 for i in 0..2 {
                     show_pattern_table(ui, state, i);
                 }
             });
-        });
-
-    let cart = state.emu.cartridge();
-    let mirroring = cart.map(|c| c.mirroring()).unwrap_or_default();
-    egui::CollapsingHeader::new(format!("Nametables ({:?} mirroring)", mirroring))
-        .default_open(true)
-        .show_unindented(ui, |ui| {
+        }
+        Tab::Nametables => {
+            let cart = state.emu.cartridge();
+            let mirroring = cart.map(|c| c.mirroring()).unwrap_or_default();
             for i in 0..2 {
                 ui.horizontal(|ui| {
                     for j in 0..2 {
@@ -36,12 +63,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
                     }
                 });
             }
-        });
+            ui.label(format!("Mirroring: {mirroring:?}"));
+        }
+        Tab::OamData => (),
+    }
 }
 
 fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
     let ppu = &state.emu.cpu.bus.ppu;
-    let pixel_size = egui::Vec2::splat(10.);
+    let pixel_size = egui::Vec2::splat(15.);
     ui.horizontal(|ui| {
         for col in 0..4 {
             let (mut response, painter) =
@@ -67,15 +97,16 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
     };
 
     // 16 by 16 tiles with 8 pixels each
-    show_ppu_mem_tiles(
+    let image = show_pattern_tiles(
         ui,
         format!("pattern{table_number}"),
         state,
         [16, 16],
         table_number,
         get_tile_info_fn,
-        2.,
     );
+
+    ui.add(image.fit_to_original_size(1.));
 }
 
 fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
@@ -100,27 +131,26 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
     let control = &state.emu.ppu().registers.control;
     let pattern_table_number = control.contains(Control::BACKGROUND_TABLE_OFFSET) as u8;
 
-    // 32 by 30 tiles with 8 pixels each
-    show_ppu_mem_tiles(
+    let image = show_pattern_tiles(
         ui,
         format!("nametable{table_number}"),
         state,
+        // 32 by 30 tiles with 8 pixels each
         [32, 30],
         pattern_table_number,
         get_tile_info_fn,
-        1.,
     );
+    ui.add(image.fit_to_original_size(1.));
 }
 
-fn show_ppu_mem_tiles<'a>(
+fn show_pattern_tiles<'a>(
     ui: &mut egui::Ui,
     name: String,
     state: &'a mut crate::State,
     tile_size: [usize; 2],
     pattern_table_number: u8,
     get_tile_info_fn: impl Fn(u8, u8, &'a umesen_core::Ppu) -> (u8, [u32; 4]),
-    pixel_size: f32,
-) {
+) -> egui::Image<'a> {
     let image_size = [tile_size[0] * 8, tile_size[1] * 8];
     let default_fn = || crate::Texture::new(image_size, ui.ctx());
     let texture = state.texture_map.entry(name).or_insert_with(default_fn);
@@ -147,5 +177,5 @@ fn show_ppu_mem_tiles<'a>(
     }
 
     texture.update();
-    ui.add(egui::Image::new(&texture.handle).fit_to_original_size(pixel_size));
+    egui::Image::new(&texture.handle)
 }
