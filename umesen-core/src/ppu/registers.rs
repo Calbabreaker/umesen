@@ -1,10 +1,8 @@
-use crate::ppu::bus::PpuBus;
+use crate::{cartridge::FixedArray, ppu::bus::PpuBus};
 
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Control: u8 {
-        const NAMETABLE_X = 0b01;
-        const NAMETABLE_Y = 0b10;
         /// XY bits of nametable or each unit is 0x400 offset
         const NAMETABLE = 0b11;
         /// 0: add 1, 1: add 32
@@ -81,7 +79,6 @@ impl TvRegister {
 }
 
 impl TvRegister {
-    #[inline]
     pub fn set(&mut self, select_bits: u16, value: impl Into<u16>) {
         let value = value.into();
         // Check value fits into the bits
@@ -91,7 +88,6 @@ impl TvRegister {
         self.0 = value_shifted | (self.0 & (!select_bits));
     }
 
-    #[inline]
     pub fn get(&self, select_bits: u16) -> u16 {
         let value = self.0 & select_bits;
         value >> select_bits.trailing_zeros()
@@ -184,7 +180,7 @@ pub struct Registers {
     pub latch: bool,
     pub fine_x: u8,
     pub oam_address: u8,
-    pub oam_data: u8,
+    pub oam_data: FixedArray<u8, 256>,
     read_buffer: u8,
     open_bus: u8,
 }
@@ -195,7 +191,7 @@ impl Registers {
         match address % 8 {
             // Get status bits and fill unused with open bus
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
-            4 => self.oam_data,
+            4 => self.oam_data[self.oam_address as usize],
             // Get PPU memory data
             7 => {
                 // Palette address gets data returned immediately instead of being buffered
@@ -231,51 +227,63 @@ impl Registers {
         debug_assert!((0x2000..=0x3fff).contains(&address));
         self.open_bus = value;
         match address % 8 {
-            0 => {
-                self.control = Control::from_bits(value).unwrap();
-                let nametable_bits = (self.control & Control::NAMETABLE).bits();
-                self.t.set(TvRegister::NAMETABLE, nametable_bits);
-            }
+            0 => self.write_control(value),
             1 => self.mask = Mask::from_bits(value).unwrap(),
             2 => (),
             3 => self.oam_address = value,
-            4 => {
-                self.oam_data = value;
-                self.oam_address = self.oam_address.wrapping_add(1);
-            }
-            // Scroll write
-            5 => {
-                let fine = value & 0b111;
-                let coarse = value >> 3;
-                if !self.latch {
-                    // X scroll
-                    self.t.set(TvRegister::COARSE_X, coarse);
-                    self.fine_x = fine;
-                } else {
-                    // Y Scroll
-                    self.t.set(TvRegister::COARSE_Y, coarse);
-                    self.t.set(TvRegister::FINE_Y, fine);
-                }
-                self.latch = !self.latch;
-            }
-            // VRAM address write
-            6 => {
-                if !self.latch {
-                    self.t.set(TvRegister::HIGH, value);
-                } else {
-                    // Write low byte and copy to v_register
-                    self.t.set(TvRegister::LOW, value);
-                    self.v = self.t;
-                }
-                self.latch = !self.latch;
-            }
-            // VRAM data write
-            7 => {
-                self.bus.write_u8(self.v.0, value);
-                self.increment_v_register();
-            }
+            4 => self.write_oam_data(value),
+            5 => self.write_scroll(value),
+            6 => self.write_vram_address(value),
+            7 => self.write_vram_data(value),
             _ => unreachable!(),
         }
+    }
+
+    pub fn write_oam_data(&mut self, mut value: u8) {
+        // Zero out unused bits when set the attribute byte of oam
+        if self.oam_address % 4 == 2 {
+            value &= 0b1110_0011;
+        }
+
+        self.oam_data[self.oam_address as usize] = value;
+        self.oam_address = self.oam_address.wrapping_add(1);
+    }
+
+    fn write_control(&mut self, value: u8) {
+        self.control = Control::from_bits(value).unwrap();
+        let nametable_bits = (self.control & Control::NAMETABLE).bits();
+        self.t.set(TvRegister::NAMETABLE, nametable_bits);
+    }
+
+    fn write_scroll(&mut self, value: u8) {
+        let fine = value & 0b111;
+        let coarse = value >> 3;
+        if !self.latch {
+            // X scroll
+            self.t.set(TvRegister::COARSE_X, coarse);
+            self.fine_x = fine;
+        } else {
+            // Y Scroll
+            self.t.set(TvRegister::COARSE_Y, coarse);
+            self.t.set(TvRegister::FINE_Y, fine);
+        }
+        self.latch = !self.latch;
+    }
+
+    fn write_vram_address(&mut self, value: u8) {
+        if !self.latch {
+            self.t.set(TvRegister::HIGH, value);
+        } else {
+            // Write low byte and copy to v_register
+            self.t.set(TvRegister::LOW, value);
+            self.v = self.t;
+        }
+        self.latch = !self.latch;
+    }
+
+    fn write_vram_data(&mut self, value: u8) {
+        self.bus.write_u8(self.v.0, value);
+        self.increment_v_register();
     }
 
     fn increment_v_register(&mut self) {

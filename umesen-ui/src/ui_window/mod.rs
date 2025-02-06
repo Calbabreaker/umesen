@@ -48,6 +48,7 @@ impl UiWindowKind {
             return !modal.should_close();
         }
 
+        ctx.style_mut(|style| style.spacing.window_margin = egui::Margin::same(10.));
         let mut open = true;
         egui::Window::new(self.title())
             .pivot(egui::Align2::CENTER_CENTER)

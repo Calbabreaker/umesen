@@ -12,7 +12,6 @@ pub struct CpuBus {
     /// Number of cycles for the cpu to wait before executing the next instruction
     /// (aka number of cycles added when executing the previous instruction)
     pub cpu_cycles_to_wait: u32,
-    /// Cpu cycles counter for debugging
     pub cpu_cycles_total: u32,
     pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<Cartridge>>>,
@@ -60,6 +59,7 @@ impl CpuBus {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram.mirrored_write(address, value),
             0x2000..=0x3fff => self.ppu.registers.write_u8(address, value),
+            0x4014 => self.oam_dma((value as u16) << 8),
             0x4016 => {
                 self.controllers[0].write_u8(value);
                 self.controllers[1].write_u8(value);
@@ -110,5 +110,19 @@ impl CpuBus {
         let status = self.ppu.require_nmi;
         self.ppu.require_nmi = false;
         status
+    }
+
+    fn oam_dma(&mut self, address_start: u16) {
+        // 512 r/w cycles + 1 (or 2 if odd) idle cycles
+        self.clock();
+        if self.cpu_cycles_total % 2 == 1 {
+            self.clock();
+        }
+
+        for i in 0..256 {
+            let value = self.read_u8(address_start + i);
+            self.ppu.registers.write_oam_data(value);
+            self.clock();
+        }
     }
 }

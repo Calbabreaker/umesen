@@ -10,23 +10,21 @@ pub enum HexViewKind {
 
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-    egui::Frame::none().outer_margin(6.0).show(ui, |ui| {
-        egui::ComboBox::from_label("")
-            .selected_text(format!("{:?}", state.hex_view_kind))
-            .show_ui(ui, |ui| {
-                for kind in [HexViewKind::CPU, HexViewKind::PPU] {
-                    ui.selectable_value(&mut state.hex_view_kind, kind, format!("{:?}", kind));
-                }
-            });
-        ui.add_space(6.);
+    egui::ComboBox::from_label("")
+        .selected_text(format!("{:?}", state.hex_view_kind))
+        .show_ui(ui, |ui| {
+            for kind in [HexViewKind::CPU, HexViewKind::PPU] {
+                ui.selectable_value(&mut state.hex_view_kind, kind, format!("{:?}", kind));
+            }
+        });
+    ui.add_space(4.);
 
-        let cpu_bus = &state.emu.cpu.bus;
-        let ppu_bus = &state.emu.ppu().registers.bus;
-        match state.hex_view_kind {
-            HexViewKind::CPU => show_hex_view(ui, |address| cpu_bus.immut_read_u8(address), 0x1000),
-            HexViewKind::PPU => show_hex_view(ui, |address| ppu_bus.read_u8(address), 0x400),
-        }
-    });
+    let cpu_bus = &state.emu.cpu.bus;
+    let ppu_bus = &state.emu.ppu().registers.bus;
+    match state.hex_view_kind {
+        HexViewKind::CPU => show_hex_view(ui, |address| cpu_bus.immut_read_u8(address), 0x1000),
+        HexViewKind::PPU => show_hex_view(ui, |address| ppu_bus.read_u8(address), 0x400),
+    }
 }
 
 /// Display the memory dump of a range of rows

@@ -3,10 +3,12 @@ use crate::cartridge::FixedArray;
 mod bus;
 mod palette;
 mod registers;
+pub mod sprite;
 
 pub use bus::*;
 pub use palette::Palette;
 pub use registers::*;
+pub use sprite::Sprite;
 
 pub const WIDTH: usize = 256;
 pub const HEIGHT: usize = 240;
@@ -63,6 +65,14 @@ impl Ppu {
         let offset = (palette_id * 4 + i) as u16;
         let palette_index = self.registers.bus.read_u8(0x3f00 + offset);
         self.palette.get(palette_index)
+    }
+
+    pub fn get_palette_colors(&self, palette_id: u8) -> [u32; 4] {
+        let mut palette = [0; 4];
+        for (i, color) in palette.iter_mut().enumerate() {
+            *color = self.get_palette_color(palette_id, i as u8);
+        }
+        palette
     }
 
     // Scanlines when the PPU is actually drawing to the screen

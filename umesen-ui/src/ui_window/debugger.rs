@@ -53,9 +53,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
     let mut disassembler = umesen_core::cpu::Disassembler::new(&state.emu.cpu);
 
-    let frame = egui::Frame::canvas(ui.style())
-        .inner_margin(6.0)
-        .outer_margin(6.0);
+    let frame = egui::Frame::canvas(ui.style()).inner_margin(6.0);
     egui::CollapsingHeader::new("Disassemble")
         .default_open(true)
         .show_unindented(ui, |ui| {
