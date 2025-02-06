@@ -85,7 +85,7 @@ impl App {
 
         ui.menu_button("View", |ui| {
             use UiWindowKind::*;
-            for kind in [Debugger, CpuMemory, PpuMemory, PpuState, Stats] {
+            for kind in [Debugger, HexViewer, PpuMemory, PpuState, Stats] {
                 let mut open = self.ui_windows.contains(&kind);
                 let text = format!("{}...", kind.title());
                 if ui.toggle_value(&mut open, text).clicked() {

@@ -1,5 +1,5 @@
-mod cpu_memory;
 mod debugger;
+pub mod hex_viewer;
 pub mod ppu_memory;
 mod ppu_state;
 mod preferences;
@@ -8,7 +8,7 @@ mod stats;
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub enum UiWindowKind {
     Debugger,
-    CpuMemory,
+    HexViewer,
     PpuMemory,
     PpuState,
     Stats,
@@ -20,7 +20,7 @@ impl UiWindowKind {
     pub fn title(&self) -> &'static str {
         match self {
             UiWindowKind::Debugger => "Debugger",
-            UiWindowKind::CpuMemory => "Cpu Memory",
+            UiWindowKind::HexViewer => "Hex Viewer",
             UiWindowKind::Popup { .. } => "Error",
             UiWindowKind::Stats => "Stats",
             UiWindowKind::PpuMemory => "Ppu Memory",
@@ -56,7 +56,7 @@ impl UiWindowKind {
             .open(&mut open)
             .show(ctx, |ui| match self {
                 UiWindowKind::Debugger => debugger::show(ui, state),
-                UiWindowKind::CpuMemory => cpu_memory::show(ui, state),
+                UiWindowKind::HexViewer => hex_viewer::show(ui, state),
                 UiWindowKind::PpuMemory => ppu_memory::show(ui, state),
                 UiWindowKind::Stats => stats::show(ui, state),
                 UiWindowKind::PpuState => ppu_state::show(ui, state),

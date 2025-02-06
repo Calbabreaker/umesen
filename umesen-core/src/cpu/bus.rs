@@ -111,27 +111,4 @@ impl CpuBus {
         self.ppu.require_nmi = false;
         status
     }
-
-    /// Display the memory dump of a range of rows
-    /// Each row shows 16 bytes so 0..0x1000 shows the entire range
-    pub fn dump_memory(
-        &self,
-        row_range: std::ops::Range<usize>,
-        mut f: impl std::fmt::Write,
-    ) -> std::fmt::Result {
-        for i in row_range {
-            let line_address_start = i * 0x10;
-            write!(f, "${line_address_start:04x}:")?;
-
-            for i in 0..0x10 {
-                let byte = self.immut_read_u8(line_address_start as u16 + i);
-                write!(f, " {byte:02x}")?;
-            }
-
-            if i != 0xfff {
-                writeln!(f)?;
-            }
-        }
-        Ok(())
-    }
 }

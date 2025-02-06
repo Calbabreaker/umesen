@@ -106,7 +106,7 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
         get_tile_info_fn,
     );
 
-    ui.add(image.fit_to_original_size(1.));
+    ui.add(image.fit_to_original_size(2.));
 }
 
 fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {

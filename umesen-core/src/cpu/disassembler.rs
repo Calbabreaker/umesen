@@ -16,16 +16,13 @@ impl<'a> Disassembler<'a> {
         }
     }
 
-    pub fn disassemble_lines(&mut self, mut amount: usize) -> String {
+    pub fn disassemble_lines(&mut self, amount: usize) -> String {
         let mut output = String::new();
-        loop {
+        for _ in 0..amount {
             self.disassemble_next(&mut output).unwrap();
-            if amount <= 1 {
-                break;
-            }
             output += "\n";
-            amount -= 1;
         }
+        output.pop();
         output
     }
 

@@ -17,6 +17,7 @@ pub struct State {
     pub ui_render_time: f32,
     pub speed: f64,
     pub ppu_tab_open: ui_window::ppu_memory::Tab,
+    pub hex_view_kind: ui_window::hex_viewer::HexViewKind,
 }
 
 impl State {
