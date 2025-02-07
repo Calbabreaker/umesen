@@ -8,15 +8,25 @@ bitflags::bitflags! {
         /// 0: add 1, 1: add 32
         const VRAM_INCREMENT = 1 << 2;
         /// Use second pattern table if set
-        const SPRITE_TABLE_OFFSET = 1 << 3;
+        const SPRITE_SECOND_TABLE = 1 << 3;
         /// Use second pattern table if set
-        const BACKGROUND_TABLE_OFFSET = 1 << 4;
+        const BACKGROUND_SECOND_TABLE = 1 << 4;
         /// 0: 8x8 pixels, 1: 8x16 pixels
         const TALL_SPRITES = 1 << 5;
         /// 0: read backdrop from EXT pins, 1: output color on EXT pins
         const PPU_SELECT = 1 << 6;
         /// Enable sending NMI on vblank
         const VBLANK_NMI = 1 << 7;
+    }
+}
+
+impl Control {
+    pub fn sprite_height(&self) -> u16 {
+        if self.contains(Control::TALL_SPRITES) {
+            16
+        } else {
+            8
+        }
     }
 }
 

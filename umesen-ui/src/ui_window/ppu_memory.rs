@@ -48,9 +48,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         }
         Tab::PatternTables => {
             ui.horizontal(|ui| {
-                for i in 0..2 {
-                    show_pattern_table(ui, state, i);
-                }
+                show_pattern_table(ui, state, 0);
+                show_pattern_table(ui, state, 1);
             });
         }
         Tab::Nametables => {
@@ -146,7 +145,7 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         state,
         // 32 by 30 tiles with 8 pixels each
         [32, 30],
-        control.contains(Control::BACKGROUND_TABLE_OFFSET) as u8,
+        control.contains(Control::BACKGROUND_SECOND_TABLE) as u8,
         get_tile_info_fn,
     );
     ui.add(image.fit_to_original_size(1.));
@@ -186,7 +185,7 @@ fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
         "oam_grid".to_string(),
         state,
         [8, 8],
-        control.contains(Control::SPRITE_TABLE_OFFSET) as u8,
+        control.contains(Control::SPRITE_SECOND_TABLE) as u8,
         get_tile_info_fn,
     );
     ui.add(image.fit_to_original_size(4.));

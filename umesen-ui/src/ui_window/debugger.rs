@@ -12,9 +12,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
     ui.horizontal(|ui| {
         ui.label("Speed:");
-        ui.style_mut().spacing.slider_width = 150.0;
+        ui.style_mut().spacing.slider_width = 160.0;
         ui.add(
-            egui::Slider::new(&mut state.speed, 0.0001..=1.000)
+            egui::Slider::new(&mut state.speed, 0.0001..=2.000)
                 .step_by(0.00001)
                 .logarithmic(true),
         );

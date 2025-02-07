@@ -48,9 +48,9 @@ impl PpuBus {
     /// Return (lsb plane, msb plane)
     pub fn read_pattern_tile_planes(
         &self,
-        tile_number: u8,
-        table_number: u8,
-        fine_y: u8,
+        tile_number: impl Into<u16>,
+        table_number: impl Into<u16>,
+        fine_y: impl Into<u16>,
     ) -> (u8, u8) {
         // From nes wiki: https://www.nesdev.org/wiki/PPU_pattern_tables#Addressing
         // DCBA98 76543210
@@ -61,7 +61,7 @@ impl PpuBus {
         // ||++++-++++----- N: Tile number from name table
         // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
         // +--------------- 0: Pattern table is at $0000-$1FFF
-        let address = ((table_number as u16) << 12) | ((tile_number as u16) << 4) | (fine_y as u16);
+        let address = ((table_number.into()) << 12) + ((tile_number.into()) << 4) + (fine_y.into());
         (self.read_u8(address), self.read_u8(address + 8))
     }
 

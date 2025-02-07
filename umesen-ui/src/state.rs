@@ -32,21 +32,21 @@ impl State {
 
     pub fn update_emulation(&mut self, ctx: &egui::Context) {
         let now = ctx.input(|i| i.time);
-        let elapsed_secs = (now - self.last_egui_update_time) * self.speed;
+        let elapsed_secs = (now - self.last_egui_update_time).min(0.05) * self.speed;
         self.last_egui_update_time = now;
 
         if !self.running {
             return;
         }
 
-        if let Err(err) = self.emu.clock(elapsed_secs.min(0.03)) {
+        if let Err(err) = self.emu.clock(elapsed_secs) {
             log::error!("Emulation stopped: {err}");
             self.running = false;
         }
 
         let frame_complete = self.emu.frame_complete();
         // Don't sync to screen if speed is less than 1 for debugging
-        if self.speed == 1. {
+        if self.speed >= 1. {
             if frame_complete {
                 self.update_ppu_texture();
             }
