@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-bitflags = { version = "2.6", features = ["serde"] }
+bitflags = { version = "2", features = ["serde"] }
 thiserror = "2"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }

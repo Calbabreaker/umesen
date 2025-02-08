@@ -71,7 +71,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
                 egui::Frame::canvas(ui.style())
                     .inner_margin(6.0)
                     .outer_margin(egui::Margin {
-                        left: 6.,
+                        left: 4,
                         ..Default::default()
                     })
                     .show(ui, |ui| {

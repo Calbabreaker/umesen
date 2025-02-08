@@ -39,35 +39,6 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub(crate) fn clock(&mut self) {
-        // Specific scanline timings
-        // See https://www.nesdev.org/w/images/default/4/4f/Ppu.svg
-        match self.scanline {
-            0..=239 => {
-                self.clock_sprite_render_line();
-                self.clock_bg_render_line();
-            }
-            241 if self.dot == 1 => {
-                self.registers.status.set(Status::VBLANK, true);
-                if self.registers.control.contains(Control::VBLANK_NMI) {
-                    self.require_nmi = true;
-                }
-            }
-            261 => self.clock_bg_prerender_line(),
-            _ => (),
-        }
-
-        if self.dot >= 1 {
-            let x = (self.dot - 1) as usize;
-            let y = self.scanline as usize;
-            if x < WIDTH && y < HEIGHT {
-                self.render_pixel(x, y);
-            }
-        }
-
-        self.next_dot();
-    }
-
     /// Gets a RGBA color from a palette id with a 0-3 pixel offset
     pub fn get_palette_color(&self, palette_id: u8, i: u8) -> u32 {
         debug_assert!((0..=4).contains(&i));
@@ -83,6 +54,38 @@ impl Ppu {
             *color = self.get_palette_color(palette_id, i as u8);
         }
         palette
+    }
+
+    pub(crate) fn clock(&mut self) {
+        // Specific scanline timings
+        // See https://www.nesdev.org/w/images/default/4/4f/Ppu.svg
+        match self.scanline {
+            0..=239 => {
+                self.clock_sprite_render_line();
+                self.clock_bg_render_line();
+            }
+            241 if self.dot == 1 => {
+                self.registers.status.set(Status::VBLANK, true);
+                if self.registers.control.contains(Control::VBLANK_NMI) {
+                    self.require_nmi = true;
+                }
+            }
+            261 => {
+                self.clock_sprite_render_line();
+                self.clock_bg_prerender_line()
+            }
+            _ => (),
+        }
+
+        if self.dot >= 1 {
+            let x = (self.dot - 1) as usize;
+            let y = self.scanline as usize;
+            if x < WIDTH && y < HEIGHT {
+                self.render_pixel(x, y);
+            }
+        }
+
+        self.next_dot();
     }
 
     // Scanlines when the PPU is actually drawing to the screen

@@ -61,7 +61,7 @@ impl PpuBus {
         // ||++++-++++----- N: Tile number from name table
         // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
         // +--------------- 0: Pattern table is at $0000-$1FFF
-        let address = ((table_number.into()) << 12) + ((tile_number.into()) << 4) + (fine_y.into());
+        let address = ((table_number.into()) << 12) | ((tile_number.into()) << 4) | (fine_y.into());
         (self.read_u8(address), self.read_u8(address + 8))
     }
 

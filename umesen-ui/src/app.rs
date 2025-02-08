@@ -106,7 +106,7 @@ impl App {
                     .add(egui::Button::new(action.name()).shortcut_text(shortcut))
                     .clicked()
                 {
-                    self.state.do_action(&ActionKind::Run(false));
+                    self.state.do_action(&action);
                     ui.close_menu();
                 }
             }
@@ -140,7 +140,7 @@ impl eframe::App for App {
         self.state.update_emulation(ctx);
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::none())
+            .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
                 ui.centered_and_justified(|ui| {
                     let texture = &self.state.texture_map["ppu_output"];

@@ -59,7 +59,7 @@ impl Sprite {
     }
 
     pub fn load_shift_bits(&mut self, scanline: u16, registers: &Registers) {
-        let tile_number = if registers.control.contains(Control::TALL_SPRITES) {
+        let mut tile_number = if registers.control.contains(Control::TALL_SPRITES) {
             self.tile_number & 0b1111_1110
         } else {
             self.tile_number
@@ -76,6 +76,11 @@ impl Sprite {
         if self.attributes.contains(Attributes::FLIP_VERTICAL) {
             // Flip the fine y
             fine_y = (registers.control.sprite_height() - 1) - fine_y;
+        }
+
+        // Go to the next tile if y overflowed tile
+        if fine_y >= 8 {
+            tile_number += 1;
         }
 
         let (tile_lsb, tile_msb) =
