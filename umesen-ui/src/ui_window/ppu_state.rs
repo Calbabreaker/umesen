@@ -1,8 +1,14 @@
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     let ppu = &state.emu.ppu();
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-    ui.label(format!("T: ${0:04x}", ppu.registers.t.0));
-    ui.label(format!("V: ${0:04x}", ppu.registers.v.0));
+    ui.label(format!(
+        "T: [{}] (${:04x})",
+        ppu.registers.t, ppu.registers.t.0
+    ));
+    ui.label(format!(
+        "V: [{}] (${:04x})",
+        ppu.registers.v, ppu.registers.v.0
+    ));
     ui.label(format!("Latch: {}", ppu.registers.latch));
     ui.label(format!("Scanline: {}", ppu.scanline));
     ui.label(format!("Dot: {}", ppu.dot));

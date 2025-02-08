@@ -30,21 +30,24 @@ impl Emulator {
 
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) {
-        while !self.cpu.bus.ppu.frame_complete {
-            if let Err(err) = self.step() {
+        while !self.frame_complete() {
+            if let Err(err) = self.cpu.clock() {
                 log::warn!("Emulation error: {err}");
             }
         }
-        self.cpu.bus.ppu.frame_complete = false;
     }
 
-    /// Keep clocking the cpu until it has caught up to the ellapsed seconds
-    pub fn clock(&mut self, elapsed_secs: impl Into<f64>) -> Result<(), CpuError> {
-        let cycles_to_clock = (elapsed_secs.into() * crate::cpu::CLOCK_SPEED_HZ as f64).round();
-        for _ in 0..cycles_to_clock as usize {
+    /// Keep clocking the cpu until it has caught up to the ellapsed seconds or there is a new frame
+    /// Returns true if frame is complete
+    pub fn clock(&mut self, num_clocks: &mut u32) -> Result<bool, CpuError> {
+        while *num_clocks > 0 {
             self.cpu.clock()?;
+            *num_clocks -= 1;
+            if self.frame_complete() {
+                return Ok(true);
+            }
         }
-        Ok(())
+        Ok(false)
     }
 
     pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {

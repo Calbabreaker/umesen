@@ -39,19 +39,22 @@ impl State {
             return;
         }
 
-        if let Err(err) = self.emu.clock(elapsed_secs) {
-            log::error!("Emulation stopped: {err}");
-            self.running = false;
-        }
+        let mut clocks_remaining =
+            (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as u32;
 
-        let frame_complete = self.emu.frame_complete();
-        // Don't sync to screen if speed is less than 1 for debugging
-        if self.speed >= 1. {
-            if frame_complete {
-                self.update_ppu_texture();
+        while clocks_remaining > 0 {
+            match self.emu.clock(&mut clocks_remaining) {
+                Ok(frame_complete) => {
+                    // Don't sync to screen if speed is less than 1 for debugging
+                    if frame_complete || self.speed < 1. {
+                        self.update_ppu_texture();
+                    }
+                }
+                Err(err) => {
+                    log::error!("Emulation stopped: {err}");
+                    self.running = false;
+                }
             }
-        } else {
-            self.update_ppu_texture();
         }
 
         ctx.request_repaint();

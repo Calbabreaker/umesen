@@ -65,7 +65,7 @@ impl<'a> Disassembler<'a> {
                 let offset = self.next_byte().0 as i8;
                 let address = HexDisplay((self.current_address as i16 + offset as i16) as u16);
                 let sign = if offset >= 0 { '+' } else { '-' };
-                write!(f, "*{sign}{} ({address})", offset.abs())?
+                write!(f, "*{sign}{} ({address})", offset.saturating_abs())?
             }
         };
 

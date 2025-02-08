@@ -53,13 +53,23 @@ impl Mask {
     pub fn is_rendering(&self) -> bool {
         self.intersects(Mask::RENDER_SPRITE | Mask::RENDER_BACKGROUND)
     }
+
+    pub fn can_show_sprite(&self, scan_x: usize) -> bool {
+        let can_show_leftmost = self.contains(Mask::SHOW_SPRITE_LEFTMOST_8) || scan_x >= 8;
+        self.contains(Mask::RENDER_SPRITE) && can_show_leftmost
+    }
+
+    pub fn can_show_background(&self, scan_x: usize) -> bool {
+        let can_show_leftmost = self.contains(Mask::SHOW_BACKGROUND_LEFTMOST_8) || scan_x >= 8;
+        self.contains(Mask::RENDER_BACKGROUND) && can_show_leftmost
+    }
 }
 
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Status: u8 {
-        const SPRITE_OVERFLOW = 1 << 6;
-        const SPRITE_0_HIT = 1 << 7;
+        const SPRITE_OVERFLOW = 1 << 5;
+        const SPRITE_0_HIT = 1 << 6;
         const VBLANK = 1 << 7;
     }
 }
@@ -220,7 +230,7 @@ impl Registers {
         match address % 8 {
             2 => {
                 // Reset latch when read for real
-                self.status.set(Status::VBLANK, false);
+                self.status.remove(Status::VBLANK);
                 self.latch = false;
             }
             7 => {

@@ -1,4 +1,4 @@
-use crate::cartridge::FixedArray;
+use crate::{cartridge::FixedArray, ppu::sprite::Attributes};
 
 mod bus;
 mod palette;
@@ -39,11 +39,10 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    /// Gets a RGBA color from a palette id with a 0-3 pixel offset
-    pub fn get_palette_color(&self, palette_id: u8, i: u8) -> u32 {
-        debug_assert!((0..=4).contains(&i));
-        debug_assert!((0..=7).contains(&palette_id));
-        let offset = (palette_id * 4 + i) as u16;
+    /// Gets a RGBA color from a the palette ram based on index from 0-64 (8 palette with 4 indexable colors)
+    pub fn get_palette_color(&self, color_index: impl Into<u16>) -> u32 {
+        let offset = color_index.into();
+        debug_assert!((0..64).contains(&offset));
         let palette_index = self.registers.bus.read_u8(0x3f00 + offset);
         self.palette.get(palette_index)
     }
@@ -51,7 +50,7 @@ impl Ppu {
     pub fn get_palette_colors(&self, palette_id: u8) -> [u32; 4] {
         let mut palette = [0; 4];
         for (i, color) in palette.iter_mut().enumerate() {
-            *color = self.get_palette_color(palette_id, i as u8);
+            *color = self.get_palette_color(palette_id * 4 + i as u8);
         }
         palette
     }
@@ -61,10 +60,12 @@ impl Ppu {
         // See https://www.nesdev.org/w/images/default/4/4f/Ppu.svg
         match self.scanline {
             0..=239 => {
+                self.frame_complete = false;
                 self.clock_sprite_render_line();
                 self.clock_bg_render_line();
             }
             241 if self.dot == 1 => {
+                self.frame_complete = true;
                 self.registers.status.set(Status::VBLANK, true);
                 if self.registers.control.contains(Control::VBLANK_NMI) {
                     self.require_nmi = true;
@@ -72,16 +73,19 @@ impl Ppu {
             }
             261 => {
                 self.clock_sprite_render_line();
-                self.clock_bg_prerender_line()
+                self.clock_bg_prerender_line();
             }
             _ => (),
         }
 
+        // Get the pixel color and set in the screen
         if self.dot >= 1 {
             let x = (self.dot - 1) as usize;
             let y = self.scanline as usize;
-            if x < WIDTH && y < HEIGHT {
-                self.render_pixel(x, y);
+            if x < WIDTH && y < HEIGHT && self.registers.mask.is_rendering() {
+                let bg_color_index = self.render_bg_pixel(x);
+                let fg_color_index = self.render_fg_pixel(x, bg_color_index);
+                self.screen_pixels[x + y * WIDTH] = self.get_palette_color(fg_color_index);
             }
         }
 
@@ -115,9 +119,9 @@ impl Ppu {
     fn clock_bg_prerender_line(&mut self) {
         match self.dot {
             1 => {
-                self.registers.status.set(Status::VBLANK, false);
-                self.registers.status.set(Status::SPRITE_OVERFLOW, false);
-                self.registers.status.set(Status::SPRITE_0_HIT, false);
+                self.registers.status.remove(Status::VBLANK);
+                self.registers.status.remove(Status::SPRITE_OVERFLOW);
+                self.registers.status.remove(Status::SPRITE_0_HIT);
             }
             280..=304 => {
                 if self.registers.mask.is_rendering() {
@@ -161,8 +165,13 @@ impl Ppu {
         match self.dot {
             // The start location of oam evaluation is taken from oam_address on dot 65
             65 => self.oam_start_address = self.registers.oam_address,
-            // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
-            257 => self.eval_sprites(),
+            257 => {
+                if self.scanline < HEIGHT as u16 {
+                    // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
+                    self.eval_sprites();
+                }
+            }
+            258..=320 => self.registers.oam_address = 0,
             321 => {
                 for sprite in &mut self.sprite_buffer[0..self.sprite_count as usize] {
                     sprite.load_shift_bits(self.scanline, &self.registers);
@@ -176,22 +185,19 @@ impl Ppu {
         self.sprite_count = 0;
         let mut i = self.oam_start_address as usize;
 
-        loop {
-            if i >= self.registers.oam_data.len() {
-                return;
-            }
-
-            // Get four bytes but make sure to not overflow index array
+        while i < self.registers.oam_data.len() {
+            // Get four bytes but make sure to not overflow array
             let right_bound = (i + 4).min(self.registers.oam_data.len());
             let chunk = &self.registers.oam_data[i..right_bound];
-            let sprite = Sprite::new(chunk);
+            let mut sprite = Sprite::new(chunk);
+            sprite.oam_index = (i / 4) as u8;
 
             // Add to sprite buffer if sprite part of scanline
             if sprite.y_intersects(self.scanline, self.registers.control.sprite_height()) {
                 // Check sprite overflow
                 if self.sprite_count == 8 {
                     self.registers.status.insert(Status::SPRITE_OVERFLOW);
-                    return;
+                    break;
                 }
 
                 self.sprite_buffer[self.sprite_count as usize] = sprite;
@@ -200,7 +206,7 @@ impl Ppu {
                 // After 8 sprites has been filled, PPU check for overflow by
                 // searching for another sprite that is in the scanline.
                 // But for some reason, when it doesn't find a sprite after full,
-                // the next OAM data it checks is offseted by the oam size + 1 which causes buggy behaviour.
+                // the next OAM y it checks is offseted by the oam size + 1 which causes buggy behaviour when setting SPRITE_OVERFLOW flag.
                 i += 1;
             }
 
@@ -208,33 +214,60 @@ impl Ppu {
         }
     }
 
-    fn render_pixel(&mut self, x: usize, y: usize) {
-        let (palette_id, pixel_index) = self.render_bg_pixel();
-        self.screen_pixels[x + y * WIDTH] = self.get_palette_color(palette_id, pixel_index);
-    }
-
-    fn render_bg_pixel(&mut self) -> (u8, u8) {
-        if !self.registers.mask.contains(Mask::RENDER_BACKGROUND) {
-            return (0, 0);
+    /// Returns the index into palette ram for the current pixel of the background (0 means no color/transparent)
+    fn render_bg_pixel(&mut self, scan_x: usize) -> u8 {
+        if !self.registers.mask.can_show_background(scan_x) {
+            return 0;
         }
 
         let bit_mask = 0b1000_0000 >> self.registers.fine_x;
-        let pixel_index = add_bit_planes(
+        let mut color_index = add_bit_planes(
             (self.bg_shift_bits_low >> 8) as u8,
             (self.bg_shift_bits_high >> 8) as u8,
             bit_mask,
         );
 
-        let palette_id = add_bit_planes(
-            self.bg_palette_bits_low,
-            self.bg_palette_bits_high,
-            bit_mask,
-        );
+        if color_index != 0 {
+            // Add palette offset if not transparent
+            let palette_id = add_bit_planes(
+                self.bg_palette_bits_low,
+                self.bg_palette_bits_high,
+                bit_mask,
+            );
+            color_index += 4 * palette_id
+        }
 
-        (palette_id, pixel_index)
+        color_index
     }
 
-    fn render_sprite_pixel(&mut self) {}
+    /// Returns the palette ram index for the current pixel if a sprite is there or the background based on piority
+    fn render_fg_pixel(&mut self, scan_x: usize, bg_color_index: u8) -> u8 {
+        let mut fg_color_index = bg_color_index;
+
+        if self.registers.mask.can_show_sprite(scan_x) {
+            // Find sprite to render
+            for sprite in &self.sprite_buffer[0..self.sprite_count as usize] {
+                let color_index = sprite.color_index(scan_x);
+                if color_index == 0 {
+                    continue;
+                }
+
+                // Check if sprite 0 is rendering and set status flag
+                if sprite.oam_index == 0 && bg_color_index != 0 && scan_x != 255 {
+                    self.registers.status.insert(Status::SPRITE_0_HIT);
+                }
+
+                let palette_id = sprite.attributes.palette() + 4;
+                let behind_bg = sprite.attributes.contains(Attributes::BEHIND);
+                // Set the pallete ram index if over background or background is transparent
+                if !behind_bg || bg_color_index == 0 {
+                    fg_color_index = color_index + palette_id * 4;
+                }
+            }
+        }
+
+        fg_color_index
+    }
 
     fn shift_registers(&mut self) {
         self.bg_shift_bits_low <<= 1;
@@ -254,13 +287,13 @@ impl Ppu {
         }
 
         if self.scanline == 262 {
-            self.frame_complete = true;
             self.odd_frame = !self.odd_frame;
             self.scanline = 0;
         }
     }
 }
 
+/// Adds two low and high bits specified by the bit mask
 pub fn add_bit_planes(lsb_plane: u8, msb_plane: u8, bit_mask: u8) -> u8 {
     let lsb = ((lsb_plane & bit_mask) != 0) as u8;
     let msb = ((msb_plane & bit_mask) != 0) as u8;

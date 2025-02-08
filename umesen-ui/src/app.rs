@@ -148,12 +148,29 @@ impl eframe::App for App {
                 });
             });
 
+        ctx.show_viewport_immediate(
+            egui::ViewportId::from_hash_of("immediate_viewport"),
+            egui::ViewportBuilder::default()
+                .with_title("Immediate Viewport")
+                .with_inner_size([200.0, 100.0]),
+            |ctx, class| {
+                assert!(
+                    class == egui::ViewportClass::Immediate,
+                    "This egui backend doesn't support multiple viewports"
+                );
+
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    ui.label("Hello from immediate viewport");
+                });
+            },
+        );
+
         ctx.input_mut(|i| {
             for (action, key) in &self.preferences.key_action_map.map {
                 // Check every action for if the correspending key was pressed
                 if let ActionKind::ControllerInput(number, button) = action {
                     let controller = &mut self.state.emu.cpu.bus.controllers[*number as usize];
-                    controller.state.set(*button, i.key_pressed(*key));
+                    controller.state.set(*button, i.key_down(*key));
                 } else if i.key_pressed(*key) {
                     self.state.do_action(action);
                 }

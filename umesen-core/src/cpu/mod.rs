@@ -82,10 +82,6 @@ impl Cpu {
         self.operand_address = self.read_operand_address(opcode.addr_mode);
         self.execute(&opcode);
 
-        if opcode.name == "sta" && self.operand_address == Some(0x4010) {
-            return Err(CpuError::DebugTrap);
-        }
-
         Ok(())
     }
 

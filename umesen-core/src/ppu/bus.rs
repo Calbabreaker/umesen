@@ -24,7 +24,7 @@ impl PpuBus {
             },
             0x2000..=0x3eff => self.nametable_ram[self.mirror_nametable(address)],
             0x3f00..=0x3fff => self.palette_ram[mirror_palette(address)],
-            _ => 0,
+            _ => unreachable!(),
         }
     }
 
@@ -40,7 +40,7 @@ impl PpuBus {
                 self.nametable_ram[address] = value;
             }
             0x3f00..=0x3fff => self.palette_ram[mirror_palette(address)] = value,
-            _ => (),
+            _ => unreachable!(),
         }
     }
 

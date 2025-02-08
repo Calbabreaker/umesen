@@ -41,9 +41,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().spacing.interact_size.y = 0.;
     match state.ppu_tab_open {
         Tab::Palettes => {
-            ui.label("Foreground:");
-            show_palette_row(ui, state, 0);
             ui.label("Background:");
+            show_palette_row(ui, state, 0);
+            ui.label("Sprite:");
             show_palette_row(ui, state, 1);
         }
         Tab::PatternTables => {
@@ -55,6 +55,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         Tab::Nametables => {
             let cart = state.emu.cartridge();
             let mirroring = cart.map(|c| c.mirroring()).unwrap_or_default();
+            ui.label(format!("Mirroring: {mirroring:?}"));
+
+            ui.style_mut().spacing.item_spacing = egui::vec2(0., 0.);
             for i in 0..2 {
                 ui.horizontal(|ui| {
                     for j in 0..2 {
@@ -62,7 +65,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
                     }
                 });
             }
-            ui.label(format!("Mirroring: {mirroring:?}"));
         }
         Tab::OamData => {
             ui.horizontal(|ui| {
@@ -173,7 +175,7 @@ fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
         let index = (tile_y * 8 + tile_x) as usize;
         let oam = &ppu.registers.oam_data[index..index + 4];
         let sprite = umesen_core::ppu::Sprite::new(oam);
-        let palette = sprite.attributes.palette();
+        let palette = sprite.attributes.palette() + 4;
 
         (sprite.tile_number, ppu.get_palette_colors(palette))
     };

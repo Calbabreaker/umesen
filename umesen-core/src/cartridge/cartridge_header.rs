@@ -49,7 +49,7 @@ impl CartridgeHeader {
             0
         };
 
-        let mirroring = if data[6] & 1 != 0 {
+        let mirroring = if data[6] & 1 == 0 {
             Mirroring::Horizontal
         } else {
             Mirroring::Vertical
