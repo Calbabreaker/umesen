@@ -7,6 +7,8 @@ use crate::{
 
 const PALETTE_RAM_SIZE: usize = 0x20;
 const NAMETABLE_RAM_SIZE: usize = 0x800;
+/// Size of one pattern table in number of tiles (aka one byte), add this to tile number to access the next pattern table
+pub const PATTERN_TILE_COUNT: u16 = 256;
 
 #[derive(Default)]
 pub struct PpuBus {
@@ -46,12 +48,7 @@ impl PpuBus {
 
     /// Gets the pattern table tile planes
     /// Return (lsb plane, msb plane)
-    pub fn read_pattern_tile_planes(
-        &self,
-        tile_number: impl Into<u16>,
-        table_number: impl Into<u16>,
-        fine_y: impl Into<u16>,
-    ) -> (u8, u8) {
+    pub fn read_pattern_tile_planes(&self, tile_number: u16, fine_y: u16) -> (u8, u8) {
         // From nes wiki: https://www.nesdev.org/wiki/PPU_pattern_tables#Addressing
         // DCBA98 76543210
         // ---------------
@@ -61,7 +58,7 @@ impl PpuBus {
         // ||++++-++++----- N: Tile number from name table
         // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
         // +--------------- 0: Pattern table is at $0000-$1FFF
-        let address = ((table_number.into()) << 12) | ((tile_number.into()) << 4) | (fine_y.into());
+        let address = ((tile_number) << 4) | (fine_y % 8);
         (self.read_u8(address), self.read_u8(address + 8))
     }
 

@@ -1,4 +1,7 @@
-use crate::{cartridge::FixedArray, ppu::bus::PpuBus};
+use crate::{
+    cartridge::FixedArray,
+    ppu::{bus::PpuBus, PATTERN_TILE_COUNT},
+};
 
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +30,10 @@ impl Control {
         } else {
             8
         }
+    }
+
+    pub fn background_table_offset(&self) -> u16 {
+        self.contains(Control::BACKGROUND_SECOND_TABLE) as u16 * PATTERN_TILE_COUNT
     }
 }
 

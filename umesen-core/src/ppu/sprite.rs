@@ -1,4 +1,4 @@
-use crate::ppu::{Control, Registers};
+use crate::ppu::{Control, Registers, PATTERN_TILE_COUNT};
 
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -61,19 +61,25 @@ impl Sprite {
         scanline >= self_y && scanline < self_y + height
     }
 
-    pub(crate) fn load_shift_bits(&mut self, scanline: u16, registers: &Registers) {
-        let mut tile_number = if registers.control.contains(Control::TALL_SPRITES) {
-            self.tile_number & 0b1111_1110
-        } else {
-            self.tile_number
-        };
-
+    pub fn tile_number(&self, registers: &Registers) -> u16 {
         let table_number = if registers.control.contains(Control::TALL_SPRITES) {
             // Bit zero contains table number when tall sprites
             self.tile_number & 0b1
         } else {
             registers.control.contains(Control::SPRITE_SECOND_TABLE) as u8
         };
+
+        let tile_number = if registers.control.contains(Control::TALL_SPRITES) {
+            self.tile_number & 0b1111_1110
+        } else {
+            self.tile_number
+        };
+
+        tile_number as u16 + table_number as u16 * PATTERN_TILE_COUNT
+    }
+
+    pub(crate) fn load_shift_bits(&mut self, scanline: u16, registers: &Registers) {
+        let mut tile_number = self.tile_number(registers);
 
         let mut fine_y = scanline - self.y as u16;
         if self.attributes.contains(Attributes::FLIP_VERTICAL) {
@@ -86,10 +92,7 @@ impl Sprite {
             tile_number += 1;
         }
 
-        let (tile_lsb, tile_msb) =
-            registers
-                .bus
-                .read_pattern_tile_planes(tile_number, table_number, fine_y);
+        let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(tile_number, fine_y);
 
         self.color_bits_low = tile_lsb;
         self.color_bits_high = tile_msb;

@@ -148,9 +148,8 @@ impl Ppu {
         let attribute_byte = registers.bus.read_u8(registers.v.attribute_address());
         self.bg_palette_id = registers.v.shift_attribute(attribute_byte);
         let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(
-            tile_number,
-            registers.control.contains(Control::BACKGROUND_SECOND_TABLE),
-            registers.v.get(TvRegister::FINE_Y) as u8,
+            tile_number as u16 + registers.control.background_table_offset(),
+            registers.v.get(TvRegister::FINE_Y),
         );
 
         self.bg_shift_bits_low = (self.bg_shift_bits_low & 0xff00) | tile_lsb as u16;

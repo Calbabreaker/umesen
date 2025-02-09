@@ -1,4 +1,4 @@
-use umesen_core::ppu::{add_bit_planes, Control, TvRegister};
+use umesen_core::ppu::{add_bit_planes, TvRegister, PATTERN_TILE_COUNT};
 
 use crate::state::to_egui_color;
 
@@ -105,11 +105,11 @@ fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
     });
 }
 
-fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number: u8) {
+fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
     let get_tile_info_fn = |tile_x, tile_y, _| {
         let tile_number = tile_y * 16 + tile_x;
         let palette = [0x000000ff, 0x555555ff, 0xaaaaaaff, 0xffffffff];
-        (tile_number, palette)
+        (tile_number + table_number * PATTERN_TILE_COUNT, palette)
     };
 
     // 16 by 16 tiles with 8 pixels each
@@ -118,7 +118,6 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
         format!("pattern{table_number}"),
         state,
         [16, 16],
-        table_number,
         get_tile_info_fn,
     );
 
@@ -132,14 +131,15 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         register.set(TvRegister::COARSE_X, tile_x);
         register.set(TvRegister::COARSE_Y, tile_y);
 
-        let tile_number = ppu.registers.bus.read_u8(register.nametable_address());
+        let tile_number = ppu.registers.bus.read_u8(register.nametable_address()) as u16;
         let tile_attribute = ppu.registers.bus.read_u8(register.attribute_address());
         let palette_id = register.shift_attribute(tile_attribute);
 
-        (tile_number, ppu.get_palette_colors(palette_id))
+        (
+            tile_number + ppu.registers.control.background_table_offset(),
+            ppu.get_palette_colors(palette_id),
+        )
     };
-
-    let control = &state.emu.ppu().registers.control;
 
     let image = show_pattern_tiles(
         ui,
@@ -147,7 +147,6 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         state,
         // 32 by 30 tiles with 8 pixels each
         [32, 30],
-        control.contains(Control::BACKGROUND_SECOND_TABLE) as u8,
         get_tile_info_fn,
     );
     ui.add(image.fit_to_original_size(1.));
@@ -161,10 +160,13 @@ fn show_oam_list(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
                 ui.separator();
             }
             let sprite = umesen_core::ppu::Sprite::new(chunk);
-            ui.label(format!("ID: {i}"));
-            ui.label(format!("X: ${0:02x}", sprite.x));
-            ui.label(format!("Y: ${0:02x}", sprite.y));
-            ui.label(format!("TILE: ${0:02x}", sprite.tile_number));
+            ui.label(format!("INDEX: {i} ({}x{})", i % 8, i / 8));
+            ui.label(format!("X: {}", sprite.x));
+            ui.label(format!("Y: {}", sprite.y));
+            ui.label(format!(
+                "TILE: ${0:02x}",
+                sprite.tile_number(&ppu.registers)
+            ));
             ui.label(format!("ATTR: {}", sprite.attributes));
         }
     });
@@ -172,24 +174,17 @@ fn show_oam_list(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
 
 fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
     let get_tile_info_fn = |tile_x, tile_y, ppu: &umesen_core::Ppu| {
-        let index = (tile_y * 8 + tile_x) as usize;
+        let index = ((tile_y * 8 + tile_x) * 4) as usize;
         let oam = &ppu.registers.oam_data[index..index + 4];
         let sprite = umesen_core::ppu::Sprite::new(oam);
         let palette = sprite.attributes.palette() + 4;
-
-        (sprite.tile_number, ppu.get_palette_colors(palette))
+        (
+            sprite.tile_number(&ppu.registers),
+            ppu.get_palette_colors(palette),
+        )
     };
 
-    let control = &state.emu.ppu().registers.control;
-
-    let image = show_pattern_tiles(
-        ui,
-        "oam_grid".to_string(),
-        state,
-        [8, 8],
-        control.contains(Control::SPRITE_SECOND_TABLE) as u8,
-        get_tile_info_fn,
-    );
+    let image = show_pattern_tiles(ui, "oam_grid".to_string(), state, [8, 8], get_tile_info_fn);
     ui.add(image.fit_to_original_size(4.));
 }
 
@@ -198,8 +193,7 @@ fn show_pattern_tiles<'a>(
     name: String,
     state: &'a mut crate::State,
     tile_size: [usize; 2],
-    pattern_table_number: u8,
-    get_tile_info_fn: impl Fn(u8, u8, &'a umesen_core::Ppu) -> (u8, [u32; 4]),
+    get_tile_info_fn: impl Fn(u16, u16, &'a umesen_core::Ppu) -> (u16, [u32; 4]),
 ) -> egui::Image<'a> {
     let image_size = [tile_size[0] * 8, tile_size[1] * 8];
     let default_fn = || crate::Texture::new(image_size, ui.ctx());
@@ -208,18 +202,17 @@ fn show_pattern_tiles<'a>(
 
     for tile_y in 0..tile_size[1] {
         for tile_x in 0..tile_size[0] {
-            let (tile_number, palette) = get_tile_info_fn(tile_x as u8, tile_y as u8, ppu);
+            let (tile_number, palette) = get_tile_info_fn(tile_x as u16, tile_y as u16, ppu);
             for y in 0..8 {
-                let (lsb_plane, msb_plane) = ppu.registers.bus.read_pattern_tile_planes(
-                    tile_number,
-                    pattern_table_number,
-                    y as u8,
-                );
+                let bus = &ppu.registers.bus;
+                let (lsb_plane, msb_plane) = bus.read_pattern_tile_planes(tile_number, y);
 
                 // Get a value between 0 and 3
                 for x in 0..8 {
                     let pixel_index = add_bit_planes(lsb_plane << x, msb_plane << x, 0b1000_0000);
-                    let i = (tile_y * 8 + y) * image_size[0] + (tile_x * 8 + x);
+                    let pixel_x = tile_x * 8 + x as usize;
+                    let pixel_y = tile_y * 8 + y as usize;
+                    let i = pixel_y * image_size[0] + pixel_x;
                     texture.image_buffer.pixels[i] = to_egui_color(palette[pixel_index as usize]);
                 }
             }
