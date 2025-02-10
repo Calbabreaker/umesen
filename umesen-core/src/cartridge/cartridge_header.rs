@@ -92,7 +92,7 @@ mod test {
             header,
             CartridgeHeader {
                 mapper_id: 3,
-                mirroring: Mirroring::Horizontal,
+                mirroring: Mirroring::Vertical,
                 prg_rom_size: 32 * 1024,
                 chr_rom_size: 8 * 1024,
                 prg_ram_size: 8 * 1024,
