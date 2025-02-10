@@ -35,7 +35,7 @@ pub struct Controller {
     strobe_active: bool,
     shift_register: u8,
     /// Bit flag of all button held down states
-    pub state: Button,
+    state: Button,
 }
 
 impl Controller {
@@ -57,6 +57,22 @@ impl Controller {
             self.shift_register |= 0b1000_0000;
             bit
         }
+    }
+
+    /// Set the state of a button with an option to allow left and right or up and down to be pressed at the same time
+    pub fn set(&mut self, button: Button, held: bool, allow_left_right: bool) {
+        if !allow_left_right && held {
+            let illegal_inputs = [(Button::LEFT, Button::RIGHT), (Button::UP, Button::DOWN)];
+            for (a, b) in illegal_inputs {
+                if (button == a && self.state.contains(b))
+                    || (button == b && self.state.contains(a))
+                {
+                    return;
+                }
+            }
+        }
+
+        self.state.set(button, held);
     }
 }
 

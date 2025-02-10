@@ -9,3 +9,5 @@ Cool NES emulator with some debugging tools.
 ```sh
 cargo run -r
 ```
+
+The default controls or IKJL for the D-PAD, C for `A`, X for `B`, D for `START`, and S for `SELECT`.

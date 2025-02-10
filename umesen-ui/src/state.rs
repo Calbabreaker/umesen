@@ -6,6 +6,7 @@ use crate::{texture::Texture, ui_window, ActionKind};
 #[serde(default)]
 pub struct Preferences {
     pub key_action_map: crate::KeyActionMap,
+    pub allow_left_right: bool,
 }
 
 #[derive(Default)]

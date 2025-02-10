@@ -153,7 +153,7 @@ impl eframe::App for App {
                 // Check every action for if the correspending key was pressed
                 if let ActionKind::ControllerInput(number, button) = action {
                     let controller = &mut self.state.emu.cpu.bus.controllers[*number as usize];
-                    controller.state.set(*button, i.key_down(*key));
+                    controller.set(*button, i.key_down(*key), self.preferences.allow_left_right);
                 } else if i.key_pressed(*key) {
                     self.state.do_action(action);
                 }
