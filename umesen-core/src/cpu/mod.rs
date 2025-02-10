@@ -9,6 +9,8 @@ pub use opcode::{AddrMode, Opcode};
 
 /// Number of clock cycles per second
 pub const CLOCK_SPEED_HZ: u32 = 1789773;
+/// Number of cpu clock cycles per ppu frame actually meant to be 29780.5 but should be close enough
+pub const CYCLES_PER_FRAME: u32 = 29780;
 
 bitflags::bitflags! {
     /// Flags for the cpu register
@@ -72,7 +74,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    fn execute_next(&mut self) -> Result<(), CpuError> {
+    pub fn execute_next(&mut self) -> Result<(), CpuError> {
+        self.bus.cpu_cycles_to_wait = 0;
+
         if self.bus.require_nmi() {
             self.nmi();
         }
@@ -85,15 +89,17 @@ impl Cpu {
         Ok(())
     }
 
-    /// Try to execute the next instructions if waited enough cycles
-    /// Returns true if executed an instruction
-    pub fn clock(&mut self) -> Result<bool, CpuError> {
-        self.bus.cpu_cycles_to_wait = self.bus.cpu_cycles_to_wait.saturating_sub(1);
-        if self.bus.cpu_cycles_to_wait == 0 {
-            self.execute_next()?;
-            Ok(true)
+    /// Substract how many cycles were ellapsed last call from clocks_remaining
+    /// and execute when all the cycles last call is completed accounted for
+    pub fn clock_until_execute(&mut self, clocks_remaining: &mut u32) -> Result<(), CpuError> {
+        // Saturate the clocks_remaining when not enough for this call
+        if *clocks_remaining < self.bus.cpu_cycles_to_wait {
+            self.bus.cpu_cycles_to_wait -= *clocks_remaining;
+            *clocks_remaining = 0;
+            Ok(())
         } else {
-            Ok(false)
+            *clocks_remaining -= self.bus.cpu_cycles_to_wait;
+            self.execute_next()
         }
     }
 

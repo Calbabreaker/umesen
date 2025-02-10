@@ -43,7 +43,7 @@ impl State {
             (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as u32;
 
         while clocks_remaining > 0 {
-            match self.emu.clock(&mut clocks_remaining) {
+            match self.emu.clock_until_frame(&mut clocks_remaining) {
                 Ok(frame_complete) => {
                     // Don't sync to screen if speed is less than 1 for debugging
                     if frame_complete || self.speed < 1. {

@@ -21,17 +21,13 @@ impl Default for Emulator {
 
 impl Emulator {
     pub fn step(&mut self) -> Result<(), CpuError> {
-        loop {
-            if self.cpu.clock()? {
-                return Ok(());
-            }
-        }
+        self.cpu.execute_next()
     }
 
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) {
         while !self.frame_complete() {
-            if let Err(err) = self.cpu.clock() {
+            if let Err(err) = self.cpu.execute_next() {
                 log::warn!("Emulation error: {err}");
             }
         }
@@ -39,11 +35,11 @@ impl Emulator {
 
     /// Keep clocking the cpu until it has caught up to the ellapsed seconds or there is a new frame
     /// Returns true if frame is complete
-    pub fn clock(&mut self, num_clocks: &mut u32) -> Result<bool, CpuError> {
-        while *num_clocks > 0 {
-            self.cpu.clock()?;
-            *num_clocks -= 1;
-            if self.frame_complete() {
+    pub fn clock_until_frame(&mut self, clocks_remaining: &mut u32) -> Result<bool, CpuError> {
+        while *clocks_remaining > 0 {
+            self.cpu.clock_until_execute(clocks_remaining)?;
+            // Ensure only lastest frame is returned
+            if *clocks_remaining < crate::cpu::CYCLES_PER_FRAME && self.frame_complete() {
                 return Ok(true);
             }
         }
@@ -57,7 +53,7 @@ impl Emulator {
         Ok(())
     }
 
-    pub fn frame_complete(&mut self) -> bool {
+    fn frame_complete(&mut self) -> bool {
         let ppu = &mut self.cpu.bus.ppu;
         if ppu.frame_complete {
             ppu.frame_complete = false;
@@ -81,7 +77,7 @@ impl Emulator {
         Some(self.cpu.bus.cartridge.as_ref()?.borrow())
     }
 
-    pub fn get_debug_log(&self) -> String {
+    pub fn debug_log(&self) -> String {
         format!(
             "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{: >3},{: >3} CYC:{}",
             self.cpu.pc,
