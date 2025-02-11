@@ -1,9 +1,7 @@
 use umesen_core::ppu::{add_bit_planes, TvRegister, PATTERN_TILE_COUNT};
 
-use crate::state::to_egui_color;
-
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-pub enum Tab {
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
+enum Tab {
     #[default]
     Palettes,
     PatternTables,
@@ -11,8 +9,8 @@ pub enum Tab {
     OamData,
 }
 
-impl Tab {
-    fn name(self) -> &'static str {
+impl crate::egui_util::UiList for Tab {
+    fn pretty_name(&self) -> &'static str {
         match self {
             Self::Palettes => "Palettes",
             Self::PatternTables => "Pattern Tables",
@@ -20,26 +18,21 @@ impl Tab {
             Self::OamData => "OAM Data",
         }
     }
+
+    const LIST: &[Self] = &[
+        Self::OamData,
+        Self::Palettes,
+        Self::Nametables,
+        Self::PatternTables,
+    ];
 }
 
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
-    ui.horizontal(|ui| {
-        use Tab::*;
-        for tab in [Palettes, PatternTables, Nametables, OamData] {
-            if ui
-                .selectable_label(tab == state.ppu_tab_open, tab.name())
-                .clicked()
-            {
-                state.ppu_tab_open = tab;
-            }
-        }
-    });
-
-    ui.separator();
+    let tab_open = crate::egui_util::show_tab_group::<Tab>(ui);
 
     ui.style_mut().spacing.item_spacing = egui::vec2(5., 5.);
     ui.style_mut().spacing.interact_size.y = 0.;
-    match state.ppu_tab_open {
+    match tab_open {
         Tab::Palettes => {
             ui.label("Background:");
             show_palette_row(ui, state, 0);
@@ -97,7 +90,7 @@ fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
                 painter.rect_filled(
                     egui::Rect::from_min_size(response.rect.min, pixel_size),
                     0.,
-                    to_egui_color(color),
+                    crate::egui_util::to_egui_color(color),
                 );
                 response.rect.min.x += pixel_size.x;
             }
@@ -213,7 +206,8 @@ fn show_pattern_tiles<'a>(
                     let pixel_x = tile_x * 8 + x as usize;
                     let pixel_y = tile_y * 8 + y as usize;
                     let i = pixel_y * image_size[0] + pixel_x;
-                    texture.image_buffer.pixels[i] = to_egui_color(palette[pixel_index as usize]);
+                    texture.image_buffer.pixels[i] =
+                        crate::egui_util::to_egui_color(palette[pixel_index as usize]);
                 }
             }
         }

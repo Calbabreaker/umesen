@@ -2,6 +2,7 @@
 
 mod action;
 mod app;
+mod egui_util;
 mod state;
 mod texture;
 mod ui_window;

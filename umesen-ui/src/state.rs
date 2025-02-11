@@ -1,6 +1,6 @@
 use egui::ahash::HashMap;
 
-use crate::{texture::Texture, ui_window, ActionKind};
+use crate::{texture::Texture, ActionKind};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -17,8 +17,6 @@ pub struct State {
     pub last_egui_update_time: f64,
     pub ui_render_time: f32,
     pub speed: f64,
-    pub ppu_tab_open: ui_window::ppu_memory::Tab,
-    pub hex_view_kind: ui_window::hex_viewer::HexViewKind,
 }
 
 impl State {
@@ -65,7 +63,7 @@ impl State {
         let pixels = &self.emu.ppu().screen_pixels;
         let texture = self.texture_map.get_mut("ppu_output").unwrap();
         for (i, color) in pixels.iter().enumerate() {
-            texture.image_buffer.pixels[i] = to_egui_color(*color);
+            texture.image_buffer.pixels[i] = crate::egui_util::to_egui_color(*color);
         }
         texture.update();
     }
@@ -85,9 +83,4 @@ impl State {
             ActionKind::ControllerInput(_, _) => unreachable!(),
         }
     }
-}
-
-pub fn to_egui_color(color: u32) -> egui::Color32 {
-    let bytes = color.to_be_bytes();
-    egui::Color32::from_rgb(bytes[0], bytes[1], bytes[2])
 }

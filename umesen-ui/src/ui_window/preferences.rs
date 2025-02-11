@@ -1,18 +1,39 @@
 use crate::Preferences;
 
-pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
-    egui::CollapsingHeader::new("Key binds").show_unindented(ui, |ui| {
-        egui::Grid::new("key grid").striped(true).show(ui, |ui| {
-            show_action_maps(ui, prefs);
-        });
-    });
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
+enum Tab {
+    #[default]
+    KeyBinds,
+    Emulation,
+}
 
-    egui::CollapsingHeader::new("Emulation").show_unindented(ui, |ui| {
-        egui::Grid::new("key grid").striped(true).show(ui, |ui| {
-            ui.label("Allow left right: ");
-            ui.checkbox(&mut prefs.allow_left_right, "");
+impl crate::egui_util::UiList for Tab {
+    fn pretty_name(&self) -> &'static str {
+        match self {
+            Self::KeyBinds => "KeyBinds",
+            Self::Emulation => "Emulation",
+        }
+    }
+
+    const LIST: &[Self] = &[Self::KeyBinds, Self::Emulation];
+}
+
+pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
+    let tab_open = crate::egui_util::show_tab_group(ui);
+
+    egui::Grid::new("key grid")
+        .striped(true)
+        .show(ui, |ui| match tab_open {
+            Tab::Emulation => {
+                ui.label("Allow left right: ").on_hover_text(
+                    "Allow left and right or up and down to be pressed at the same time",
+                );
+                ui.checkbox(&mut prefs.allow_left_right, "");
+            }
+            Tab::KeyBinds => {
+                show_key_map(ui, prefs);
+            }
         });
-    });
 
     ui.separator();
 
@@ -21,7 +42,7 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
     }
 }
 
-fn show_action_maps(ui: &mut egui::Ui, prefs: &mut Preferences) {
+fn show_key_map(ui: &mut egui::Ui, prefs: &mut Preferences) {
     for (action, key) in &prefs.key_action_map.map {
         ui.label(action.name());
 
