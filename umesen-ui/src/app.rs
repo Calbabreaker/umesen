@@ -112,6 +112,26 @@ impl App {
             }
         });
     }
+
+    fn check_input(&mut self, i: &mut egui::InputState) {
+        for (action, key) in &self.preferences.key_action_map.map {
+            // Check every action for if the correspending key was pressed
+            if let ActionKind::ControllerInput(number, button) = action {
+                let controller = &mut self.state.emu.cpu.bus.controllers[*number as usize];
+                controller.set(*button, i.key_down(*key), self.preferences.allow_left_right);
+            } else if i.key_pressed(*key) {
+                self.state.do_action(action);
+            }
+        }
+
+        self.preferences.key_action_map.check_key_down(i);
+
+        let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);
+        if let Some(path) = file_path {
+            self.load_nes_rom(&path);
+        }
+        i.raw.dropped_files.clear();
+    }
 }
 
 impl eframe::App for App {
@@ -125,6 +145,10 @@ impl eframe::App for App {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        ctx.input_mut(|i| self.check_input(i));
+
+        self.state.update_emulation(ctx);
+
         let default_bg = ctx.style().visuals.noninteractive().bg_fill;
         egui::TopBottomPanel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
@@ -137,8 +161,6 @@ impl eframe::App for App {
         self.ui_windows
             .retain(|kind| kind.show(ctx, &mut self.state, &mut self.preferences));
 
-        self.state.update_emulation(ctx);
-
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
@@ -147,26 +169,6 @@ impl eframe::App for App {
                     ui.add(egui::Image::new(&texture.handle).fit_to_fraction(egui::vec2(1., 1.)));
                 });
             });
-
-        ctx.input_mut(|i| {
-            for (action, key) in &self.preferences.key_action_map.map {
-                // Check every action for if the correspending key was pressed
-                if let ActionKind::ControllerInput(number, button) = action {
-                    let controller = &mut self.state.emu.cpu.bus.controllers[*number as usize];
-                    controller.set(*button, i.key_down(*key), self.preferences.allow_left_right);
-                } else if i.key_pressed(*key) {
-                    self.state.do_action(action);
-                }
-            }
-
-            self.preferences.key_action_map.check_key_down(i);
-
-            let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);
-            if let Some(path) = file_path {
-                self.load_nes_rom(&path);
-            }
-            i.raw.dropped_files.clear();
-        });
 
         self.state.ui_render_time = frame.info().cpu_usage.unwrap_or(0.);
     }

@@ -11,3 +11,4 @@ cargo run -r
 ```
 
 The default controls are IKJL for the D-PAD, C for `A`, X for `B`, D for `START`, and S for `SELECT`.
+This can be changed in the preferences.
