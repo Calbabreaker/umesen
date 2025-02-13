@@ -14,7 +14,7 @@ pub const WIDTH: usize = 256;
 pub const HEIGHT: usize = 240;
 
 /// Emulated 2C02 NTSC PPU
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Ppu {
     pub registers: Registers,
     pub palette: Palette,

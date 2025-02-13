@@ -53,3 +53,7 @@ pub fn mem_set<T: egui::util::id_type_map::SerializableAny + Default>(ui: &mut e
     let id = egui::Id::from(std::any::type_name::<T>());
     ui.memory_mut(|w| *w.data.get_persisted_mut_or_default(id) = val);
 }
+
+pub fn get_shortcut_text(shortcut: &egui::KeyboardShortcut) -> String {
+    shortcut.format(&egui::ModifierNames::NAMES, cfg!(target_os = "macos"))
+}

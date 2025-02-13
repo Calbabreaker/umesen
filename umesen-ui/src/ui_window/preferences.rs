@@ -15,7 +15,7 @@ impl crate::egui_util::UiList for Tab {
         }
     }
 
-    const LIST: &[Self] = &[Self::KeyBinds, Self::Emulation];
+    const LIST: &[Self] = &[Self::Emulation, Self::KeyBinds];
 }
 
 pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
@@ -43,14 +43,14 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
 }
 
 fn show_key_map(ui: &mut egui::Ui, prefs: &mut Preferences) {
-    for (action, key) in &prefs.key_action_map.map {
+    for (action, shortcut) in &prefs.key_action_map.map {
         ui.label(action.name());
 
         let action_waiting_for_press = &mut prefs.key_action_map.action_waiting_for_press;
         let text = if action_waiting_for_press.as_ref() == Some(action) {
-            "..."
+            "...".to_owned()
         } else {
-            key.name()
+            crate::egui_util::get_shortcut_text(shortcut)
         };
 
         if ui.button(text).clicked() {

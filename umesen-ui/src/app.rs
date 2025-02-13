@@ -100,26 +100,45 @@ impl App {
 
         ui.menu_button("Emulation", |ui| {
             use ActionKind::*;
-            for action in [Run(true), Run(false), Reset] {
-                let shortcut = self.preferences.key_action_map.map[&action].name();
-                if ui
-                    .add(egui::Button::new(action.name()).shortcut_text(shortcut))
-                    .clicked()
-                {
-                    self.state.do_action(&action);
-                    ui.close_menu();
-                }
-            }
+            self.show_action_list(ui, [Run(true), Run(false), Reset].into_iter());
+
+            ui.menu_button("Save state", |ui| {
+                self.show_action_list(ui, (1..=4).map(SaveState));
+            });
+
+            ui.menu_button("Load state", |ui| {
+                self.show_action_list(ui, (1..=4).map(LoadState));
+            });
         });
     }
 
+    fn show_action_list(&mut self, ui: &mut egui::Ui, iter: impl Iterator<Item = ActionKind>) {
+        for action in iter {
+            let shortcut = self.preferences.key_action_map.map[&action];
+            let button = egui::Button::new(action.name())
+                .shortcut_text(crate::egui_util::get_shortcut_text(&shortcut));
+            if ui.add(button).clicked() {
+                self.state.do_action(&action);
+                ui.close_menu();
+            }
+        }
+    }
+
     fn check_input(&mut self, i: &mut egui::InputState) {
-        for (action, key) in &self.preferences.key_action_map.map {
-            // Check every action for if the correspending key was pressed
+        // Check every action for if the correspending key was pressed
+        for (action, shortcut) in &self.preferences.key_action_map.map {
+            if !i.modifiers.contains(shortcut.modifiers) {
+                continue;
+            }
+
+            // Check controller input seperate
             if let ActionKind::ControllerInput(number, button) = action {
-                let controller = &mut self.state.emu.cpu.bus.controllers[*number as usize];
-                controller.set(*button, i.key_down(*key), self.preferences.allow_left_right);
-            } else if i.key_pressed(*key) {
+                self.state.emu.controller(*number).set(
+                    *button,
+                    i.key_down(shortcut.logical_key),
+                    self.preferences.allow_left_right,
+                );
+            } else if i.key_pressed(shortcut.logical_key) {
                 self.state.do_action(action);
             }
         }

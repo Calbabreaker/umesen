@@ -56,7 +56,7 @@ impl std::fmt::Display for Flags {
 }
 
 /// Emulated 6502 CPU
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Cpu {
     /// Program counter
     pub pc: u16,

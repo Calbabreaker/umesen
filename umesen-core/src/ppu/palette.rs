@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Palette(pub [u32; 64]);
 
 impl Default for Palette {

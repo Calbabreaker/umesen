@@ -17,6 +17,7 @@ pub struct State {
     pub last_egui_update_time: f64,
     pub ui_render_time: f32,
     pub speed: f64,
+    pub save_states: Box<[Option<umesen_core::Cpu>; 4]>,
 }
 
 impl State {
@@ -79,6 +80,14 @@ impl State {
                 self.running = false;
                 self.emu.step().ok();
                 self.update_ppu_texture();
+            }
+            ActionKind::SaveState(number) => {
+                self.save_states[*number as usize] = Some(self.emu.cpu.clone());
+            }
+            ActionKind::LoadState(number) => {
+                if let Some(cpu) = self.save_states[*number as usize].clone() {
+                    self.emu.cpu = cpu;
+                }
             }
             ActionKind::ControllerInput(_, _) => unreachable!(),
         }

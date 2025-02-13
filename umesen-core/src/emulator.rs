@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::{ppu, Cartridge, Cpu, CpuError, NesParseError};
+use crate::{ppu, Cartridge, Controller, Cpu, CpuError, NesParseError};
 
 /// High level struct for controlling the cpu
 pub struct Emulator {
@@ -90,5 +90,9 @@ impl Emulator {
             self.ppu().dot,
             self.cpu.bus.cpu_cycles_total,
         )
+    }
+
+    pub fn controller(&mut self, number: u8) -> &mut Controller {
+        &mut self.cpu.bus.controllers[number as usize]
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     Controller, Ppu,
 };
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,
@@ -121,8 +121,8 @@ impl CpuBus {
 
         for i in 0..256 {
             let value = self.read_u8(address_start + i);
-            self.ppu.registers.write_oam_data(value);
             self.clock();
+            self.ppu.registers.write_oam_data(value);
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     cartridge::FixedArray,
-    ppu::{bus::PpuBus, PATTERN_TILE_COUNT},
+    ppu::{bus::PpuBus, sprite::Attributes, PATTERN_TILE_COUNT},
 };
 
 bitflags::bitflags! {
@@ -196,7 +196,7 @@ impl std::fmt::Display for TvRegister {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Registers {
     pub bus: PpuBus,
     pub control: Control,
@@ -269,7 +269,7 @@ impl Registers {
     pub fn write_oam_data(&mut self, mut value: u8) {
         // Zero out unused bits when set the attribute byte of oam
         if self.oam_address % 4 == 2 {
-            value &= 0b1110_0011;
+            value &= Attributes::all().bits();
         }
 
         self.oam_data[self.oam_address as usize] = value;

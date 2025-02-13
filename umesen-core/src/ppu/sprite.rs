@@ -31,7 +31,7 @@ impl std::fmt::Display for Attributes {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Sprite {
     pub x: u8,
     pub y: u8,
