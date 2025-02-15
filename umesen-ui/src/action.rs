@@ -1,6 +1,6 @@
 use umesen_core::controller::Button;
 
-#[derive(PartialEq, Eq, serde::Serialize, serde::Deserialize, Clone, Hash)]
+#[derive(PartialEq, Eq, serde::Serialize, serde::Deserialize, Clone, Hash, Debug)]
 pub enum ActionKind {
     ControllerInput(u8, Button),
     Run(bool),
@@ -8,6 +8,7 @@ pub enum ActionKind {
     LoadState(u8),
     Reset,
     Step,
+    ToggleSpeedIncrease,
 }
 
 impl ActionKind {
@@ -22,6 +23,7 @@ impl ActionKind {
             Self::Step => "Step Instruction".to_owned(),
             Self::SaveState(number) => format!("Save state {number}"),
             Self::LoadState(number) => format!("Load state {number}"),
+            Self::ToggleSpeedIncrease => "Toggle speed increase".to_owned(),
         }
     }
 }
@@ -64,6 +66,7 @@ impl Default for KeyActionMap {
         map.add(ControllerInput(1, Button::B), Period);
         map.add(ControllerInput(1, Button::SELECT), Quote);
         map.add(ControllerInput(1, Button::START), Semicolon);
+        map.add(ToggleSpeedIncrease, Z);
         map.add_with_mod(SaveState(1), egui::Modifiers::CTRL, Num1);
         map.add_with_mod(SaveState(2), egui::Modifiers::CTRL, Num2);
         map.add_with_mod(SaveState(3), egui::Modifiers::CTRL, Num3);

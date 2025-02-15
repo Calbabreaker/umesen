@@ -89,6 +89,13 @@ impl State {
                     self.emu.cpu = cpu;
                 }
             }
+            ActionKind::ToggleSpeedIncrease => {
+                if self.speed == 1. {
+                    self.speed = 2.;
+                } else {
+                    self.speed = 1.;
+                }
+            }
             ActionKind::ControllerInput(_, _) => unreachable!(),
         }
     }

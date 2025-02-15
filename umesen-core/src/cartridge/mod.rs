@@ -53,16 +53,11 @@ impl Cartridge {
             mapper: match header.mapper_id {
                 0 => Box::new(Mapper000::default()),
                 220 => Box::new(Mapper220::default()),
-                _ => return Err(NesParseError::UnsupportedMapper(header.mapper_id)),
+                id => return Err(NesParseError::UnsupportedMapper(id)),
             },
             header,
             banks,
         })
-    }
-
-    /// New catridge with only prg_ram (for testing)
-    pub fn new_only_ram(ram_size: usize) -> Self {
-        Self::with_rom(220, vec![], vec![], ram_size)
     }
 
     pub fn with_rom(

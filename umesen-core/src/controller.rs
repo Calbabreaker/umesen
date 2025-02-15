@@ -62,8 +62,8 @@ impl Controller {
     /// Set the state of a button with an option to allow left and right or up and down to be pressed at the same time
     pub fn set(&mut self, button: Button, held: bool, allow_left_right: bool) {
         if !allow_left_right && held {
-            let illegal_inputs = [(Button::LEFT, Button::RIGHT), (Button::UP, Button::DOWN)];
-            for (a, b) in illegal_inputs {
+            let illegal_combo = [(Button::LEFT, Button::RIGHT), (Button::UP, Button::DOWN)];
+            for (a, b) in illegal_combo {
                 if (button == a && self.state.contains(b))
                     || (button == b && self.state.contains(a))
                 {
