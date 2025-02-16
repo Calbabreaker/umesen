@@ -18,6 +18,7 @@ pub struct State {
     pub ui_render_time: f32,
     pub speed: f64,
     pub save_states: Box<[Option<umesen_core::Cpu>; 4]>,
+    pub clocks_remaining: i32,
 }
 
 impl State {
@@ -39,14 +40,16 @@ impl State {
             return;
         }
 
-        let mut clocks_remaining =
-            (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as u32;
+        self.clocks_remaining +=
+            (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as i32;
 
-        while clocks_remaining > 0 {
-            match self.emu.clock_until_frame(&mut clocks_remaining) {
+        let mut a = false;
+        while self.clocks_remaining > 0 {
+            match self.emu.clock_until_frame(&mut self.clocks_remaining) {
                 Ok(frame_complete) => {
                     // Don't sync to screen if speed is less than 1 for debugging
                     if frame_complete || self.speed < 1. {
+                        a = true;
                         self.update_ppu_texture();
                     }
                 }
@@ -55,6 +58,10 @@ impl State {
                     self.running = false;
                 }
             }
+        }
+
+        if !a {
+            println!("{} {}", self.emu.ppu().scanline, self.clocks_remaining);
         }
 
         ctx.request_repaint();
@@ -96,7 +103,7 @@ impl State {
                     self.speed = 1.;
                 }
             }
-            ActionKind::ControllerInput(_, _) => unreachable!(),
+            ActionKind::ControllerInput(..) => unreachable!(),
         }
     }
 }

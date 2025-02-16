@@ -21,7 +21,8 @@ impl Default for Emulator {
 
 impl Emulator {
     pub fn step(&mut self) -> Result<(), CpuError> {
-        self.cpu.execute_next()
+        self.cpu.execute_next()?;
+        Ok(())
     }
 
     /// Keep stepping until a frame is generated
@@ -33,13 +34,14 @@ impl Emulator {
         }
     }
 
-    /// Keep clocking the cpu until it has caught up to the ellapsed seconds or there is a new frame
-    /// Returns true if frame is complete
-    pub fn clock_until_frame(&mut self, clocks_remaining: &mut u32) -> Result<bool, CpuError> {
-        while *clocks_remaining > 0 {
-            self.cpu.clock_until_execute(clocks_remaining)?;
+    /// Let the CPU Keep executing instructions until clocks_remaining is zero or there is a new frame
+    /// Note that it will keep continuing if near end of scaneline to prevent stutters
+    /// Returns true if frame a frame is returned
+    pub fn clock_until_frame(&mut self, clocks_remaining: &mut i32) -> Result<bool, CpuError> {
+        while *clocks_remaining > 0 || self.ppu().scanline >= 180 {
+            *clocks_remaining -= self.cpu.execute_next()? as i32;
             // Ensure only lastest frame is returned
-            if *clocks_remaining < crate::cpu::CYCLES_PER_FRAME && self.frame_complete() {
+            if self.frame_complete() {
                 return Ok(true);
             }
         }

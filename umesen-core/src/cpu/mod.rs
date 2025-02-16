@@ -74,7 +74,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn execute_next(&mut self) -> Result<(), CpuError> {
+    /// Execute the next instruction at the pc
+    /// Returns the number of cpu cycles to wait as the result of executing the instruction
+    pub fn execute_next(&mut self) -> Result<u32, CpuError> {
         self.bus.cpu_cycles_to_wait = 0;
 
         if self.bus.require_nmi() {
@@ -86,21 +88,7 @@ impl Cpu {
         self.operand_address = self.read_operand_address(opcode.addr_mode);
         self.execute(&opcode);
 
-        Ok(())
-    }
-
-    /// Substract how many cycles were ellapsed last call from clocks_remaining
-    /// and execute when all the cycles last call is completed accounted for
-    pub fn clock_until_execute(&mut self, clocks_remaining: &mut u32) -> Result<(), CpuError> {
-        // Saturate the clocks_remaining when not enough for this call
-        if *clocks_remaining < self.bus.cpu_cycles_to_wait {
-            self.bus.cpu_cycles_to_wait -= *clocks_remaining;
-            *clocks_remaining = 0;
-            Ok(())
-        } else {
-            *clocks_remaining -= self.bus.cpu_cycles_to_wait;
-            self.execute_next()
-        }
+        Ok(self.bus.cpu_cycles_to_wait)
     }
 
     fn irq(&mut self) {
