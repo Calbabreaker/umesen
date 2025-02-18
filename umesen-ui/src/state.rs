@@ -43,13 +43,11 @@ impl State {
         self.clocks_remaining +=
             (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as i32;
 
-        let mut a = false;
         while self.clocks_remaining > 0 {
             match self.emu.clock_until_frame(&mut self.clocks_remaining) {
                 Ok(frame_complete) => {
                     // Don't sync to screen if speed is less than 1 for debugging
                     if frame_complete || self.speed < 1. {
-                        a = true;
                         self.update_ppu_texture();
                     }
                 }
@@ -58,10 +56,6 @@ impl State {
                     self.running = false;
                 }
             }
-        }
-
-        if !a {
-            println!("{} {}", self.emu.ppu().scanline, self.clocks_remaining);
         }
 
         ctx.request_repaint();

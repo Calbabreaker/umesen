@@ -32,6 +32,8 @@ impl Control {
         }
     }
 
+    /// Get the offset of the currently selected background pattern table in number of tiles
+    /// Will be 256 if BACKGROUND_SECOND_TABLE is set
     pub fn background_table_offset(&self) -> u16 {
         self.contains(Control::BACKGROUND_SECOND_TABLE) as u16 * PATTERN_TILE_COUNT
     }

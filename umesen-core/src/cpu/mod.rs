@@ -422,7 +422,7 @@ impl Cpu {
         value
     }
 
-    // Set overflow if the resulting addition overflowed a (negative) 8-bit number with 2's compliment
+    /// Set overflow if the resulting addition overflowed a (negative) 8-bit number with 2's compliment
     fn set_overflow_flag(&mut self, a: u8, adder: u8, result: u8) {
         let adder_same_sign = (a ^ adder) & 0b1000_0000 == 0;
         let result_changed_sign = (a ^ result) & 0b1000_0000 != 0;

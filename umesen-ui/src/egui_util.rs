@@ -28,7 +28,7 @@ pub fn show_tab_group<T: UiList>(ui: &mut egui::Ui) -> T {
 
 pub fn show_combo_select<T: UiList>(ui: &mut egui::Ui) -> T {
     let mut selected: T = mem_get(ui);
-    egui::ComboBox::from_id_salt(std::any::type_name::<T>())
+    egui::ComboBox::from_id_salt(std::any::TypeId::of::<T>())
         .selected_text(selected.pretty_name())
         .show_ui(ui, |ui| {
             for kind in T::LIST {
@@ -45,12 +45,12 @@ pub fn show_combo_select<T: UiList>(ui: &mut egui::Ui) -> T {
 }
 
 pub fn mem_get<T: egui::util::id_type_map::SerializableAny + Default>(ui: &mut egui::Ui) -> T {
-    let id = egui::Id::from(std::any::type_name::<T>());
+    let id = egui::Id::new(std::any::TypeId::of::<T>());
     ui.memory_mut(|w| w.data.get_persisted(id).unwrap_or_default())
 }
 
 pub fn mem_set<T: egui::util::id_type_map::SerializableAny + Default>(ui: &mut egui::Ui, val: T) {
-    let id = egui::Id::from(std::any::type_name::<T>());
+    let id = egui::Id::new(std::any::TypeId::of::<T>());
     ui.memory_mut(|w| *w.data.get_persisted_mut_or_default(id) = val);
 }
 

@@ -41,7 +41,7 @@ impl Emulator {
         while *clocks_remaining > 0 || self.ppu().scanline >= 180 {
             *clocks_remaining -= self.cpu.execute_next()? as i32;
             // Ensure only lastest frame is returned
-            if self.frame_complete() {
+            if *clocks_remaining < crate::cpu::CYCLES_PER_FRAME as i32 && self.frame_complete() {
                 return Ok(true);
             }
         }
