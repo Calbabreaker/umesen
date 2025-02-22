@@ -91,7 +91,7 @@ impl State {
                 }
             }
             ActionKind::ToggleSpeedIncrease => {
-                if self.speed == 1. {
+                if self.speed.round() == 1. {
                     self.speed = 2.;
                 } else {
                     self.speed = 1.;
