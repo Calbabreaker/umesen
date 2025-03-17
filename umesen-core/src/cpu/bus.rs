@@ -11,7 +11,7 @@ pub struct CpuBus {
     pub ram: FixedArray<u8, 0x800>,
     /// Number of cycles for the cpu to wait before executing the next instruction
     /// (aka number of cycles added when executing the previous instruction)
-    pub cpu_cycles_to_wait: u32,
+    pub(crate) cpu_cycles_to_wait: u32,
     pub cpu_cycles_total: u32,
     pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<Cartridge>>>,

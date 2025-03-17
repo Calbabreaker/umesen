@@ -384,10 +384,10 @@ impl Cpu {
         self.flags.remove(Flags::BREAK);
     }
 
-    fn shift(&mut self, left: bool, contains_carry: bool) -> u8 {
+    fn shift(&mut self, is_left: bool, contains_carry: bool) -> u8 {
         let value = self.read_operand_value();
         let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
-        let (result, carry_mask) = match left {
+        let (result, carry_mask) = match is_left {
             true => ((value << 1) | carry, 0b1000_0000),
             false => ((value >> 1) | (carry << 7), 0b0000_0001),
         };

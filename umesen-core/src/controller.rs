@@ -35,7 +35,7 @@ pub struct Controller {
     strobe_active: bool,
     shift_register: u8,
     /// Bit flag of all button held down states
-    state: Button,
+    pub state: Button,
 }
 
 impl Controller {
@@ -59,20 +59,16 @@ impl Controller {
         }
     }
 
-    /// Set the state of a button with an option to allow left and right or up and down to be pressed at the same time
-    pub fn set(&mut self, button: Button, held: bool, allow_left_right: bool) {
-        if !allow_left_right && held {
-            let illegal_combo = [(Button::LEFT, Button::RIGHT), (Button::UP, Button::DOWN)];
-            for (a, b) in illegal_combo {
-                if (button == a && self.state.contains(b))
-                    || (button == b && self.state.contains(a))
-                {
-                    return;
-                }
+    /// Checks if pressing the specified button will result in an illegal button press on a standard NES controller.
+    /// That being left and right or up and down at the same time.
+    pub fn check_illegal_press(&self, button: Button) -> bool {
+        let combos = [(Button::LEFT, Button::RIGHT), (Button::UP, Button::DOWN)];
+        for (a, b) in combos {
+            if (button == a && self.state.contains(b)) || (button == b && self.state.contains(a)) {
+                return true;
             }
         }
-
-        self.state.set(button, held);
+        false
     }
 }
 

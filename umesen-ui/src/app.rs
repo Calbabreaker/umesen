@@ -133,11 +133,13 @@ impl App {
 
             // Check controller input seperate
             if let ActionKind::ControllerInput(number, button) = action {
-                self.state.emu.controller(*number).set(
-                    *button,
-                    i.key_down(shortcut.logical_key),
-                    self.preferences.allow_left_right,
-                );
+                let controller = self.state.emu.controller(*number);
+                let key_down = i.key_down(shortcut.logical_key);
+                let is_illegal = key_down && controller.check_illegal_press(*button);
+
+                if !is_illegal || self.preferences.allow_illegal_press {
+                    controller.state.set(*button, key_down);
+                }
             } else if i.key_pressed(shortcut.logical_key) {
                 self.state.do_action(action);
             }

@@ -28,7 +28,7 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
                 ui.label("Allow left right: ").on_hover_text(
                     "Allow left and right or up and down to be pressed at the same time",
                 );
-                ui.checkbox(&mut prefs.allow_left_right, "");
+                ui.checkbox(&mut prefs.allow_illegal_press, "");
             }
             Tab::KeyBinds => {
                 show_key_map(ui, prefs);
