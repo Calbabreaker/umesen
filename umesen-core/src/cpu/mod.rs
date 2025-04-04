@@ -199,7 +199,7 @@ impl Cpu {
         if let Some(address) = self.operand_address {
             self.bus.read_u8(address)
         } else {
-            // Assume we're working with the accumulator for certain instructions
+            // Assume we're working with the accumulator for certain instructions if no operand_address in addressing mode
             self.a
         }
     }

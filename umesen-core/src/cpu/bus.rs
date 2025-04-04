@@ -113,12 +113,13 @@ impl CpuBus {
     }
 
     fn oam_dma(&mut self, address_start: u16) {
-        // 512 r/w cycles + 1 (or 2 if odd) idle cycles
+        // 1 (or 2 if odd) idle cycles
         self.clock();
         if self.cpu_cycles_total % 2 == 1 {
             self.clock();
         }
 
+        // 512 r/w cycles
         for i in 0..256 {
             let value = self.read_u8(address_start + i);
             self.clock();

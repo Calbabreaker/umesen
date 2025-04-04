@@ -202,9 +202,9 @@ impl Ppu {
                 self.sprite_buffer[self.sprite_count as usize] = sprite;
                 self.sprite_count += 1;
             } else if self.sprite_count == 8 {
-                // After 8 sprites has been filled, PPU check for overflow by
+                // After 8 sprites has been filled, the PPU will check for overflow by
                 // searching for another sprite that is in the scanline.
-                // But for some reason, when it doesn't find a sprite after full,
+                // But for some reason, when it doesn't find a sprite after filled,
                 // the next OAM y it checks is offseted by the oam size + 1 which causes buggy behaviour when setting SPRITE_OVERFLOW flag.
                 i += 1;
             }
@@ -241,6 +241,7 @@ impl Ppu {
 
     /// Returns the palette ram index for the current pixel if a sprite is there or the background based on piority
     fn render_fg_pixel(&mut self, scan_x: usize, bg_color_index: u8) -> u8 {
+        // Start off using the background color
         let mut fg_color_index = bg_color_index;
 
         if self.registers.mask.can_show_sprite(scan_x) {
@@ -258,7 +259,7 @@ impl Ppu {
 
                 let palette_id = sprite.attributes.palette() + 4;
                 let behind_bg = sprite.attributes.contains(Attributes::BEHIND);
-                // Set the pallete ram index if over background or background is transparent
+                // Set the override the backgroudn color if over background or background is transparent
                 if !behind_bg || bg_color_index == 0 {
                     fg_color_index = color_index + palette_id * 4;
                 }

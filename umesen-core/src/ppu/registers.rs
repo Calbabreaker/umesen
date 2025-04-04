@@ -269,7 +269,7 @@ impl Registers {
     }
 
     pub fn write_oam_data(&mut self, mut value: u8) {
-        // Zero out unused bits when set the attribute byte of oam
+        // Zero out unused bits when setting the attribute byte of oam
         if self.oam_address % 4 == 2 {
             value &= Attributes::all().bits();
         }
