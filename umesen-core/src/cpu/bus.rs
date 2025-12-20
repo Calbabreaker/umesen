@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    cartridge::{Cartridge, FixedArray, MemoryBankExt},
+    cartridge::{Cartridge, FixedArray},
     Controller, Ppu,
 };
 
@@ -32,7 +32,7 @@ impl CpuBus {
         // https://www.nesdev.org/wiki/CPU_memory_map
         match address {
             // 2kb of ram is mirrored 3 times
-            0x0000..=0x1fff => self.ram.mirrored_read(address & 0x7ff),
+            0x0000..=0x1fff => self.ram[address as usize % self.ram.len()],
             0x2000..=0x3fff => self.ppu.registers.immut_read_u8(address),
             _ => self.open_bus,
         }
@@ -55,9 +55,10 @@ impl CpuBus {
             cartridge.borrow_mut().cpu_write(address, value);
         }
 
+        let ram_len = self.ram.len();
         match address {
             // 2kb of ram is mirrored 3 times
-            0x0000..=0x1fff => self.ram.mirrored_write(address, value),
+            0x0000..=0x1fff => self.ram[address as usize % ram_len] = value,
             0x2000..=0x3fff => self.ppu.registers.write_u8(address, value),
             0x4014 => self.oam_dma((value as u16) << 8),
             0x4016 => {

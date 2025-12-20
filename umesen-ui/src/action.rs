@@ -46,7 +46,7 @@ impl Default for KeyActionMap {
         use egui::Key::*;
         use ActionKind::*;
 
-        map.add(Run(true), egui::Key::F5);
+        map.add(Run(true), F5);
         map.add(Run(false), F6);
         map.add(Reset, F4);
         map.add(Step, CloseBracket);

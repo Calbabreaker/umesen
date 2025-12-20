@@ -100,7 +100,7 @@ impl Ppu {
             1..=256 | 328..=336 => {
                 self.shift_registers();
 
-                if (self.dot - 1) % 8 == 0 {
+                if (self.dot - 1).is_multiple_of(8) {
                     self.load_background_shift_bits();
                 }
             }

@@ -196,19 +196,20 @@ impl Cpu {
     }
 
     fn read_operand_value(&mut self) -> u8 {
-        if let Some(address) = self.operand_address {
-            self.bus.read_u8(address)
-        } else {
+        let value = self
+            .operand_address
+            .map(|address| self.bus.read_u8(address))
             // Assume we're working with the accumulator for certain instructions if no operand_address in addressing mode
-            self.a
-        }
+            .unwrap_or(self.a);
+        self.set_zero_neg_flags(value);
+        value
     }
 
     fn execute(&mut self, opcode: &Opcode) {
         match opcode.name {
             // -- Stack --
             "pha" => self.stack_push_clocked(self.a),
-            "php" => self.php(),
+            "php" => self.stack_push_clocked((self.flags | Flags::BREAK).bits()),
             "pla" => self.a = self.stack_pop_clocked(),
             "plp" => self.plp(),
 
@@ -256,11 +257,11 @@ impl Cpu {
             }
 
             // -- Register loads --
-            "lda" => self.a = self.load_mem(),
-            "ldx" => self.x = self.load_mem(),
-            "ldy" => self.y = self.load_mem(),
+            "lda" => self.a = self.read_operand_value(),
+            "ldx" => self.x = self.read_operand_value(),
+            "ldy" => self.y = self.read_operand_value(),
             "lax" => {
-                self.a = self.load_mem();
+                self.a = self.read_operand_value();
                 self.x = self.a;
             }
 
@@ -288,9 +289,9 @@ impl Cpu {
             "sei" => self.set_flag(Flags::INTERRUPT, true),
 
             // -- Logic --
-            "and" => self.a &= self.load_mem(),
-            "eor" => self.a ^= self.load_mem(),
-            "ora" => self.a |= self.load_mem(),
+            "and" => self.a &= self.read_operand_value(),
+            "eor" => self.a ^= self.read_operand_value(),
+            "ora" => self.a |= self.read_operand_value(),
             "bit" => self.bit(),
 
             "cmp" => self.compare(self.a),
@@ -374,10 +375,6 @@ impl Cpu {
         (self.stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
     }
 
-    fn php(&mut self) {
-        self.stack_push_clocked((self.flags | Flags::BREAK).bits());
-    }
-
     fn plp(&mut self) {
         self.flags = Flags::from_bits(self.stack_pop_clocked()).unwrap();
         self.flags.insert(Flags::UNUSED);
@@ -414,12 +411,6 @@ impl Cpu {
         let result = self.inc_val(value, sign);
         self.store_mem(result);
         result
-    }
-
-    fn load_mem(&mut self) -> u8 {
-        let value = self.read_operand_value();
-        self.set_zero_neg_flags(value);
-        value
     }
 
     /// Set overflow if the resulting addition overflowed a (negative) 8-bit number with 2's compliment
