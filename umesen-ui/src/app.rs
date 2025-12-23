@@ -64,7 +64,7 @@ impl App {
                 {
                     self.load_nes_rom(&path);
                 }
-                ui.close_menu();
+                ui.close();
             }
 
             ui.menu_button("Recent ROMS", |ui| {
@@ -73,13 +73,13 @@ impl App {
 
                 if let Some(path) = path.cloned() {
                     self.load_nes_rom(&path);
-                    ui.close_menu();
+                    ui.close();
                 }
             });
 
             if ui.button("Preferences...").clicked() {
                 self.ui_windows.insert(UiWindowKind::Preferences);
-                ui.close_menu();
+                ui.close();
             }
         });
 
@@ -119,7 +119,7 @@ impl App {
                 .shortcut_text(crate::egui_util::get_shortcut_text(&shortcut));
             if ui.add(button).clicked() {
                 self.state.do_action(&action);
-                ui.close_menu();
+                ui.close();
             }
         }
     }
@@ -174,7 +174,7 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
             .show(ctx, |ui| {
-                egui::menu::bar(ui, |ui| {
+                egui::MenuBar::new().ui(ui, |ui| {
                     self.show_top_bar(ui);
                 });
             });

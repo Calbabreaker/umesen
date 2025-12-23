@@ -17,13 +17,14 @@ impl<'a> Disassembler<'a> {
     }
 
     pub fn disassemble_lines(&mut self, amount: usize) -> String {
-        let mut output = String::new();
-        for _ in 0..amount {
-            self.disassemble_next(&mut output).unwrap();
-            output += "\n";
-        }
-        output.pop();
-        output
+        (0..amount)
+            .map(|_| {
+                let mut out = String::new();
+                self.disassemble_next(&mut out).unwrap();
+                out
+            })
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 
     pub fn disassemble_next(&mut self, mut f: impl std::fmt::Write) -> std::fmt::Result {

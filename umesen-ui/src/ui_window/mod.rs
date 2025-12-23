@@ -53,7 +53,6 @@ impl UiWindowKind {
         egui::Window::new(self.title())
             .pivot(egui::Align2::CENTER_CENTER)
             .min_width(200.)
-            .default_pos(ctx.screen_rect().size().to_pos2() / 2.)
             .open(&mut open)
             .show(ctx, |ui| match self {
                 UiWindowKind::Debugger => debugger::show(ui, state),

@@ -5,7 +5,7 @@ pub struct Texture {
 
 impl Texture {
     pub fn new(size: [usize; 2], ctx: &egui::Context) -> Self {
-        let image_buffer = egui::ColorImage::new(size, egui::Color32::BLACK);
+        let image_buffer = egui::ColorImage::filled(size, egui::Color32::BLACK);
         Self {
             handle: ctx.load_texture("", image_buffer.clone(), egui::TextureOptions::NEAREST),
             image_buffer,
