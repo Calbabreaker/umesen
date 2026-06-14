@@ -63,12 +63,13 @@ impl PpuBus {
     }
 
     fn mirror_nametable(&self, address: u16) -> usize {
-        let mirroring = if let Some(cartridge) = self.cartridge.as_ref() {
-            cartridge.borrow().mirroring()
-        } else {
-            Mirroring::default()
-        };
-        mirror_nametable(address, mirroring)
+        mirror_nametable(
+            address,
+            self.cartridge
+                .as_ref()
+                .map(|c| c.borrow().mirroring())
+                .unwrap_or_default(),
+        )
     }
 }
 

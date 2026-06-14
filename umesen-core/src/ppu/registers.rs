@@ -122,21 +122,27 @@ impl TvRegister {
         value >> select_bits.trailing_zeros()
     }
 
+    /// Returns the address within the nametable portion of the ppu of which this register contains
+    /// The address should contain the tile number for the pattern table
     pub fn nametable_address(&self) -> u16 {
-        // Bits in register are ordered in such a way the bottom 12 can index into the nametable automatically
-        0x2000 + (self.0 & 0x0fff)
+        // Lower 12 bytes should contain the address within the nametable portion of the ppu
+        // Nametable begins at 0x2000
+        0x2000 | (self.0 & 0x0fff)
     }
 
+    /// Returns the address that contains the attribute byte in the ppu of which this register contains
     pub fn attribute_address(&self) -> u16 {
+        // Each attribute byte controls 4x4 tiles
         let tile_x = self.get(Self::COARSE_X) / 4;
         let tile_y = self.get(Self::COARSE_Y) / 4;
         let attribute_number = tile_y * 8 + tile_x;
-        let nametable_offset = 0x2000 + (self.0 & Self::NAMETABLE);
-        nametable_offset + 0x3c0 + attribute_number
+        let nametable = self.0 & Self::NAMETABLE;
+        // Attribute bytes begin at 0x3c0 within a nametable
+        0x23c0 | nametable | attribute_number
     }
 
-    /// Shift an attribute byte to get the palette id into the first two bits based on the coarse xy
-    pub fn shift_attribute(&self, attribute: u8) -> u8 {
+    /// Shift an attribute byte to get the palette id into based on the coarse xy
+    pub fn palette_id(&self, attribute: u8) -> u8 {
         let quadrant_x = (self.get(Self::COARSE_X) % 4) / 2;
         let quadrant_y = (self.get(Self::COARSE_Y) % 4) / 2;
         let shift = (quadrant_x + quadrant_y * 2) * 2;
@@ -268,7 +274,7 @@ impl Registers {
         }
     }
 
-    pub fn write_oam_data(&mut self, mut value: u8) {
+    pub(crate) fn write_oam_data(&mut self, mut value: u8) {
         // Zero out unused bits when setting the attribute byte of oam
         if self.oam_address % 4 == 2 {
             value &= Attributes::all().bits();

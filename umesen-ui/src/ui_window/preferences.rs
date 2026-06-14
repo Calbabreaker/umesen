@@ -25,7 +25,7 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
         .striped(true)
         .show(ui, |ui| match tab_open {
             Tab::Emulation => {
-                ui.label("Allow left right: ").on_hover_text(
+                ui.label("Allow illegal press: ").on_hover_text(
                     "Allow left and right or up and down to be pressed at the same time",
                 );
                 ui.checkbox(&mut prefs.allow_illegal_press, "");

@@ -94,11 +94,7 @@ impl Cartridge {
     }
 
     pub fn mirroring(&self) -> Mirroring {
-        if let Some(mirroring) = self.mapper.mirroring() {
-            mirroring
-        } else {
-            self.header.mirroring
-        }
+        self.mapper.mirroring().unwrap_or(self.header.mirroring)
     }
 
     pub fn header(&self) -> &CartridgeHeader {

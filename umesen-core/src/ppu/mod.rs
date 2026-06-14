@@ -39,7 +39,7 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    /// Gets a RGBA color from a the palette ram based on index from 0-64 (8 palette with 4 indexable colors)
+    /// Gets a RGBA color from a the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
     pub fn get_palette_color(&self, color_index: impl Into<u16>) -> u32 {
         let offset = color_index.into();
         debug_assert!((0..64).contains(&offset));
@@ -104,13 +104,11 @@ impl Ppu {
                     self.load_background_shift_bits();
                 }
             }
-            257 => {
-                // Scroll y and reset x when end of visible scanline
-                // Scroll y technically meant to happen previous dot but should work still
-                if self.registers.mask.is_rendering() {
-                    self.registers.v.scroll_fine_y();
-                    self.registers.v.set_x(&self.registers.t);
-                }
+            // Scroll y and reset x when end of visible scanline
+            // Scroll y technically meant to happen previous dot but should work still
+            257 if self.registers.mask.is_rendering() => {
+                self.registers.v.scroll_fine_y();
+                self.registers.v.set_x(&self.registers.t);
             }
             _ => (),
         }
@@ -146,7 +144,7 @@ impl Ppu {
         let registers = &mut self.registers;
         let tile_number = registers.bus.read_u8(registers.v.nametable_address());
         let attribute_byte = registers.bus.read_u8(registers.v.attribute_address());
-        self.bg_palette_id = registers.v.shift_attribute(attribute_byte);
+        self.bg_palette_id = registers.v.palette_id(attribute_byte);
         let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(
             tile_number as u16 + registers.control.background_table_offset(),
             registers.v.get(TvRegister::FINE_Y),
@@ -164,11 +162,9 @@ impl Ppu {
         match self.dot {
             // The start location of oam evaluation is taken from oam_address on dot 65
             65 => self.oam_start_address = self.registers.oam_address,
-            257 => {
-                if self.scanline < HEIGHT as u16 {
-                    // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
-                    self.eval_sprites();
-                }
+            // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
+            257 if self.scanline < HEIGHT as u16 => {
+                self.eval_sprites();
             }
             258..=320 => self.registers.oam_address = 0,
             321 => {
@@ -180,6 +176,7 @@ impl Ppu {
         }
     }
 
+    /// Check and sets the SPRITE_OVERFLOW flag
     fn eval_sprites(&mut self) {
         self.sprite_count = 0;
         let mut i = self.oam_start_address as usize;
@@ -205,7 +202,8 @@ impl Ppu {
                 // After 8 sprites has been filled, the PPU will check for overflow by
                 // searching for another sprite that is in the scanline.
                 // But for some reason, when it doesn't find a sprite after filled,
-                // the next OAM y it checks is offseted by the oam size + 1 which causes buggy behaviour when setting SPRITE_OVERFLOW flag.
+                // the next OAM y it checks is offseted by the oam size + 1 which causes buggy
+                // behaviour when setting SPRITE_OVERFLOW flag.
                 i += 1;
             }
 
@@ -259,7 +257,7 @@ impl Ppu {
 
                 let palette_id = sprite.attributes.palette() + 4;
                 let behind_bg = sprite.attributes.contains(Attributes::BEHIND);
-                // Set the override the backgroudn color if over background or background is transparent
+                // Set to override the background color if over background or background is transparent
                 if !behind_bg || bg_color_index == 0 {
                     fg_color_index = color_index + palette_id * 4;
                 }

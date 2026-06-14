@@ -126,7 +126,7 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
 
         let tile_number = ppu.registers.bus.read_u8(register.nametable_address()) as u16;
         let tile_attribute = ppu.registers.bus.read_u8(register.attribute_address());
-        let palette_id = register.shift_attribute(tile_attribute);
+        let palette_id = register.palette_id(tile_attribute);
 
         (
             tile_number + ppu.registers.control.background_table_offset(),
@@ -177,20 +177,22 @@ fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
         )
     };
 
-    let image = show_pattern_tiles(ui, "oam_grid".to_string(), state, [8, 8], get_tile_info_fn);
+    let image = show_pattern_tiles(ui, "oam_grid", state, [8, 8], get_tile_info_fn);
     ui.add(image.fit_to_original_size(4.));
 }
 
 fn show_pattern_tiles<'a>(
     ui: &mut egui::Ui,
-    name: String,
+    name: impl ToString,
     state: &'a mut crate::State,
     tile_size: [usize; 2],
     get_tile_info_fn: impl Fn(u16, u16, &'a umesen_core::Ppu) -> (u16, [u32; 4]),
 ) -> egui::Image<'a> {
     let image_size = [tile_size[0] * 8, tile_size[1] * 8];
-    let default_fn = || crate::Texture::new(image_size, ui.ctx());
-    let texture = state.texture_map.entry(name).or_insert_with(default_fn);
+    let texture = state
+        .texture_map
+        .entry(name.to_string())
+        .or_insert_with(|| crate::Texture::new(image_size, ui.ctx()));
     let ppu = state.emu.ppu();
 
     for tile_y in 0..tile_size[1] {
