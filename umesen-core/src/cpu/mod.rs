@@ -104,6 +104,11 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
+        self.a = 0;
+        self.x = 0;
+        self.y = 0;
+        self.flags = Flags::default() | Flags::INTERRUPT;
+
         self.bus.cpu_cycles_total = 0;
         self.bus.cpu_cycles_since_op = 0;
         self.pc = self.bus.read_u16(0xfffc);

@@ -22,49 +22,69 @@ impl<T, const C: usize> std::ops::DerefMut for FixedArray<T, C> {
     }
 }
 
-#[derive(Default)]
-pub struct MemoryBank(Vec<u8>);
+pub const SIZE_32KB: usize = 32 * 1024;
+pub const SIZE_16KB: usize = 16 * 1024;
+pub const SIZE_8KB: usize = 8 * 1024;
 
-impl MemoryBank {
-    pub fn mirrored_write(&mut self, address: u16, value: u8) {
+#[derive(Debug, Clone, Copy)]
+pub enum Bank {
+    Number(usize),
+    Last,
+}
+
+#[derive(Default)]
+pub struct MemoryBanks(Vec<u8>);
+
+impl MemoryBanks {
+    pub fn write(&mut self, bank_size: usize, bank: Bank, offset: u16, value: u8) {
         if !self.0.is_empty() {
-            let index = (address as usize) % self.0.len();
+            let index = self.index(bank_size, bank, offset);
             self.0[index] = value;
         }
     }
 
-    pub fn mirrored_read(&self, address: u16) -> u8 {
-        if self.0.is_empty() {
-            0
+    pub fn read(&self, bank_size: usize, bank: Bank, offset: u16) -> u8 {
+        if !self.0.is_empty() {
+            self.0[self.index(bank_size, bank, offset)]
         } else {
-            self.0[(address as usize) % self.0.len()]
+            0
         }
     }
 
-    pub fn size(&self) -> usize {
-        self.0.len()
+    /// Get the index into the inner vec based on the banks and offset
+    /// Offset will be wrapped around bank_size
+    fn index(&self, bank_size: usize, bank: Bank, offset: u16) -> usize {
+        let num_banks = self.0.len().div_ceil(bank_size);
+
+        match bank {
+            Bank::Number(number) => {
+                bank_size * (number % num_banks) + (offset as usize % bank_size) % self.0.len()
+            }
+            Bank::Last => self.index(bank_size, Bank::Number(num_banks - 1), offset),
+        }
     }
 }
 
 pub struct CartridgeBanks {
-    pub prg_ram: MemoryBank,
-    pub prg_rom: MemoryBank,
-    pub chr_rom: MemoryBank,
-    pub chr_ram: MemoryBank,
+    pub prg_ram: MemoryBanks,
+    pub prg_rom: MemoryBanks,
+    pub chr_mem: MemoryBanks,
+    chr_mem_is_rom: bool,
 }
 
 impl CartridgeBanks {
-    pub fn new(
-        prg_ram_size: usize,
-        chr_ram_size: usize,
-        prg_rom: Vec<u8>,
-        chr_rom: Vec<u8>,
-    ) -> Self {
+    pub fn new(prg_ram: Vec<u8>, prg_rom: Vec<u8>, chr_mem: Vec<u8>, chr_mem_is_rom: bool) -> Self {
         Self {
-            prg_ram: MemoryBank(vec![0; prg_ram_size]),
-            chr_ram: MemoryBank(vec![0; chr_ram_size]),
-            prg_rom: MemoryBank(prg_rom),
-            chr_rom: MemoryBank(chr_rom),
+            prg_ram: MemoryBanks(prg_ram),
+            prg_rom: MemoryBanks(prg_rom),
+            chr_mem: MemoryBanks(chr_mem),
+            chr_mem_is_rom,
+        }
+    }
+
+    pub fn write_chr_mem(&mut self, bank_size: usize, bank: Bank, address: u16, value: u8) {
+        if !self.chr_mem_is_rom {
+            self.chr_mem.write(bank_size, bank, address, value)
         }
     }
 }

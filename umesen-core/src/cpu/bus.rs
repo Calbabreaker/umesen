@@ -13,7 +13,7 @@ pub struct CpuBus {
     pub(crate) cpu_cycles_since_op: u32,
     pub cpu_cycles_total: u32,
     pub ppu: Ppu,
-    pub cartridge: Option<Rc<RefCell<Cartridge>>>,
+    pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
     open_bus: u8,
     pub controllers: [Controller; 2],
 }
