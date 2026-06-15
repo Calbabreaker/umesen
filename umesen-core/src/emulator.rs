@@ -52,6 +52,7 @@ impl Emulator {
         let file = std::fs::File::open(path)?;
         let catridge = Cartridge::from_nes(file)?;
         self.cpu.bus.attach_catridge(catridge);
+        self.cpu.reset();
         Ok(())
     }
 

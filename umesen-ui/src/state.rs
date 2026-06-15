@@ -52,8 +52,7 @@ impl State {
                     }
                 }
                 Err(err) => {
-                    log::error!("Emulation stopped: {err}");
-                    self.running = false;
+                    log::warn!("Emulation error: {err}");
                 }
             }
         }

@@ -77,7 +77,7 @@ impl Cpu {
     /// Execute the next instruction at the pc
     /// Returns the number of cpu cycles to wait as the result of executing the instruction
     pub fn execute_next(&mut self) -> Result<u32, CpuError> {
-        self.bus.cpu_cycles_to_wait = 0;
+        self.bus.cpu_cycles_since_op = 0;
 
         if self.bus.require_nmi() {
             self.nmi();
@@ -88,7 +88,7 @@ impl Cpu {
         self.operand_address = self.read_operand_address(opcode.addr_mode);
         self.execute(&opcode);
 
-        Ok(self.bus.cpu_cycles_to_wait)
+        Ok(self.bus.cpu_cycles_since_op)
     }
 
     // fn irq(&mut self) {
@@ -104,15 +104,11 @@ impl Cpu {
     }
 
     pub fn reset(&mut self) {
-        self.a = 0;
-        self.x = 0;
-        self.y = 0;
-        self.flags = Flags::default() | Flags::INTERRUPT;
-
         self.bus.cpu_cycles_total = 0;
-        self.bus.cpu_cycles_to_wait = 0;
+        self.bus.cpu_cycles_since_op = 0;
         self.pc = self.bus.read_u16(0xfffc);
         self.sp = 0xfd;
+        self.bus.ppu.registers.control = crate::ppu::Control::empty();
         for _ in 0..5 {
             self.bus.clock();
         }

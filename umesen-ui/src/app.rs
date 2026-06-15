@@ -46,8 +46,7 @@ impl App {
             self.recent_file_paths.retain(|x| x != path);
             self.recent_file_paths.push(path.to_path_buf());
             self.recent_file_paths.truncate(10);
-
-            self.state.do_action(&ActionKind::Reset);
+            self.state.running = true;
         }
     }
 

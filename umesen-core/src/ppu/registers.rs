@@ -216,8 +216,8 @@ pub struct Registers {
     pub fine_x: u8,
     pub oam_address: u8,
     pub oam_data: FixedArray<u8, 256>,
-    read_buffer: u8,
-    open_bus: u8,
+    pub read_buffer: u8,
+    pub open_bus: u8,
 }
 
 impl Registers {

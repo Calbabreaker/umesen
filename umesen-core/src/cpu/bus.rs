@@ -9,13 +9,12 @@ use crate::{
 pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,
-    /// Number of cycles for the cpu to wait before executing the next instruction
-    /// (aka number of cycles added when executing the previous instruction)
-    pub(crate) cpu_cycles_to_wait: u32,
+    /// Number of cycles added when executing the previous instruction)
+    pub(crate) cpu_cycles_since_op: u32,
     pub cpu_cycles_total: u32,
     pub ppu: Ppu,
     pub cartridge: Option<Rc<RefCell<Cartridge>>>,
-    pub open_bus: u8,
+    open_bus: u8,
     pub controllers: [Controller; 2],
 }
 
@@ -94,7 +93,7 @@ impl CpuBus {
 
     // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
-        self.cpu_cycles_to_wait += 1;
+        self.cpu_cycles_since_op += 1;
         self.cpu_cycles_total += 1;
         for _ in 0..3 {
             self.ppu.clock();
