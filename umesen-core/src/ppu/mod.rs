@@ -20,7 +20,7 @@ pub struct Ppu {
     pub palette: Palette,
     pub scanline: u16,
     pub dot: u16,
-    pub screen_pixels: FixedArray<u32, { WIDTH * HEIGHT }>,
+    pub screen_pixels: FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>,
     pub(crate) frame_complete: bool,
     pub(crate) require_nmi: bool,
 
@@ -39,16 +39,16 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    /// Gets a RGBA color from a the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
-    pub fn get_palette_color(&self, color_index: impl Into<u16>) -> u32 {
+    /// Gets a RGB color from a the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
+    pub fn get_palette_color(&self, color_index: impl Into<u16>) -> [u8; 3] {
         let offset = color_index.into();
         debug_assert!((0..64).contains(&offset));
         let palette_index = self.registers.bus.read_u8(0x3f00 + offset);
         self.palette.get(palette_index)
     }
 
-    pub fn get_palette_colors(&self, palette_id: u8) -> [u32; 4] {
-        let mut palette = [0; 4];
+    pub fn get_palette_colors(&self, palette_id: u8) -> [[u8; 3]; 4] {
+        let mut palette = [[0; 3]; 4];
         for (i, color) in palette.iter_mut().enumerate() {
             *color = self.get_palette_color(palette_id * 4 + i as u8);
         }
@@ -85,7 +85,8 @@ impl Ppu {
             if x < WIDTH && y < HEIGHT && self.registers.mask.is_rendering() {
                 let bg_color_index = self.render_bg_pixel(x);
                 let fg_color_index = self.render_fg_pixel(x, bg_color_index);
-                self.screen_pixels[x + y * WIDTH] = self.get_palette_color(fg_color_index);
+
+                *self.screen_pixels[x + y * WIDTH] = self.get_palette_color(fg_color_index)
             }
         }
 

@@ -7,7 +7,7 @@ use crate::{
     cartridge::{mapper000::Mapper000, mapper220::Mapper220},
     NesParseError,
 };
-pub use cartridge_banks::{CartridgeBanks, FixedArray, MemoryBankExt};
+pub use cartridge_banks::{CartridgeBanks, FixedArray};
 pub use cartridge_header::{CartridgeHeader, Mirroring};
 
 /// Generic trait for underlying circuitry inside a catridge that will read and write to a catridge memory bank
@@ -35,7 +35,7 @@ impl Cartridge {
         let header = CartridgeHeader::from_nes(header_data)?;
 
         if header.has_trainer {
-            let mut trainer_data = [0; 512];
+            let mut trainer_data = [0; CartridgeHeader::TRAINER_SIZE];
             bytes.read_exact(&mut trainer_data)?;
         }
 
@@ -43,12 +43,15 @@ impl Cartridge {
         bytes.read_exact(&mut prg_rom)?;
         let mut chr_rom = vec![0; header.chr_rom_size];
         bytes.read_exact(&mut chr_rom)?;
-
-        let banks = CartridgeBanks::new(&header, prg_rom, chr_rom);
-        Self::new(header, banks)
+        Self::new(header, prg_rom, chr_rom)
     }
 
-    pub fn new(header: CartridgeHeader, banks: CartridgeBanks) -> Result<Self, NesParseError> {
+    pub fn new(
+        header: CartridgeHeader,
+        prg_rom: Vec<u8>,
+        chr_rom: Vec<u8>,
+    ) -> Result<Self, NesParseError> {
+        let banks = CartridgeBanks::new(header.prg_ram_size, header.chr_ram_size, prg_rom, chr_rom);
         Ok(Cartridge {
             mapper: match header.mapper_id {
                 0 => Box::new(Mapper000::default()),
@@ -58,23 +61,6 @@ impl Cartridge {
             header,
             banks,
         })
-    }
-
-    pub fn with_rom(
-        mapper_id: u8,
-        prg_rom: Vec<u8>,
-        chr_rom: Vec<u8>,
-        prg_ram_size: usize,
-    ) -> Self {
-        let header = CartridgeHeader {
-            mapper_id,
-            prg_rom_size: prg_rom.len(),
-            chr_rom_size: chr_rom.len(),
-            prg_ram_size,
-            ..Default::default()
-        };
-        let banks = CartridgeBanks::new(&header, prg_rom, chr_rom);
-        Self::new(header, banks).unwrap()
     }
 
     pub fn cpu_read(&self, address: u16) -> Option<u8> {

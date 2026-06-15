@@ -20,6 +20,8 @@ pub struct CartridgeHeader {
 }
 
 impl CartridgeHeader {
+    pub const TRAINER_SIZE: usize = 512;
+
     pub fn from_nes(data: [u8; 16]) -> Result<Self, NesParseError> {
         if &data[0..4] != b"NES\x1a" {
             let magic_number = String::from_utf8_lossy(&data[0..4]).to_string();
@@ -65,14 +67,6 @@ impl CartridgeHeader {
             prg_ram_size,
             is_v2,
         })
-    }
-
-    pub fn total_size(&self) -> usize {
-        let mut size = 16 + self.chr_rom_size + self.prg_rom_size;
-        if self.has_trainer {
-            size += 512;
-        }
-        size
     }
 }
 

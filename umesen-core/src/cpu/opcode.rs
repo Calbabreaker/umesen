@@ -1,11 +1,13 @@
 /// Addressing modes for instructions
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddrMode {
+    /// Contains no operand
     Implied,
+    /// Use the accumulator
     Accumulator,
     /// Operand contains the value
     Immediate,
-    /// Operand contains the address to the value in the first page (256 bytes)
+    /// Operand contains the address in the first page (256 bytes)
     ZeroPage,
     /// Same as ZeroPage + x register
     ZeroPageX,
@@ -20,11 +22,11 @@ pub enum AddrMode {
     /// Same as Absolute + y register
     AbsoluteY,
     AbsoluteYForceClock,
-    /// Operand contains the address to the address to the value
+    /// Operand contains the address to the address
     Indirect,
-    /// Operand contains the address (with x added) to the address to the value
+    /// Operand contains the address (with x added) to the address
     IndirectX,
-    /// Operand contains the address to the address (with y added) to the value
+    /// Operand contains the address to the address (with y added)
     IndirectY,
     IndirectYForceClock,
     Relative,

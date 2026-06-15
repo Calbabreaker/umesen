@@ -1,4 +1,4 @@
-use crate::cartridge::{CartridgeBanks, Mapper, MemoryBankExt};
+use crate::cartridge::{CartridgeBanks, Mapper};
 
 /// INES designation for NROM boards
 /// https://www.nesdev.org/wiki/NROM
@@ -21,7 +21,7 @@ impl Mapper for Mapper000 {
     }
 
     fn ppu_read(&self, banks: &CartridgeBanks, address: u16) -> u8 {
-        if banks.chr_rom.is_empty() {
+        if banks.chr_rom.size() == 0 {
             banks.chr_ram.mirrored_read(address)
         } else {
             banks.chr_rom.mirrored_read(address)
@@ -29,7 +29,7 @@ impl Mapper for Mapper000 {
     }
 
     fn ppu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {
-        if banks.chr_rom.is_empty() {
+        if banks.chr_rom.size() == 0 {
             banks.chr_ram.mirrored_write(address, value);
         }
     }
@@ -37,14 +37,23 @@ impl Mapper for Mapper000 {
 
 #[cfg(test)]
 mod test {
-    use crate::Cartridge;
+    use crate::{cartridge::CartridgeHeader, Cartridge};
 
     #[test]
     fn test() {
         let mut prg_rom = vec![0; 16 * 1024];
         prg_rom[2] = 2;
         let chr_rom = vec![0; 4 * 1024];
-        let mut catridge = Cartridge::with_rom(0, prg_rom, chr_rom, 2048);
+        let mut catridge = Cartridge::new(
+            CartridgeHeader {
+                mapper_id: 0,
+                prg_ram_size: 2048,
+                ..Default::default()
+            },
+            prg_rom,
+            chr_rom,
+        )
+        .unwrap();
         catridge.cpu_write(0x6000, 2);
         assert_eq!(catridge.cpu_read(0x6000), Some(2));
 

@@ -90,7 +90,7 @@ fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
                 painter.rect_filled(
                     egui::Rect::from_min_size(response.rect.min, pixel_size),
                     0.,
-                    crate::egui_util::to_egui_color(color),
+                    egui::Color32::from_rgb(color[0], color[1], color[2]),
                 );
                 response.rect.min.x += pixel_size.x;
             }
@@ -101,7 +101,7 @@ fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
 fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
     let get_tile_info_fn = |tile_x, tile_y, _| {
         let tile_number = tile_y * 16 + tile_x;
-        let palette = [0x000000ff, 0x555555ff, 0xaaaaaaff, 0xffffffff];
+        let palette = [[0, 0, 0], [85, 85, 85], [170, 170, 170], [255, 255, 255]];
         (tile_number + table_number * PATTERN_TILE_COUNT, palette)
     };
 
@@ -114,7 +114,7 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
         get_tile_info_fn,
     );
 
-    ui.add(image.fit_to_original_size(2.));
+    ui.add(image.fit_to_original_size(3.));
 }
 
 fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
@@ -186,7 +186,7 @@ fn show_pattern_tiles<'a>(
     name: impl ToString,
     state: &'a mut crate::State,
     tile_size: [usize; 2],
-    get_tile_info_fn: impl Fn(u16, u16, &'a umesen_core::Ppu) -> (u16, [u32; 4]),
+    get_tile_info_fn: impl Fn(u16, u16, &'a umesen_core::Ppu) -> (u16, [[u8; 3]; 4]),
 ) -> egui::Image<'a> {
     let image_size = [tile_size[0] * 8, tile_size[1] * 8];
     let texture = state
@@ -207,9 +207,9 @@ fn show_pattern_tiles<'a>(
                     let pixel_index = add_bit_planes(lsb_plane << x, msb_plane << x, 0b1000_0000);
                     let pixel_x = tile_x * 8 + x as usize;
                     let pixel_y = tile_y * 8 + y as usize;
-                    let i = pixel_y * image_size[0] + pixel_x;
-                    texture.image_buffer.pixels[i] =
-                        crate::egui_util::to_egui_color(palette[pixel_index as usize]);
+                    let c = palette[pixel_index as usize];
+                    texture.image_buffer.pixels[pixel_y * image_size[0] + pixel_x] =
+                        egui::Color32::from_rgb(c[0], c[1], c[2]);
                 }
             }
         }

@@ -65,7 +65,7 @@ impl State {
         let pixels = &self.emu.ppu().screen_pixels;
         let texture = self.texture_map.get_mut("ppu_output").unwrap();
         for (i, color) in pixels.iter().enumerate() {
-            texture.image_buffer.pixels[i] = crate::egui_util::to_egui_color(*color);
+            texture.image_buffer.pixels[i] = egui::Color32::from_rgb(color[0], color[1], color[2]);
         }
         texture.update();
     }

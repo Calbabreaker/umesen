@@ -91,12 +91,12 @@ impl Cpu {
         Ok(self.bus.cpu_cycles_to_wait)
     }
 
-    fn irq(&mut self) {
-        if !self.flags.contains(Flags::INTERRUPT) {
-            self.interrupt(0xfffe, Flags::empty());
-            self.bus.clock();
-        }
-    }
+    // fn irq(&mut self) {
+    //     if !self.flags.contains(Flags::INTERRUPT) {
+    //         self.interrupt(0xfffe, Flags::empty());
+    //         self.bus.clock();
+    //     }
+    // }
 
     fn nmi(&mut self) {
         self.interrupt(0xfffa, Flags::empty());
@@ -188,7 +188,6 @@ impl Cpu {
                 self.address_add_offset(address, self.y, mode)
             }
             AddrMode::Relative => {
-                // Create a twos complement of the offset then add to pc
                 let offset = self.read_u8_at_pc() as i8 as u16;
                 self.pc.wrapping_add(offset)
             }

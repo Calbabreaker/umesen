@@ -1,5 +1,5 @@
 #[derive(Clone)]
-pub struct Palette(pub [u32; 64]);
+pub struct Palette([[u8; 3]; 64]);
 
 impl Default for Palette {
     fn default() -> Self {
@@ -9,19 +9,17 @@ impl Default for Palette {
 
 impl Palette {
     pub fn from_pal(mut bytes: impl std::io::Read) -> std::io::Result<Self> {
-        let mut palette = Palette([0; 64]);
+        let mut palette = Palette([[0; 3]; 64]);
 
         for palette_byte in &mut palette.0 {
-            let mut rgb_bytes = [0xff; 4];
-            bytes.read_exact(&mut rgb_bytes[0..3])?;
-            *palette_byte = u32::from_be_bytes(rgb_bytes);
+            bytes.read_exact(palette_byte)?;
         }
 
         Ok(palette)
     }
 
     /// Gets the RGBA color value of the index in the palette
-    pub fn get(&self, index: u8) -> u32 {
+    pub fn get(&self, index: u8) -> [u8; 3] {
         self.0[index as usize % self.0.len()]
     }
 }
@@ -33,8 +31,8 @@ mod test {
     #[test]
     pub fn parse_correct() {
         let palette = Palette::default();
-        assert_eq!(palette.get(0), 0x626262ff);
-        assert_eq!(palette.get(1), 0x002e98ff);
-        assert_eq!(palette.get(2), 0x0c11c2ff);
+        assert_eq!(palette.get(0), [0x62, 0x62, 0x62]);
+        assert_eq!(palette.get(1), [0x00, 0x2e, 0x98]);
+        assert_eq!(palette.get(2), [0x0c, 0x11, 0xc2]);
     }
 }

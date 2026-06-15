@@ -1,8 +1,3 @@
-pub fn to_egui_color(color: u32) -> egui::Color32 {
-    let bytes = color.to_be_bytes();
-    egui::Color32::from_rgb(bytes[0], bytes[1], bytes[2])
-}
-
 pub trait UiList: egui::util::id_type_map::SerializableAny + Default + Eq {
     fn pretty_name(&self) -> &'static str;
 
