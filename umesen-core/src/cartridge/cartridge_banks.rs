@@ -22,9 +22,8 @@ impl<T, const C: usize> std::ops::DerefMut for FixedArray<T, C> {
     }
 }
 
-pub const SIZE_32KB: usize = 32 * 1024;
-pub const SIZE_16KB: usize = 16 * 1024;
-pub const SIZE_8KB: usize = 8 * 1024;
+/// Kilobytes
+pub const KB: usize = 1024;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Bank {
@@ -54,6 +53,7 @@ impl MemoryBanks {
     /// Get the index into the inner vec based on the banks and offset
     /// Offset will be wrapped around bank_size
     fn index(&self, bank_size: usize, bank: Bank, offset: u16) -> usize {
+        assert!(bank_size.is_multiple_of(KB));
         let num_banks = self.0.len().div_ceil(bank_size);
 
         match bank {

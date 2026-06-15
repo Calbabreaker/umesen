@@ -1,8 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    cartridge::{Cartridge, FixedArray},
     Controller, Ppu,
+    cartridge::{Cartridge, FixedArray},
 };
 
 #[derive(Clone, Default)]
@@ -22,10 +22,10 @@ impl CpuBus {
     /// Immutable read function for peeking into memory
     /// Reads into some address cause side effects
     pub fn immut_read_u8(&self, address: u16) -> u8 {
-        if let Some(cart) = self.cartridge.as_ref() {
-            if let Some(byte) = cart.borrow().cpu_read(address) {
-                return byte;
-            }
+        if let Some(cart) = self.cartridge.as_ref()
+            && let Some(byte) = cart.borrow().cpu_read(address)
+        {
+            return byte;
         }
 
         // https://www.nesdev.org/wiki/CPU_memory_map

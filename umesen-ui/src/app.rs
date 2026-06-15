@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{ui_window::UiWindowKind, ActionKind, Preferences};
+use crate::{ActionKind, Preferences, ui_window::UiWindowKind};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -21,8 +21,9 @@ impl App {
             .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
             .unwrap_or_default();
 
-        if let Some(path) = app.recent_file_paths.last().cloned() {
+        if let Some(path) = app.recent_file_paths.first().cloned() {
             app.load_nes_rom(&path);
+            app.state.running = true;
         }
 
         app.state.init(&cc.egui_ctx);
@@ -44,9 +45,8 @@ impl App {
             );
             // Make sure added path is on top
             self.recent_file_paths.retain(|x| x != path);
-            self.recent_file_paths.push(path.to_path_buf());
+            self.recent_file_paths.insert(0, path.to_path_buf());
             self.recent_file_paths.truncate(10);
-            self.state.running = true;
         }
     }
 
@@ -67,7 +67,7 @@ impl App {
             }
 
             ui.menu_button("Recent ROMS", |ui| {
-                let mut paths = self.recent_file_paths.iter().rev();
+                let mut paths = self.recent_file_paths.iter();
                 let path = paths.find(|path| ui.button(path.to_string_lossy()).clicked());
 
                 if let Some(path) = path.cloned() {

@@ -2,11 +2,14 @@ mod cartridge_banks;
 mod cartridge_header;
 mod mapper000;
 mod mapper002;
+mod mapper003;
 mod mapper220;
 
 use crate::{
     NesParseError,
-    cartridge::{mapper000::Mapper000, mapper002::Mapper002, mapper220::Mapper220},
+    cartridge::{
+        mapper000::Mapper000, mapper002::Mapper002, mapper003::Mapper003, mapper220::Mapper220,
+    },
 };
 pub use cartridge_banks::{CartridgeBanks, *};
 pub use cartridge_header::{CartridgeHeader, Mirroring};
@@ -38,6 +41,7 @@ impl Cartridge {
         let mut mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::default()),
             2 => Box::new(Mapper002::default()),
+            3 => Box::new(Mapper003::default()),
             220 => Box::new(Mapper220::default()),
             id => return Err(NesParseError::UnsupportedMapper(id)),
         };
