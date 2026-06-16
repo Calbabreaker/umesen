@@ -1,6 +1,6 @@
 use egui::ahash::HashMap;
 
-use crate::{texture::Texture, ActionKind};
+use crate::{ActionKind, texture::Texture};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -17,7 +17,8 @@ pub struct State {
     pub last_egui_update_time: f64,
     pub ui_render_time: f32,
     pub speed: f64,
-    pub save_states: Box<[Option<umesen_core::Cpu>; 4]>,
+    pub save_states: std::collections::HashMap<u8, umesen_core::Cpu>,
+    pub selected_quick_save: u8,
     pub clocks_remaining: i32,
 }
 
@@ -44,16 +45,10 @@ impl State {
             (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as i32;
 
         while self.clocks_remaining > 0 {
-            match self.emu.clock_until_frame(&mut self.clocks_remaining) {
-                Ok(frame_complete) => {
-                    // Don't sync to screen if speed is less than 1 for debugging
-                    if frame_complete || self.speed < 1. {
-                        self.update_ppu_texture();
-                    }
-                }
-                Err(err) => {
-                    log::warn!("Emulation error: {err}");
-                }
+            let frame_complete = self.emu.clock_until_frame(&mut self.clocks_remaining);
+            // Don't sync to screen if speed is less than 1 for debugging
+            if frame_complete || self.speed < 1. {
+                self.update_ppu_texture();
             }
         }
 
@@ -69,24 +64,25 @@ impl State {
         texture.update();
     }
 
-    pub fn do_action(&mut self, action: &ActionKind) {
+    pub fn do_action(&mut self, action: ActionKind) {
         match action {
             ActionKind::Reset => {
                 self.emu.cpu.reset();
                 self.running = true;
             }
-            ActionKind::Run(running) => self.running = *running,
+            ActionKind::PauseResume => self.running = !self.running,
             ActionKind::Step => {
                 self.running = false;
-                self.emu.step().ok();
+                self.emu.cpu.execute_next();
                 self.update_ppu_texture();
             }
-            ActionKind::SaveState(number) => {
-                self.save_states[*number as usize] = Some(self.emu.cpu.clone());
+            ActionKind::QuickSave => {
+                self.save_states
+                    .insert(self.selected_quick_save, self.emu.cpu.clone());
             }
-            ActionKind::LoadState(number) => {
-                if let Some(cpu) = self.save_states[*number as usize].clone() {
-                    self.emu.cpu = cpu;
+            ActionKind::QuickLoad => {
+                if let Some(cpu) = self.save_states.get(&self.selected_quick_save) {
+                    self.emu.cpu = cpu.clone();
                 }
             }
             ActionKind::ControllerInput(..) => unreachable!(),

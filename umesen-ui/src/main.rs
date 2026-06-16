@@ -22,7 +22,7 @@ fn main() -> eframe::Result {
 
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(
-        "Umesen App",
+        "Umesen",
         native_options,
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )

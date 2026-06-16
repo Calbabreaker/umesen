@@ -10,7 +10,7 @@ pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,
     /// Number of cycles added when executing the previous instruction)
-    pub(crate) cpu_cycles_since_op: u32,
+    pub(crate) cpu_cycles_since_inst: u32,
     pub cpu_cycles_total: u32,
     pub ppu: Ppu,
     pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
@@ -93,7 +93,7 @@ impl CpuBus {
 
     // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
-        self.cpu_cycles_since_op += 1;
+        self.cpu_cycles_since_inst += 1;
         self.cpu_cycles_total += 1;
         for _ in 0..3 {
             self.ppu.clock();

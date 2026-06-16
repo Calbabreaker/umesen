@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::{ppu, Cartridge, Controller, Cpu, CpuError, NesParseError};
+use crate::{Cartridge, Controller, Cpu, NesParseError, ppu};
 
 /// High level struct for controlling the cpu
 pub struct Emulator {
@@ -20,32 +20,25 @@ impl Default for Emulator {
 }
 
 impl Emulator {
-    pub fn step(&mut self) -> Result<(), CpuError> {
-        self.cpu.execute_next()?;
-        Ok(())
-    }
-
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) {
         while !self.frame_complete() {
-            if let Err(err) = self.cpu.execute_next() {
-                log::warn!("Emulation error: {err}");
-            }
+            self.cpu.execute_next();
         }
     }
 
     /// Let the CPU Keep executing instructions until clocks_remaining is zero or there is a new frame
     /// Note that it will keep continuing if near end of scaneline to prevent stutters
     /// Returns true if frame a frame is returned
-    pub fn clock_until_frame(&mut self, clocks_remaining: &mut i32) -> Result<bool, CpuError> {
+    pub fn clock_until_frame(&mut self, clocks_remaining: &mut i32) -> bool {
         while *clocks_remaining > 0 || self.ppu().scanline >= 180 {
-            *clocks_remaining -= self.cpu.execute_next()? as i32;
+            *clocks_remaining -= self.cpu.execute_next() as i32;
             // Ensure only lastest frame is returned
             if *clocks_remaining < crate::cpu::CYCLES_PER_FRAME as i32 && self.frame_complete() {
-                return Ok(true);
+                return true;
             }
         }
-        Ok(false)
+        false
     }
 
     pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {

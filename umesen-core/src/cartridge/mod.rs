@@ -3,13 +3,10 @@ mod cartridge_header;
 mod mapper000;
 mod mapper002;
 mod mapper003;
-mod mapper220;
 
 use crate::{
     NesParseError,
-    cartridge::{
-        mapper000::Mapper000, mapper002::Mapper002, mapper003::Mapper003, mapper220::Mapper220,
-    },
+    cartridge::{mapper000::Mapper000, mapper002::Mapper002, mapper003::Mapper003},
 };
 pub use cartridge_banks::{CartridgeBanks, *};
 pub use cartridge_header::{CartridgeHeader, Mirroring};
@@ -18,8 +15,7 @@ pub use cartridge_header::{CartridgeHeader, Mirroring};
 pub trait Mapper {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8>;
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
-    fn ppu_read(&self, banks: &CartridgeBanks, address: u16) -> u8;
-    fn ppu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
+    fn map_ppu(&self, address: u16) -> BankMapping;
     /// Option to override mirroring from header
     fn mirroring(&self) -> Option<Mirroring> {
         None
@@ -42,7 +38,6 @@ impl Cartridge {
             0 => Box::new(Mapper000::default()),
             2 => Box::new(Mapper002::default()),
             3 => Box::new(Mapper003::default()),
-            220 => Box::new(Mapper220::default()),
             id => return Err(NesParseError::UnsupportedMapper(id)),
         };
 
@@ -74,12 +69,7 @@ impl Cartridge {
             bytes.read_exact(&mut chr_mem)?;
         }
 
-        let banks = CartridgeBanks::new(
-            vec![0; header.prg_ram_size],
-            prg_rom,
-            chr_mem,
-            header.chr_mem_is_rom,
-        );
+        let banks = CartridgeBanks::new(vec![0; header.prg_ram_size], prg_rom, chr_mem);
         Self::new(header, banks, trainer_data)
     }
 
@@ -94,7 +84,7 @@ impl Cartridge {
                 mapper_id,
                 ..Default::default()
             },
-            CartridgeBanks::new(prg_ram, prg_rom, chr_rom, true),
+            CartridgeBanks::new(prg_ram, prg_rom, chr_rom),
             vec![],
         )
     }
@@ -109,12 +99,16 @@ impl Cartridge {
 
     pub fn ppu_read(&self, address: u16) -> u8 {
         std::assert_matches!(address, 0x0000..=0x1fff);
-        self.mapper.ppu_read(&self.banks, address)
+        let mapping = self.mapper.map_ppu(address);
+        self.banks.chr_mem.read(mapping, address)
     }
 
     pub fn ppu_write(&mut self, address: u16, value: u8) {
         std::assert_matches!(address, 0x0000..=0x1fff);
-        self.mapper.ppu_write(&mut self.banks, address, value);
+        let mapping = self.mapper.map_ppu(address);
+        if !self.header.chr_mem_is_rom {
+            self.banks.chr_mem.write(mapping, address, value);
+        }
     }
 
     pub fn mirroring(&self) -> Mirroring {

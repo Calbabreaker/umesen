@@ -23,7 +23,6 @@ impl App {
 
         if let Some(path) = app.recent_file_paths.first().cloned() {
             app.load_nes_rom(&path);
-            app.state.running = true;
         }
 
         app.state.init(&cc.egui_ctx);
@@ -47,6 +46,7 @@ impl App {
             self.recent_file_paths.retain(|x| x != path);
             self.recent_file_paths.insert(0, path.to_path_buf());
             self.recent_file_paths.truncate(10);
+            self.state.running = true;
         }
     }
 
@@ -99,14 +99,18 @@ impl App {
 
         ui.menu_button("Emulation", |ui| {
             use ActionKind::*;
-            self.show_action_list(ui, [Run(true), Run(false), Reset].into_iter());
+            self.show_action_list(ui, [PauseResume, Reset, QuickSave, QuickLoad].into_iter());
 
-            ui.menu_button("Save state", |ui| {
-                self.show_action_list(ui, (1..=4).map(SaveState));
-            });
-
-            ui.menu_button("Load state", |ui| {
-                self.show_action_list(ui, (1..=4).map(LoadState));
+            ui.menu_button("Quick Save Slot", |ui| {
+                for i in 0..9 {
+                    let mut text = egui::RichText::new(format!("Slot {i}"));
+                    if i == self.state.selected_quick_save {
+                        text = text.underline();
+                    }
+                    if ui.button(text).clicked() {
+                        self.state.selected_quick_save = i;
+                    }
+                }
             });
         });
     }
@@ -117,7 +121,7 @@ impl App {
             let button = egui::Button::new(action.name())
                 .shortcut_text(crate::egui_util::get_shortcut_text(&shortcut));
             if ui.add(button).clicked() {
-                self.state.do_action(&action);
+                self.state.do_action(action);
                 ui.close();
             }
         }
@@ -140,14 +144,13 @@ impl App {
                     controller.state.set(*button, key_down);
                 }
             } else if i.key_pressed(shortcut.logical_key) {
-                self.state.do_action(action);
+                self.state.do_action(*action);
             }
         }
 
         self.preferences.key_action_map.check_key_down(i);
 
-        let file_path = i.raw.dropped_files.pop().and_then(|f| f.path);
-        if let Some(path) = file_path {
+        if let Some(path) = i.raw.dropped_files.pop().and_then(|f| f.path) {
             self.load_nes_rom(&path);
         }
         i.raw.dropped_files.clear();

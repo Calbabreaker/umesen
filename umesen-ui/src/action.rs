@@ -1,11 +1,11 @@
 use umesen_core::controller::Button;
 
-#[derive(PartialEq, Eq, serde::Serialize, serde::Deserialize, Clone, Hash, Debug)]
+#[derive(PartialEq, Eq, serde::Serialize, serde::Deserialize, Clone, Hash, Debug, Copy)]
 pub enum ActionKind {
     ControllerInput(u8, Button),
-    Run(bool),
-    SaveState(u8),
-    LoadState(u8),
+    PauseResume,
+    QuickSave,
+    QuickLoad,
     Reset,
     Step,
 }
@@ -16,12 +16,11 @@ impl ActionKind {
             Self::ControllerInput(number, button) => {
                 format!("Controller {number} {}", button.name())
             }
-            Self::Run(true) => "Resume".to_owned(),
-            Self::Run(false) => "Pause".to_owned(),
+            Self::PauseResume => "Pause/Resume".to_owned(),
             Self::Reset => "Reset".to_owned(),
             Self::Step => "Step Instruction".to_owned(),
-            Self::SaveState(number) => format!("Save state {number}"),
-            Self::LoadState(number) => format!("Load state {number}"),
+            Self::QuickSave => "Quick Save".to_owned(),
+            Self::QuickLoad => "Quick Load".to_owned(),
         }
     }
 }
@@ -41,11 +40,10 @@ impl Default for KeyActionMap {
             action_waiting_for_press: None,
         };
 
-        use egui::Key::*;
         use ActionKind::*;
+        use egui::Key::*;
 
-        map.add(Run(true), F5);
-        map.add(Run(false), F6);
+        map.add(PauseResume, F5);
         map.add(Reset, F4);
         map.add(Step, CloseBracket);
         map.add(ControllerInput(0, Button::RIGHT), L);
@@ -64,14 +62,8 @@ impl Default for KeyActionMap {
         map.add(ControllerInput(1, Button::B), Period);
         map.add(ControllerInput(1, Button::SELECT), Quote);
         map.add(ControllerInput(1, Button::START), Semicolon);
-        map.add_with_mod(SaveState(1), egui::Modifiers::CTRL, Num1);
-        map.add_with_mod(SaveState(2), egui::Modifiers::CTRL, Num2);
-        map.add_with_mod(SaveState(3), egui::Modifiers::CTRL, Num3);
-        map.add_with_mod(SaveState(4), egui::Modifiers::CTRL, Num4);
-        map.add_with_mod(LoadState(1), egui::Modifiers::ALT, Num1);
-        map.add_with_mod(LoadState(2), egui::Modifiers::ALT, Num2);
-        map.add_with_mod(LoadState(3), egui::Modifiers::ALT, Num3);
-        map.add_with_mod(LoadState(4), egui::Modifiers::ALT, Num4);
+        map.add(QuickSave, W);
+        map.add(QuickLoad, Q);
 
         map
     }
@@ -79,10 +71,10 @@ impl Default for KeyActionMap {
 
 impl KeyActionMap {
     pub fn check_key_down(&mut self, input: &egui::InputState) {
-        if let Some(key) = input.keys_down.iter().next() {
-            if let Some(action) = self.action_waiting_for_press.take() {
-                self.add_with_mod(action, input.modifiers, *key);
-            }
+        if let Some(key) = input.keys_down.iter().next()
+            && let Some(action) = self.action_waiting_for_press.take()
+        {
+            self.add_with_mod(action, input.modifiers, *key);
         }
     }
 

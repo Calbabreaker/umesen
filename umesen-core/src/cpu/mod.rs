@@ -2,7 +2,6 @@ mod bus;
 mod disassembler;
 mod opcode;
 
-use crate::CpuError;
 use bus::CpuBus;
 pub use disassembler::Disassembler;
 pub use opcode::{AddrMode, Opcode};
@@ -75,20 +74,20 @@ pub struct Cpu {
 
 impl Cpu {
     /// Execute the next instruction at the pc
-    /// Returns the number of cpu cycles to wait as the result of executing the instruction
-    pub fn execute_next(&mut self) -> Result<u32, CpuError> {
-        self.bus.cpu_cycles_since_op = 0;
+    /// Returns the number of cpu cycles that the instruction took to execute
+    pub fn execute_next(&mut self) -> u32 {
+        self.bus.cpu_cycles_since_inst = 0;
 
         if self.bus.require_nmi() {
             self.nmi();
         }
 
         let byte = self.read_u8_at_pc();
-        let opcode = Opcode::from_byte(byte).ok_or(CpuError::UnknownOpcode(byte))?;
-        self.operand_address = self.read_operand_address(opcode.addr_mode);
-        self.execute(&opcode);
-
-        Ok(self.bus.cpu_cycles_since_op)
+        if let Some(opcode) = Opcode::from_byte(byte) {
+            self.operand_address = self.read_operand_address(opcode.addr_mode);
+            self.execute(&opcode);
+        }
+        self.bus.cpu_cycles_since_inst
     }
 
     // fn irq(&mut self) {
@@ -110,10 +109,9 @@ impl Cpu {
         self.flags = Flags::default() | Flags::INTERRUPT;
 
         self.bus.cpu_cycles_total = 0;
-        self.bus.cpu_cycles_since_op = 0;
+        self.bus.cpu_cycles_since_inst = 0;
         self.pc = self.bus.read_u16(0xfffc);
         self.sp = 0xfd;
-        self.bus.ppu.registers.control = crate::ppu::Control::empty();
         for _ in 0..5 {
             self.bus.clock();
         }

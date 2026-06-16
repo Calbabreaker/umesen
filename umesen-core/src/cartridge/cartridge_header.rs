@@ -1,4 +1,4 @@
-use crate::{NesParseError, cartridge::KB};
+use crate::NesParseError;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum Mirroring {
@@ -22,8 +22,6 @@ pub struct CartridgeHeader {
 
 impl CartridgeHeader {
     pub const TRAINER_SIZE: usize = 512;
-    pub const CHR_BANK_SIZE: usize = 8 * KB;
-    pub const PRG_BANK_SIZE: usize = 16 * KB;
 
     pub fn from_nes(data: [u8; 16]) -> Result<Self, NesParseError> {
         if &data[0..4] != b"NES\x1a" {
@@ -38,19 +36,17 @@ impl CartridgeHeader {
             get_shifted_size(data[10] & 0x0f)
         } else {
             let units = data[8].max(1);
-            (units as usize) * 8 * KB
+            (units as usize) * 8 * 1024
         };
 
-        let chr_ram_size = {
-            if is_v2 {
-                get_shifted_size(data[11] & 0x0f)
-            } else {
-                8 * 1024
-            }
+        let chr_ram_size = if is_v2 {
+            get_shifted_size(data[11] & 0x0f)
+        } else {
+            8 * 1024
         };
 
-        let mut prg_rom_size = (data[4] as usize) * Self::PRG_BANK_SIZE;
-        let mut chr_rom_size = (data[5] as usize) * Self::CHR_BANK_SIZE;
+        let mut prg_rom_size = (data[4] as usize) * 16 * 1024;
+        let mut chr_rom_size = (data[5] as usize) * 8 * 1024;
 
         if is_v2 {
             prg_rom_size |= (data[9] as usize & 0x0f) << 8;

@@ -1,4 +1,4 @@
-use crate::cartridge::{Bank, CartridgeBanks, KB, Mapper};
+use crate::cartridge::{Bank, BankMapping, CartridgeBanks, Mapper};
 
 /// INES designation for CNROM boards
 /// https://www.nesdev.org/wiki/CNROM
@@ -10,8 +10,8 @@ pub struct Mapper003 {
 impl Mapper for Mapper003 {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
         Some(match address {
-            0x6000..=0x7fff => banks.prg_ram.read(2 * KB, Bank::Number(0), address),
-            0x8000..=0xffff => banks.prg_rom.read(32 * KB, Bank::Number(0), address),
+            0x6000..=0x7fff => banks.prg_ram.read((8, Bank::Number(0)), address),
+            0x8000..=0xffff => banks.prg_rom.read((32, Bank::Number(0)), address),
             _ => return None,
         })
     }
@@ -22,29 +22,23 @@ impl Mapper for Mapper003 {
         }
     }
 
-    fn ppu_read(&self, banks: &CartridgeBanks, address: u16) -> u8 {
-        banks
-            .chr_mem
-            .read(8 * KB, Bank::Number(self.bank_number), address)
-    }
-
-    fn ppu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {
-        banks.write_chr_mem(8 * KB, Bank::Number(self.bank_number), address, value);
+    fn map_ppu(&self, _: u16) -> BankMapping {
+        (8, Bank::Number(self.bank_number))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{Cartridge, cartridge::KB};
+    use crate::Cartridge;
 
     #[test]
     fn test() {
-        let mut prg_rom = vec![0; 32 * KB];
+        let mut prg_rom = vec![0; 32 * 1024];
         prg_rom[2] = 1;
-        let mut chr_rom = vec![0; 32 * KB];
+        let mut chr_rom = vec![0; 32 * 1024];
         chr_rom[2] = 2;
-        chr_rom[8 * KB * 2 + 2] = 1;
-        let mut catridge = Cartridge::from_mapper(3, vec![0; KB], prg_rom, chr_rom).unwrap();
+        chr_rom[8 * 1024 * 2 + 2] = 1;
+        let mut catridge = Cartridge::from_mapper(3, vec![0; 1024], prg_rom, chr_rom).unwrap();
 
         assert_eq!(catridge.cpu_read(0x8002), Some(1));
 

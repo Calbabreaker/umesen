@@ -1,4 +1,4 @@
-use crate::cartridge::{Bank, CartridgeBanks, KB, Mapper};
+use crate::cartridge::{Bank, CartridgeBanks, Mapper};
 
 /// INES designation for UxROM boards
 /// https://www.nesdev.org/wiki/UxROM
@@ -10,12 +10,10 @@ pub struct Mapper002 {
 impl Mapper for Mapper002 {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
         Some(match address {
-            0x8000..=0xbfff => {
-                banks
-                    .prg_rom
-                    .read(16 * KB, Bank::Number(self.bank_number_low), address)
-            }
-            0xc000..=0xffff => banks.prg_rom.read(16 * KB, Bank::Last, address),
+            0x8000..=0xbfff => banks
+                .prg_rom
+                .read((16, Bank::Number(self.bank_number_low)), address),
+            0xc000..=0xffff => banks.prg_rom.read((16, Bank::Last), address),
             _ => return None,
         })
     }
@@ -26,26 +24,22 @@ impl Mapper for Mapper002 {
         }
     }
 
-    fn ppu_read(&self, banks: &CartridgeBanks, address: u16) -> u8 {
-        banks.chr_mem.read(8 * KB, Bank::Number(0), address)
-    }
-
-    fn ppu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {
-        banks.write_chr_mem(8 * KB, Bank::Number(0), address, value);
+    fn map_ppu(&self, _: u16) -> super::BankMapping {
+        (8, Bank::Number(0))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{Cartridge, cartridge::KB};
+    use crate::Cartridge;
 
     #[test]
     fn test() {
-        let mut prg_rom = vec![0; 128 * KB];
+        let mut prg_rom = vec![0; 128 * 1024];
         prg_rom[2] = 2;
-        prg_rom[16 * KB * 2 + 2] = 1;
+        prg_rom[16 * 1024 * 2 + 2] = 1;
         *prg_rom.last_mut().unwrap() = 3;
-        let mut chr_rom = vec![0; 4 * KB];
+        let mut chr_rom = vec![0; 4 * 1024];
         chr_rom[2] = 1;
         let mut catridge = Cartridge::from_mapper(2, vec![0; 1024], prg_rom, chr_rom).unwrap();
 

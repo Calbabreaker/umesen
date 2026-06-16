@@ -27,24 +27,15 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
     ui.horizontal(|ui| {
         if ui.button(if state.running { "⏸" } else { "⏵" }).clicked() {
-            state.do_action(&ActionKind::Run(!state.running));
+            state.do_action(ActionKind::PauseResume);
         }
 
         if ui.button("⟳").clicked() {
-            state.do_action(&ActionKind::Reset);
+            state.do_action(ActionKind::Reset);
         }
 
         if ui.button("Step").clicked() {
-            state.do_action(&ActionKind::Step);
-        }
-
-        if ui.button("Step Over").clicked() {
-            state.running = false;
-            let start_pc = state.emu.cpu.pc;
-            while state.emu.cpu.pc <= start_pc {
-                state.emu.step().ok();
-            }
-            state.update_ppu_texture();
+            state.do_action(ActionKind::Step);
         }
 
         if ui.button("Next Frame").clicked() {
