@@ -98,13 +98,13 @@ impl Cartridge {
     }
 
     pub fn ppu_read(&self, address: u16) -> u8 {
-        std::assert_matches!(address, 0x0000..=0x1fff);
+        std::debug_assert_matches!(address, 0x0000..=0x1fff);
         let mapping = self.mapper.map_ppu(address);
         self.banks.chr_mem.read(mapping, address)
     }
 
     pub fn ppu_write(&mut self, address: u16, value: u8) {
-        std::assert_matches!(address, 0x0000..=0x1fff);
+        std::debug_assert_matches!(address, 0x0000..=0x1fff);
         let mapping = self.mapper.map_ppu(address);
         if !self.header.chr_mem_is_rom {
             self.banks.chr_mem.write(mapping, address, value);

@@ -7,9 +7,9 @@ pub use disassembler::Disassembler;
 pub use opcode::{AddrMode, Opcode};
 
 /// Number of clock cycles per second
-pub const CLOCK_SPEED_HZ: u32 = 1789773;
-/// Number of cpu clock cycles per ppu frame actually meant to be 29780.5 but should be close enough
-pub const CYCLES_PER_FRAME: u32 = 29780;
+pub const CLOCK_SPEED_HZ: f64 = 1789773.;
+/// Number of cpu clock cycles per ppu frame but should be close enough
+pub const CYCLES_PER_FRAME: f64 = 29780.5;
 
 bitflags::bitflags! {
     /// Flags for the cpu register
@@ -18,7 +18,6 @@ bitflags::bitflags! {
         const CARRY = 1;
         const ZERO = 1 << 1;
         const INTERRUPT = 1 << 2;
-        /// Flag for binary coded decimal where hex 0x00->0x99 is decimal 0->99
         const DECIMAL = 1 << 3;
         // Set for pushing with BRK and PHP instructions
         const BREAK = 1 << 4;
@@ -43,7 +42,6 @@ impl std::fmt::Display for Flags {
             (Flags::ZERO, "Z"),
             (Flags::INTERRUPT, "I"),
             (Flags::DECIMAL, "D"),
-            (Flags::BREAK, "B"),
             (Flags::OVERFLOW, "O"),
             (Flags::NEGATIVE, "N"),
         ];
@@ -78,15 +76,16 @@ impl Cpu {
     pub fn execute_next(&mut self) -> u32 {
         self.bus.cpu_cycles_since_inst = 0;
 
-        if self.bus.require_nmi() {
-            self.nmi();
-        }
-
         let byte = self.read_u8_at_pc();
         if let Some(opcode) = Opcode::from_byte(byte) {
             self.operand_address = self.read_operand_address(opcode.addr_mode);
             self.execute(&opcode);
         }
+
+        if self.bus.require_nmi() {
+            self.interrupt(0xfffa, Flags::empty(), 2);
+        }
+
         self.bus.cpu_cycles_since_inst
     }
 
@@ -96,11 +95,6 @@ impl Cpu {
     //         self.bus.clock();
     //     }
     // }
-
-    fn nmi(&mut self) {
-        self.interrupt(0xfffa, Flags::empty());
-        self.bus.clock();
-    }
 
     pub fn reset(&mut self) {
         self.a = 0;
@@ -112,6 +106,7 @@ impl Cpu {
         self.bus.cpu_cycles_since_inst = 0;
         self.pc = self.bus.read_u16(0xfffc);
         self.sp = 0xfd;
+        self.bus.ppu.registers.control = Default::default();
         for _ in 0..5 {
             self.bus.clock();
         }
@@ -206,9 +201,9 @@ impl Cpu {
     fn execute(&mut self, opcode: &Opcode) {
         match opcode.name {
             // -- Stack --
-            "pha" => self.stack_push_clocked(self.a),
-            "php" => self.stack_push_clocked((self.flags | Flags::BREAK).bits()),
-            "pla" => self.a = self.stack_pop_clocked(),
+            "pha" => self.stack_push(self.a),
+            "php" => self.stack_push((self.flags | Flags::BREAK).bits()),
+            "pla" => self.a = self.stack_pop(),
             "plp" => self.plp(),
 
             // -- Shift and rotate --
@@ -300,7 +295,7 @@ impl Cpu {
             "jmp" => self.pc = self.operand_address.unwrap(),
             "jsr" => self.jsr(),
             "rts" => self.rts(),
-            "brk" => self.interrupt(0xfffe, Flags::BREAK),
+            "brk" => self.interrupt(0xfffe, Flags::BREAK, 1),
             "rti" => self.rti(),
 
             "bcc" => self.branch(!self.flags.contains(Flags::CARRY)),
@@ -346,35 +341,29 @@ impl Cpu {
     fn stack_push(&mut self, value: u8) {
         self.bus.write_u8(0x100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
-    }
-
-    fn stack_push_clocked(&mut self, value: u8) {
-        self.stack_push(value);
         self.bus.clock();
     }
 
     fn stack_push_u16(&mut self, value: u16) {
-        self.stack_push((value >> 8) as u8);
-        self.stack_push(value as u8);
+        self.sp = self.sp.wrapping_sub(2);
+        self.bus
+            .write_u16(0x100 + self.sp.wrapping_add(1) as u16, value);
     }
 
     fn stack_pop(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
+        self.bus.clock();
+        self.bus.clock();
         self.bus.read_u8(0x100 + self.sp as u16)
     }
 
-    fn stack_pop_clocked(&mut self) -> u8 {
-        self.bus.clock();
-        self.bus.clock();
-        self.stack_pop()
-    }
-
     fn stack_pop_u16(&mut self) -> u16 {
-        (self.stack_pop() as u16) | ((self.stack_pop() as u16) << 8)
+        self.sp = self.sp.wrapping_add(2);
+        self.bus.read_u16(0x100 + self.sp.wrapping_sub(1) as u16)
     }
 
     fn plp(&mut self) {
-        self.flags = Flags::from_bits(self.stack_pop_clocked()).unwrap();
+        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
         self.flags.insert(Flags::UNUSED);
         self.flags.remove(Flags::BREAK);
     }
@@ -469,12 +458,14 @@ impl Cpu {
         self.pc = self.stack_pop_u16();
     }
 
-    fn interrupt(&mut self, load_vector: u16, push_flags: Flags) {
+    fn interrupt(&mut self, load_vector: u16, push_flags: Flags, extra_clocks: usize) {
         self.stack_push_u16(self.pc);
         self.stack_push((self.flags | push_flags).bits());
         self.flags.set(Flags::INTERRUPT, true);
         self.pc = self.bus.read_u16(load_vector);
-        self.bus.clock();
+        for _ in 0..extra_clocks {
+            self.bus.clock();
+        }
     }
 
     fn branch(&mut self, condition: bool) {

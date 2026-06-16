@@ -37,9 +37,7 @@ fn nestest() {
         // Current line actually contains the state of the instruction executed last line
         prev_disassem = line_split.next().unwrap().trim();
 
-        if let Err(err) = emu.step() {
-            panic!("Failed to execute at line {i}: {err} ({prev_disassem})");
-        }
+        emu.cpu.execute_next();
     }
 }
 

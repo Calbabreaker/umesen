@@ -1,6 +1,6 @@
 use crate::Preferences;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize, Debug)]
 enum Tab {
     #[default]
     KeyBinds,
@@ -19,7 +19,7 @@ impl crate::egui_util::UiList for Tab {
 }
 
 pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
-    let tab_open = crate::egui_util::show_tab_group(ui);
+    let tab_open = crate::egui_util::ui_list_tab_group(ui);
 
     egui::Grid::new("key grid")
         .striped(true)
@@ -54,7 +54,7 @@ fn show_key_map(ui: &mut egui::Ui, prefs: &mut Preferences) {
         };
 
         if ui.button(text).clicked() {
-            *action_waiting_for_press = Some(action.clone());
+            *action_waiting_for_press = Some(*action);
         }
         ui.end_row();
     }

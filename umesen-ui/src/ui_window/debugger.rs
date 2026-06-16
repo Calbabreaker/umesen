@@ -15,13 +15,13 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         ui.style_mut().spacing.slider_width = 160.0;
         if ui
             .add(
-                egui::Slider::new(&mut state.speed, 0.0001..=2.000)
+                egui::Slider::new(&mut state.speed, 0.00001..=2.000)
                     .step_by(0.00001)
                     .logarithmic(true),
             )
             .dragged()
         {
-            state.clocks_remaining = 0;
+            state.clocks_remaining = 0.;
         };
     });
 

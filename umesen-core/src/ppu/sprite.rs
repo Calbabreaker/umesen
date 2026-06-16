@@ -1,4 +1,4 @@
-use crate::ppu::{Control, Registers, PATTERN_TILE_COUNT};
+use crate::ppu::{Control, PATTERN_TILE_COUNT, Registers};
 
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]

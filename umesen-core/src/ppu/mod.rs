@@ -82,11 +82,14 @@ impl Ppu {
         if self.dot >= 1 {
             let x = (self.dot - 1) as usize;
             let y = self.scanline as usize;
-            if x < WIDTH && y < HEIGHT && self.registers.mask.is_rendering() {
-                let bg_color_index = self.render_bg_pixel(x);
-                let fg_color_index = self.render_fg_pixel(x, bg_color_index);
-
-                *self.screen_pixels[x + y * WIDTH] = self.get_palette_color(fg_color_index)
+            if x < WIDTH && y < HEIGHT {
+                let color_index = if self.registers.mask.is_rendering() {
+                    let bg_color_index = self.render_bg_pixel(x);
+                    self.render_fg_pixel(x, bg_color_index)
+                } else {
+                    0
+                };
+                *self.screen_pixels[x + y * WIDTH] = self.get_palette_color(color_index);
             }
         }
 

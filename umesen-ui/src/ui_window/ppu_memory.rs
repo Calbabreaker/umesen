@@ -1,6 +1,6 @@
-use umesen_core::ppu::{add_bit_planes, TvRegister, PATTERN_TILE_COUNT};
+use umesen_core::ppu::{PATTERN_TILE_COUNT, TvRegister, add_bit_planes};
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize, Debug)]
 enum Tab {
     #[default]
     Palettes,
@@ -28,7 +28,7 @@ impl crate::egui_util::UiList for Tab {
 }
 
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
-    let tab_open = crate::egui_util::show_tab_group::<Tab>(ui);
+    let tab_open = crate::egui_util::ui_list_tab_group::<Tab>(ui);
 
     ui.style_mut().spacing.item_spacing = egui::vec2(5., 5.);
     ui.style_mut().spacing.interact_size.y = 0.;
@@ -178,7 +178,9 @@ fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
     };
 
     let image = show_pattern_tiles(ui, "oam_grid", state, [8, 8], get_tile_info_fn);
-    ui.add(image.fit_to_original_size(4.));
+    if ui.add(image.fit_to_original_size(4.)).clicked() {
+        dbg!("hdif");
+    };
 }
 
 fn show_pattern_tiles<'a>(

@@ -19,7 +19,7 @@ pub struct State {
     pub speed: f64,
     pub save_states: std::collections::HashMap<u8, umesen_core::Cpu>,
     pub selected_quick_save: u8,
-    pub clocks_remaining: i32,
+    pub clocks_remaining: f64,
 }
 
 impl State {
@@ -41,10 +41,9 @@ impl State {
             return;
         }
 
-        self.clocks_remaining +=
-            (elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ as f64).round() as i32;
+        self.clocks_remaining += elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ;
 
-        while self.clocks_remaining > 0 {
+        while self.clocks_remaining > 0. {
             let frame_complete = self.emu.clock_until_frame(&mut self.clocks_remaining);
             // Don't sync to screen if speed is less than 1 for debugging
             if frame_complete || self.speed < 1. {

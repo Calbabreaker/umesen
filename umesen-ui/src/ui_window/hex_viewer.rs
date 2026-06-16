@@ -11,7 +11,7 @@ impl crate::egui_util::UiList for HexViewKind {
     fn pretty_name(&self) -> &'static str {
         match self {
             HexViewKind::Cpu => "CPU",
-            HexViewKind::Ppu => "Ppu",
+            HexViewKind::Ppu => "PPU",
         }
     }
 
@@ -20,7 +20,7 @@ impl crate::egui_util::UiList for HexViewKind {
 
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-    let selected = crate::egui_util::show_combo_select(ui);
+    let selected = crate::egui_util::ui_list_combo_select(ui);
     ui.add_space(4.);
 
     let cpu_bus = &state.emu.cpu.bus;

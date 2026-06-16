@@ -1,6 +1,6 @@
 use crate::{
     cartridge::FixedArray,
-    ppu::{bus::PpuBus, sprite::Attributes, PATTERN_TILE_COUNT},
+    ppu::{PATTERN_TILE_COUNT, bus::PpuBus, sprite::Attributes},
 };
 
 bitflags::bitflags! {
@@ -222,7 +222,7 @@ pub struct Registers {
 
 impl Registers {
     pub(crate) fn immut_read_u8(&self, address: u16) -> u8 {
-        debug_assert!((0x2000..=0x3fff).contains(&address));
+        std::debug_assert_matches!(address, 0x2000..=0x3fff);
         match address % 8 {
             // Get status bits and fill unused with open bus
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
@@ -259,7 +259,7 @@ impl Registers {
     }
 
     pub(crate) fn write_u8(&mut self, address: u16, value: u8) {
-        debug_assert!((0x2000..=0x3fff).contains(&address));
+        std::debug_assert_matches!(address, 0x2000..=0x3fff);
         self.open_bus = value;
         match address % 8 {
             0 => self.write_control(value),

@@ -28,13 +28,11 @@ impl Emulator {
     }
 
     /// Let the CPU Keep executing instructions until clocks_remaining is zero or there is a new frame
-    /// Note that it will keep continuing if near end of scaneline to prevent stutters
     /// Returns true if frame a frame is returned
-    pub fn clock_until_frame(&mut self, clocks_remaining: &mut i32) -> bool {
-        while *clocks_remaining > 0 || self.ppu().scanline >= 180 {
-            *clocks_remaining -= self.cpu.execute_next() as i32;
-            // Ensure only lastest frame is returned
-            if *clocks_remaining < crate::cpu::CYCLES_PER_FRAME as i32 && self.frame_complete() {
+    pub fn clock_until_frame(&mut self, clocks_remaining: &mut f64) -> bool {
+        while *clocks_remaining > 0. {
+            *clocks_remaining -= self.cpu.execute_next() as f64;
+            if self.frame_complete() {
                 return true;
             }
         }

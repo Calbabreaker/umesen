@@ -86,7 +86,7 @@ impl CpuBus {
 
     pub fn write_u16(&mut self, address: u16, value: u16) {
         let lsb = value as u8;
-        let msb = (value << 8) as u8;
+        let msb = (value >> 8) as u8;
         self.write_u8(address, lsb);
         self.write_u8(address + 1, msb);
     }
