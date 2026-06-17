@@ -34,10 +34,14 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.style_mut().spacing.interact_size.y = 0.;
     match tab_open {
         Tab::Palettes => {
-            ui.label("Background:");
-            show_palette_row(ui, state, 0);
-            ui.label("Sprite:");
-            show_palette_row(ui, state, 1);
+            for row in 0..2 {
+                ui.label(if row == 0 { "Background:" } else { "Sprite:" });
+                ui.horizontal(|ui| {
+                    for col in 0..4 {
+                        show_pallete(ui, state.emu.ppu(), row * 4 + col);
+                    }
+                });
+            }
         }
         Tab::PatternTables => {
             ui.horizontal(|ui| {
@@ -62,114 +66,98 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         Tab::OamData => {
             ui.horizontal(|ui| {
                 show_oam_grid(ui, state);
-
-                egui::Frame::canvas(ui.style())
-                    .inner_margin(6.0)
-                    .outer_margin(egui::Margin {
-                        left: 4,
-                        ..Default::default()
-                    })
-                    .show(ui, |ui| {
-                        ui.vertical(|ui| {
-                            show_oam_list(ui, state.emu.ppu());
-                        });
-                    });
+                show_oam_info(ui, state.emu.ppu());
             });
         }
     }
 }
 
-fn show_palette_row(ui: &mut egui::Ui, state: &mut crate::State, row: u8) {
-    let ppu = &state.emu.cpu.bus.ppu;
+fn show_pallete(ui: &mut egui::Ui, ppu: &umesen_core::Ppu, palette_id: u8) {
     let pixel_size = egui::Vec2::splat(15.);
-    ui.horizontal(|ui| {
-        for col in 0..4 {
-            let (mut response, painter) =
-                ui.allocate_painter(pixel_size * egui::vec2(4., 1.), egui::Sense::hover());
-            for color in ppu.get_palette_colors(row * 4 + col) {
-                painter.rect_filled(
-                    egui::Rect::from_min_size(response.rect.min, pixel_size),
-                    0.,
-                    egui::Color32::from_rgb(color[0], color[1], color[2]),
-                );
-                response.rect.min.x += pixel_size.x;
-            }
+    let (mut response, painter) =
+        ui.allocate_painter(pixel_size * egui::vec2(4., 1.), egui::Sense::hover());
+    for color in ppu.get_palette_colors(palette_id) {
+        painter.rect_filled(
+            egui::Rect::from_min_size(response.rect.min, pixel_size),
+            0.,
+            egui::Color32::from_rgb(color[0], color[1], color[2]),
+        );
+        response.rect.min.x += pixel_size.x;
+    }
+}
+
+fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
+    let get_tile_info_fn = |tile_index, _| {
+        let tile_index = tile_index as u16;
+        let palette = [[0, 0, 0], [85, 85, 85], [170, 170, 170], [255, 255, 255]];
+        (tile_index + table_number * PATTERN_TILE_COUNT, palette)
+    };
+
+    let config = UiPatternTilesConfig {
+        name: format!("pattern{table_number}"),
+        tile_count: [16, 16],
+        image_scale: 3.,
+    };
+    ui.vertical(|ui| {
+        show_pattern_tiles(ui, state, &config, get_tile_info_fn);
+        let id = egui::Id::new(config.name.as_str());
+        if let Some(i) = ui.memory_mut(|m| m.data.get_persisted::<usize>(id)) {
+            ui.label(format!(
+                "Address: ${:04x}",
+                (i as u16 + table_number * PATTERN_TILE_COUNT) << 4
+            ));
         }
     });
 }
 
-fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
-    let get_tile_info_fn = |tile_x, tile_y, _| {
-        let tile_number = tile_y * 16 + tile_x;
-        let palette = [[0, 0, 0], [85, 85, 85], [170, 170, 170], [255, 255, 255]];
-        (tile_number + table_number * PATTERN_TILE_COUNT, palette)
-    };
-
-    // 16 by 16 tiles with 8 pixels each
-    let image = show_pattern_tiles(
-        ui,
-        format!("pattern{table_number}"),
-        state,
-        [16, 16],
-        get_tile_info_fn,
-    );
-
-    ui.add(image.fit_to_original_size(3.));
-}
-
 fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
-    let get_tile_info_fn = |tile_x, tile_y, ppu: &umesen_core::Ppu| {
+    let get_tile_info_fn = |tile_index, ppu: &umesen_core::Ppu| {
         let mut register = TvRegister::default();
         register.set(TvRegister::NAMETABLE, table_number);
-        register.set(TvRegister::COARSE_X, tile_x);
-        register.set(TvRegister::COARSE_Y, tile_y);
+        register.set(TvRegister::COARSE_X, tile_index as u16 % 32);
+        register.set(TvRegister::COARSE_Y, tile_index as u16 / 32);
 
         let tile_number = ppu.registers.bus.read_u8(register.nametable_address()) as u16;
         let tile_attribute = ppu.registers.bus.read_u8(register.attribute_address());
         let palette_id = register.palette_id(tile_attribute);
-
         (
             tile_number + ppu.registers.control.background_table_offset(),
             ppu.get_palette_colors(palette_id),
         )
     };
 
-    let image = show_pattern_tiles(
-        ui,
-        format!("nametable{table_number}"),
-        state,
-        // 32 by 30 tiles with 8 pixels each
-        [32, 30],
-        get_tile_info_fn,
-    );
-    ui.add(image.fit_to_original_size(1.));
+    let config = UiPatternTilesConfig {
+        name: format!("nametable{table_number}"),
+        tile_count: [32, 30],
+        image_scale: 1.,
+    };
+    show_pattern_tiles(ui, state, &config, get_tile_info_fn);
 }
 
-fn show_oam_list(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
-    ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        for (i, chunk) in ppu.registers.oam_data.chunks(4).enumerate() {
-            if i != 0 {
-                ui.separator();
-            }
-            let sprite = umesen_core::ppu::Sprite::new(chunk);
-            ui.label(format!("INDEX: {i} ({}x{})", i % 8, i / 8));
-            ui.label(format!("X: {}", sprite.x));
-            ui.label(format!("Y: {}", sprite.y));
+fn show_oam_info(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
+    ui.vertical(|ui| {
+        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+        if let Some(i) = ui.memory_mut(|m| m.data.get_persisted("oam_grid".into())) {
+            let sprite = ppu.registers.get_oam_sprite(i, 0).unwrap();
+            ui.label(format!("INDEX: {i}"));
+            ui.label(format!("Pos (x,y): {}, {}", sprite.x, sprite.y));
             ui.label(format!(
-                "TILE: ${0:02x}",
+                "Tile number: ${:02x}",
                 sprite.tile_number(&ppu.registers)
             ));
-            ui.label(format!("ATTR: {}", sprite.attributes));
+
+            ui.horizontal(|ui| {
+                ui.label("Pallete:");
+                show_pallete(ui, ppu, sprite.attributes.palette());
+            });
+            crate::egui_util::show_flags_marked(ui, sprite.attributes);
         }
     });
 }
 
 fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
-    let get_tile_info_fn = |tile_x, tile_y, ppu: &umesen_core::Ppu| {
-        let index = ((tile_y * 8 + tile_x) * 4) as usize;
-        let oam = &ppu.registers.oam_data[index..index + 4];
-        let sprite = umesen_core::ppu::Sprite::new(oam);
+    let get_tile_info_fn = |tile_index, ppu: &umesen_core::Ppu| {
+        let sprite = ppu.registers.get_oam_sprite(tile_index, 0).unwrap();
         let palette = sprite.attributes.palette() + 4;
         (
             sprite.tile_number(&ppu.registers),
@@ -177,29 +165,39 @@ fn show_oam_grid(ui: &mut egui::Ui, state: &mut crate::State) {
         )
     };
 
-    let image = show_pattern_tiles(ui, "oam_grid", state, [8, 8], get_tile_info_fn);
-    if ui.add(image.fit_to_original_size(4.)).clicked() {
-        dbg!("hdif");
+    let config = UiPatternTilesConfig {
+        name: "oam_grid".to_string(),
+        tile_count: [8, 8],
+        image_scale: 4.,
     };
+    show_pattern_tiles(ui, state, &config, get_tile_info_fn);
+}
+
+struct UiPatternTilesConfig {
+    name: String,
+    tile_count: [usize; 2],
+    image_scale: f32,
 }
 
 fn show_pattern_tiles<'a>(
     ui: &mut egui::Ui,
-    name: impl ToString,
     state: &'a mut crate::State,
-    tile_size: [usize; 2],
-    get_tile_info_fn: impl Fn(u16, u16, &'a umesen_core::Ppu) -> (u16, [[u8; 3]; 4]),
-) -> egui::Image<'a> {
-    let image_size = [tile_size[0] * 8, tile_size[1] * 8];
+    config: &UiPatternTilesConfig,
+    get_tile_info_fn: impl Fn(usize, &'a umesen_core::Ppu) -> (u16, [[u8; 3]; 4]),
+) {
+    let [tile_count_x, tile_count_y] = config.tile_count;
+    let id = egui::Id::new(&config.name);
+    let image_size = [tile_count_x * 8, tile_count_y * 8];
     let texture = state
         .texture_map
-        .entry(name.to_string())
+        .entry(config.name.clone())
         .or_insert_with(|| crate::Texture::new(image_size, ui.ctx()));
     let ppu = state.emu.ppu();
 
-    for tile_y in 0..tile_size[1] {
-        for tile_x in 0..tile_size[0] {
-            let (tile_number, palette) = get_tile_info_fn(tile_x as u16, tile_y as u16, ppu);
+    for tile_y in 0..tile_count_y {
+        for tile_x in 0..tile_count_x {
+            let tile_index = (tile_y * tile_count_x) + tile_x;
+            let (tile_number, palette) = get_tile_info_fn(tile_index, ppu);
             for y in 0..8 {
                 let bus = &ppu.registers.bus;
                 let (lsb_plane, msb_plane) = bus.read_pattern_tile_planes(tile_number, y);
@@ -218,5 +216,35 @@ fn show_pattern_tiles<'a>(
     }
 
     texture.update();
-    egui::Image::new(&texture.handle)
+    let image_pos = ui.cursor().left_top();
+    let response = ui.add(
+        egui::Image::new(&texture.handle)
+            .sense(egui::Sense::CLICK)
+            .fit_to_original_size(config.image_scale),
+    );
+    let size_scale = 8. * config.image_scale;
+    if response
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .clicked()
+    {
+        let pos = ui.input(|i| i.pointer.interact_pos()).unwrap_or_default() - image_pos;
+        let tile_pos = pos / size_scale;
+        let tile_index = (tile_pos.y as usize * tile_count_x) + tile_pos.x as usize;
+        if tile_index < tile_count_x * tile_count_y {
+            ui.memory_mut(|m| m.data.insert_persisted(id, tile_index))
+        }
+    }
+
+    if let Some(i) = ui.memory_mut(|m| m.data.get_persisted::<usize>(id)) {
+        ui.painter().rect_stroke(
+            egui::Rect::from_min_size(
+                egui::Pos2::new((i % tile_count_x) as f32, (i / tile_count_x) as f32) * size_scale
+                    + image_pos.to_vec2(),
+                egui::Vec2::splat(size_scale),
+            ),
+            0.,
+            (2., egui::Color32::RED),
+            egui::StrokeKind::Outside,
+        );
+    }
 }

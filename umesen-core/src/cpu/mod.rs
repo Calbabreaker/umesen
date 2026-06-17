@@ -8,8 +8,6 @@ pub use opcode::{AddrMode, Opcode};
 
 /// Number of clock cycles per second
 pub const CLOCK_SPEED_HZ: f64 = 1789773.;
-/// Number of cpu clock cycles per ppu frame but should be close enough
-pub const CYCLES_PER_FRAME: f64 = 29780.5;
 
 bitflags::bitflags! {
     /// Flags for the cpu register
@@ -19,9 +17,11 @@ bitflags::bitflags! {
         const ZERO = 1 << 1;
         const INTERRUPT = 1 << 2;
         const DECIMAL = 1 << 3;
-        // Set for pushing with BRK and PHP instructions
+        // Set for pushing with BRK and PHP instructions will always be the same internally
+        #[bitflags(flag_name = "")]
         const BREAK = 1 << 4;
         /// Always set
+        #[bitflags(flag_name = "")]
         const UNUSED = 1 << 5;
         /// Set if arithmetic overflowed 8-bit signed number
         const OVERFLOW = 1 << 6;
@@ -32,23 +32,6 @@ bitflags::bitflags! {
 impl Default for Flags {
     fn default() -> Self {
         Self::UNUSED
-    }
-}
-
-impl std::fmt::Display for Flags {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let flag_map = [
-            (Flags::CARRY, "C"),
-            (Flags::ZERO, "Z"),
-            (Flags::INTERRUPT, "I"),
-            (Flags::DECIMAL, "D"),
-            (Flags::OVERFLOW, "O"),
-            (Flags::NEGATIVE, "N"),
-        ];
-        for (flag, name) in flag_map {
-            write!(f, "{} ", if self.contains(flag) { name } else { "-" })?;
-        }
-        Ok(())
     }
 }
 

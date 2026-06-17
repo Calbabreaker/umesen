@@ -7,8 +7,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!("A:  ${0:02x}", state.emu.cpu.a));
     ui.label(format!("X:  ${0:02x}", state.emu.cpu.x));
     ui.label(format!("Y:  ${0:02x}", state.emu.cpu.y));
-    ui.label(format!("FLAGS: {}", state.emu.cpu.flags));
     ui.label(format!("CYCLES: {}", state.emu.cpu.bus.cpu_cycles_total));
+    crate::egui_util::show_flags_marked(ui, state.emu.cpu.flags);
 
     ui.horizontal(|ui| {
         ui.label("Speed:");

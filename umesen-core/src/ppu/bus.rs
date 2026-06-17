@@ -1,11 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    cartridge::{FixedArray, Mirroring},
     Cartridge,
+    cartridge::{FixedArray, Mirroring},
 };
 
 const PALETTE_RAM_SIZE: usize = 0x20;
+/// Size of the nametable ram or size of 2 nametables
 const NAMETABLE_RAM_SIZE: usize = 0x800;
 /// Size of one pattern table in number of tiles (aka one byte), add this to tile number to access the next pattern table
 pub const PATTERN_TILE_COUNT: u16 = 256;
@@ -18,6 +19,8 @@ pub struct PpuBus {
 }
 
 impl PpuBus {
+    pub const PALETTE_START: u16 = 0x3f00;
+
     pub fn read_u8(&self, address: u16) -> u8 {
         match address % 0x4000 {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
@@ -25,7 +28,7 @@ impl PpuBus {
                 None => 0,
             },
             0x2000..=0x3eff => self.nametable_ram[self.mirror_nametable(address)],
-            0x3f00..=0x3fff => self.palette_ram[mirror_palette(address)],
+            Self::PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)],
             _ => unreachable!(),
         }
     }
@@ -41,7 +44,7 @@ impl PpuBus {
                 let address = self.mirror_nametable(address);
                 self.nametable_ram[address] = value;
             }
-            0x3f00..=0x3fff => self.palette_ram[mirror_palette(address)] = value,
+            Self::PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)] = value,
             _ => unreachable!(),
         }
     }
@@ -53,7 +56,7 @@ impl PpuBus {
         // DCBA98 76543210
         // ---------------
         // 0HNNNN NNNNPyyy
-        // |||||| |||||+++- T: Fine Y offset, the row number within a tile
+        // |||||| |||||+++- T: Fine Y offset, the pixel row number within a tile
         // |||||| ||||+---- P: Bit plane (0: less significant bit; 1: more significant bit)
         // ||++++-++++----- N: Tile number from name table
         // |+-------------- H: Half of pattern table (0: "left"; 1: "right")

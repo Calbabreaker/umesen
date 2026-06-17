@@ -3,9 +3,13 @@ use crate::ppu::{Control, PATTERN_TILE_COUNT, Registers};
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
     pub struct Attributes: u8 {
+        #[bitflags(flag_name = "")]
         const PALLETTE = 0b11;
+        #[bitflags(flag_name = "Behind background")]
         const BEHIND = 1 << 5;
+        #[bitflags(flag_name = "Flipped horizontal")]
         const FLIP_HORIZONTAL = 1 << 6;
+        #[bitflags(flag_name = "Flipped vertical")]
         const FLIP_VERTICAL = 1 << 7;
     }
 }
@@ -13,21 +17,6 @@ bitflags::bitflags! {
 impl Attributes {
     pub fn palette(&self) -> u8 {
         (*self & Attributes::PALLETTE).bits()
-    }
-}
-
-impl std::fmt::Display for Attributes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let flag_map = [
-            (Attributes::BEHIND, "B"),
-            (Attributes::FLIP_HORIZONTAL, "H"),
-            (Attributes::FLIP_VERTICAL, "V"),
-        ];
-        for (flag, name) in flag_map {
-            write!(f, "{} ", if self.contains(flag) { name } else { "-" })?;
-        }
-        write!(f, "{}", self.palette())?;
-        Ok(())
     }
 }
 
@@ -44,7 +33,7 @@ pub struct Sprite {
 }
 
 impl Sprite {
-    pub fn new(oam: &[u8]) -> Self {
+    pub fn new(oam: &[u8], oam_index: u8) -> Self {
         Self {
             x: *oam.get(3).unwrap_or(&0),
             y: *oam.first().unwrap_or(&0),
@@ -52,13 +41,12 @@ impl Sprite {
             attributes: Attributes::from_bits_truncate(*oam.get(2).unwrap_or(&0)),
             color_bits_low: 0,
             color_bits_high: 0,
-            oam_index: 0,
+            oam_index,
         }
     }
 
-    pub fn y_intersects(&self, scanline: u16, height: u16) -> bool {
-        let self_y = self.y as u16;
-        scanline >= self_y && scanline < self_y + height
+    pub fn y_intersects(&self, scanline: u16, height: u8) -> bool {
+        scanline as u8 >= self.y && (scanline as u8) < self.y + height
     }
 
     pub fn tile_number(&self, registers: &Registers) -> u16 {
@@ -84,16 +72,16 @@ impl Sprite {
         let mut fine_y = scanline - self.y as u16;
         if self.attributes.contains(Attributes::FLIP_VERTICAL) {
             // Flip the fine y
-            fine_y = (registers.control.sprite_height() - 1) - fine_y;
+            fine_y = (registers.control.sprite_height() as u16 - 1) - fine_y;
         }
 
-        // Go to the next tile if y overflowed tile
+        // Go to the next tile if y is greater than tile
+        // Should only be possible if TALL_SPRITES because if checking for sprite intersection
         if fine_y >= 8 {
             tile_number += 1;
         }
 
         let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(tile_number, fine_y);
-
         self.color_bits_low = tile_lsb;
         self.color_bits_high = tile_msb;
     }

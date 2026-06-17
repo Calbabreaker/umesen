@@ -39,7 +39,7 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    /// Gets a RGB color from a the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
+    /// Gets a RGB color from the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
     pub fn get_palette_color(&self, color_index: impl Into<u16>) -> [u8; 3] {
         let offset = color_index.into();
         debug_assert!((0..64).contains(&offset));
@@ -86,6 +86,10 @@ impl Ppu {
                 let color_index = if self.registers.mask.is_rendering() {
                     let bg_color_index = self.render_bg_pixel(x);
                     self.render_fg_pixel(x, bg_color_index)
+                } else if matches!(self.registers.v.0, PpuBus::PALETTE_START..=0x3fff) {
+                    // If v register is pointing to pallette address then use that color instead
+                    // of the backdrop color
+                    (self.registers.v.0 - PpuBus::PALETTE_START) as u8
                 } else {
                     0
                 };
@@ -180,18 +184,13 @@ impl Ppu {
         }
     }
 
-    /// Check and sets the SPRITE_OVERFLOW flag
+    /// Populates the sprite buffer for the next scanline and checks SPRITE_OVERFLOW
     fn eval_sprites(&mut self) {
         self.sprite_count = 0;
-        let mut i = self.oam_start_address as usize;
 
-        while i < self.registers.oam_data.len() {
-            // Get four bytes but make sure to not overflow array
-            let right_bound = (i + 4).min(self.registers.oam_data.len());
-            let chunk = &self.registers.oam_data[i..right_bound];
-            let mut sprite = Sprite::new(chunk);
-            sprite.oam_index = (i / 4) as u8;
-
+        let mut i = 0;
+        let mut byte_offset = self.oam_start_address as usize;
+        while let Some(sprite) = self.registers.get_oam_sprite(i, byte_offset) {
             // Add to sprite buffer if sprite part of scanline
             if sprite.y_intersects(self.scanline, self.registers.control.sprite_height()) {
                 // Check sprite overflow
@@ -206,12 +205,12 @@ impl Ppu {
                 // After 8 sprites has been filled, the PPU will check for overflow by
                 // searching for another sprite that is in the scanline.
                 // But for some reason, when it doesn't find a sprite after filled,
-                // the next OAM y it checks is offseted by the oam size + 1 which causes buggy
+                // the next OAM y it checks is offseted by one extra byte which causes buggy
                 // behaviour when setting SPRITE_OVERFLOW flag.
-                i += 1;
+                byte_offset += 1;
             }
 
-            i += 4;
+            i += 1;
         }
     }
 

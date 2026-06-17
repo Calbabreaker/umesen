@@ -1,6 +1,6 @@
 use crate::{
     cartridge::FixedArray,
-    ppu::{PATTERN_TILE_COUNT, bus::PpuBus, sprite::Attributes},
+    ppu::{PATTERN_TILE_COUNT, Sprite, bus::PpuBus, sprite::Attributes},
 };
 
 bitflags::bitflags! {
@@ -24,7 +24,7 @@ bitflags::bitflags! {
 }
 
 impl Control {
-    pub fn sprite_height(&self) -> u16 {
+    pub fn sprite_height(&self) -> u8 {
         if self.contains(Control::TALL_SPRITES) {
             16
         } else {
@@ -195,7 +195,7 @@ impl std::fmt::Display for TvRegister {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "CX: {}, CY: {}, NXY: {:02b}, FY: {}",
+            "CX: {}, CY: {}, N: {}, FY: {}",
             self.get(TvRegister::COARSE_X),
             self.get(TvRegister::COARSE_Y),
             self.get(TvRegister::NAMETABLE),
@@ -230,7 +230,7 @@ impl Registers {
             // Get PPU memory data
             7 => {
                 // Palette address gets data returned immediately instead of being buffered
-                if self.v.0 >= 0x3f00 {
+                if self.v.0 >= PpuBus::PALETTE_START {
                     self.bus.read_u8(self.v.0)
                 } else {
                     self.read_buffer
@@ -271,6 +271,17 @@ impl Registers {
             6 => self.write_vram_address(value),
             7 => self.write_vram_data(value),
             _ => unreachable!(),
+        }
+    }
+
+    /// Get the sprite at the oam index with a individual byte offset
+    pub fn get_oam_sprite(&self, index: usize, offset: usize) -> Option<Sprite> {
+        let i = index * 4 + offset;
+        if i < self.oam_data.len() {
+            let right_bound = (i + 4).min(self.oam_data.len());
+            Some(Sprite::new(&self.oam_data[i..right_bound], index as u8))
+        } else {
+            None
         }
     }
 

@@ -4,14 +4,15 @@ version = "0.0.0"
 edition = "2024"
 
 [dependencies]
-egui = "0.33"
-eframe = { version = "0.33", default-features = false, features = ["glow", "persistence", "x11"] }
+egui = "0.34"
+eframe = { version = "0.34", default-features = false, features = ["glow", "persistence", "x11"] }
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 umesen-core = { path = "../umesen-core" }
-rfd = "0.16"
+rfd = "0.17"
 indexmap = { version = "2", features = ["serde"] }
 color-eyre = "0.6.5"
+bitflags = "2"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

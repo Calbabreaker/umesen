@@ -53,7 +53,7 @@ impl App {
     fn show_top_bar(&mut self, ui: &mut egui::Ui) {
         // Doing ui.style_mut doesn't actually set the style so you have to do this for some stupid reason
         ui.ctx()
-            .style_mut(|style| style.spacing.menu_width = 10000.);
+            .global_style_mut(|style| style.spacing.menu_width = 10000.);
 
         ui.menu_button("File", |ui| {
             if ui.button("Open ROM...").clicked() {
@@ -166,26 +166,24 @@ impl eframe::App for App {
     }
 
     /// Called each time the UI needs repainting, which may be many times per second.
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        ctx.input_mut(|i| self.check_input(i));
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        ui.input_mut(|i| self.check_input(i));
 
-        self.state.update_emulation(ctx);
+        self.state.update_emulation(ui.ctx());
 
-        let default_bg = ctx.style().visuals.noninteractive().bg_fill;
-        egui::TopBottomPanel::top("top_panel")
+        let default_bg = ui.style().visuals.noninteractive().bg_fill;
+        egui::Panel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
-            .show(ctx, |ui| {
-                egui::MenuBar::new().ui(ui, |ui| {
-                    self.show_top_bar(ui);
-                });
+            .show_inside(ui, |ui| {
+                egui::MenuBar::new().ui(ui, |ui| self.show_top_bar(ui))
             });
 
         self.ui_windows
-            .retain(|kind| kind.show(ctx, &mut self.state, &mut self.preferences));
+            .retain(|kind| kind.show(ui, &mut self.state, &mut self.preferences));
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show(ctx, |ui| {
+            .show_inside(ui, |ui| {
                 ui.centered_and_justified(|ui| {
                     let texture = &self.state.texture_map["ppu_output"];
                     ui.add(egui::Image::new(&texture.handle).fit_to_fraction(egui::vec2(1., 1.)));
