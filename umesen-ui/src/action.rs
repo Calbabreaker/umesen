@@ -26,18 +26,19 @@ impl ActionKind {
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct KeyActionMap {
     pub map: indexmap::IndexMap<ActionKind, egui::KeyboardShortcut>,
     /// The button to bind the next pressed key to
     #[serde(skip)]
-    pub action_waiting_for_press: Option<ActionKind>,
+    pub action_to_rebind: Option<ActionKind>,
 }
 
 impl Default for KeyActionMap {
     fn default() -> Self {
         let mut map = KeyActionMap {
             map: indexmap::IndexMap::default(),
-            action_waiting_for_press: None,
+            action_to_rebind: None,
         };
 
         use ActionKind::*;
@@ -72,7 +73,7 @@ impl Default for KeyActionMap {
 impl KeyActionMap {
     pub fn check_key_down(&mut self, input: &egui::InputState) {
         if let Some(key) = input.keys_down.iter().next()
-            && let Some(action) = self.action_waiting_for_press.take()
+            && let Some(action) = self.action_to_rebind.take()
         {
             self.add_with_mod(action, input.modifiers, *key);
         }
@@ -85,5 +86,18 @@ impl KeyActionMap {
     pub fn add_with_mod(&mut self, action: ActionKind, modifiers: egui::Modifiers, key: egui::Key) {
         self.map
             .insert(action, egui::KeyboardShortcut::new(modifiers, key));
+    }
+
+    pub fn map_iter(
+        &self,
+        controller_num: Option<u8>,
+    ) -> impl Iterator<Item = (&ActionKind, &egui::KeyboardShortcut)> {
+        self.map.iter().filter(move |(a, _)| {
+            if let Some(num) = controller_num {
+                matches!(a, ActionKind::ControllerInput(n, _) if *n == num)
+            } else {
+                !matches!(a, ActionKind::ControllerInput(..))
+            }
+        })
     }
 }

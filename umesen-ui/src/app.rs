@@ -128,13 +128,14 @@ impl App {
     }
 
     fn check_input(&mut self, i: &mut egui::InputState) {
-        // Check every action for if the correspending key was pressed
-        for (action, shortcut) in &self.preferences.key_action_map.map {
-            if !i.modifiers.contains(shortcut.modifiers) {
-                continue;
+        for (action, shortcut) in self.preferences.key_action_map.map_iter(None) {
+            if i.consume_shortcut(shortcut) {
+                self.state.do_action(*action);
             }
+        }
 
-            // Check controller input seperate
+        // Do controller input seperate
+        for (action, shortcut) in &self.preferences.key_action_map.map {
             if let ActionKind::ControllerInput(number, button) = action {
                 let controller = self.state.emu.controller(*number);
                 let key_down = i.key_down(shortcut.logical_key);
@@ -143,8 +144,6 @@ impl App {
                 if !is_illegal || self.preferences.allow_illegal_press {
                     controller.state.set(*button, key_down);
                 }
-            } else if i.key_pressed(shortcut.logical_key) {
-                self.state.do_action(*action);
             }
         }
 

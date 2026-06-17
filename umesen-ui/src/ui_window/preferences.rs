@@ -21,19 +21,24 @@ impl crate::egui_util::UiList for Tab {
 pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
     let tab_open = crate::egui_util::ui_list_tab_group(ui);
 
-    egui::Grid::new("key grid")
-        .striped(true)
-        .show(ui, |ui| match tab_open {
-            Tab::Emulation => {
+    match tab_open {
+        Tab::Emulation => {
+            egui::Grid::new("pref list").striped(true).show(ui, |ui| {
                 ui.label("Allow illegal press: ").on_hover_text(
                     "Allow left and right or up and down to be pressed at the same time",
                 );
                 ui.checkbox(&mut prefs.allow_illegal_press, "");
-            }
-            Tab::KeyBinds => {
-                show_key_map(ui, prefs);
-            }
-        });
+                ui.end_row();
+            });
+        }
+        Tab::KeyBinds => {
+            ui.horizontal_top(|ui| {
+                show_key_map(ui, prefs, None);
+                show_key_map(ui, prefs, Some(0));
+                show_key_map(ui, prefs, Some(1));
+            });
+        }
+    }
 
     ui.separator();
 
@@ -42,20 +47,25 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
     }
 }
 
-fn show_key_map(ui: &mut egui::Ui, prefs: &mut Preferences) {
-    for (action, shortcut) in &prefs.key_action_map.map {
-        ui.label(action.name());
+fn show_key_map(ui: &mut egui::Ui, prefs: &mut Preferences, controller_num: Option<u8>) {
+    egui::Grid::new(format!("Key map {controller_num:?}"))
+        .striped(true)
+        .show(ui, |ui| {
+            let mut action_to_rebind = prefs.key_action_map.action_to_rebind;
+            for (action, shortcut) in prefs.key_action_map.map_iter(controller_num) {
+                ui.label(action.name());
 
-        let action_waiting_for_press = &mut prefs.key_action_map.action_waiting_for_press;
-        let text = if action_waiting_for_press.as_ref() == Some(action) {
-            "...".to_owned()
-        } else {
-            crate::egui_util::get_shortcut_text(shortcut)
-        };
+                let text = if action_to_rebind.as_ref() == Some(action) {
+                    "...".to_owned()
+                } else {
+                    crate::egui_util::get_shortcut_text(shortcut)
+                };
 
-        if ui.button(text).clicked() {
-            *action_waiting_for_press = Some(*action);
-        }
-        ui.end_row();
-    }
+                if ui.button(text).clicked() {
+                    action_to_rebind = Some(*action);
+                }
+                ui.end_row();
+            }
+            prefs.key_action_map.action_to_rebind = action_to_rebind;
+        });
 }
