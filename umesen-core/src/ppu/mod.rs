@@ -172,8 +172,8 @@ impl Ppu {
             // The start location of oam evaluation is taken from oam_address on dot 65
             65 => self.oam_start_address = self.registers.oam_address,
             // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
+            256 => self.sprite_buffer.clear(),
             257 if self.scanline < HEIGHT as u16 => self.eval_sprites(),
-            257 => self.sprite_buffer.clear(),
             258..=320 => self.registers.oam_address = 0,
             321 => {
                 for sprite in &mut self.sprite_buffer {
@@ -188,9 +188,11 @@ impl Ppu {
     fn eval_sprites(&mut self) {
         let mut i = 0;
         let mut byte_offset = self.oam_start_address as usize;
+        let height = self.registers.control.sprite_height() as u16;
         while let Some(sprite) = self.registers.get_oam_sprite(i, byte_offset) {
             // Add to sprite buffer if sprite part of scanline
-            if sprite.y_intersects(self.scanline, self.registers.control.sprite_height()) {
+            // Note that it's loading sprites for the next scanline so all sprite y is offset by one
+            if self.scanline >= sprite.y as u16 && self.scanline < sprite.y as u16 + height {
                 // Check sprite overflow
                 if self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites {
                     self.registers.status.insert(Status::SPRITE_OVERFLOW);

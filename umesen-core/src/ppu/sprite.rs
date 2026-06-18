@@ -42,10 +42,6 @@ impl Sprite {
         }
     }
 
-    pub fn y_intersects(&self, scanline: u16, height: u8) -> bool {
-        scanline as u8 >= self.y && (scanline as u8) < self.y + height
-    }
-
     pub fn tile_number(&self, registers: &Registers) -> u16 {
         let table_number = if registers.control.contains(Control::TALL_SPRITES) {
             // Bit zero contains table number when tall sprites
