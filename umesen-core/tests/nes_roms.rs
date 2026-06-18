@@ -37,7 +37,7 @@ fn nestest() {
         // Current line actually contains the state of the instruction executed last line
         prev_disassem = line_split.next().unwrap().trim();
 
-        emu.cpu.execute_next();
+        emu.cpu.execute_next().unwrap();
     }
 }
 

@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::{Cartridge, Controller, Cpu, NesParseError, ppu};
+use crate::{Cartridge, Controller, Cpu, cartridge::NesParseError, cpu::CpuError, ppu};
 
 /// High level struct for controlling the cpu
 pub struct Emulator {
@@ -21,22 +21,23 @@ impl Default for Emulator {
 
 impl Emulator {
     /// Keep stepping until a frame is generated
-    pub fn next_frame(&mut self) {
+    pub fn next_frame(&mut self) -> Result<(), CpuError> {
         while !self.frame_complete() {
-            self.cpu.execute_next();
+            self.cpu.execute_next()?;
         }
+        Ok(())
     }
 
     /// Let the CPU Keep executing instructions until clocks_remaining is zero or there is a new frame
     /// Returns true if frame a frame is returned
-    pub fn clock_until_frame(&mut self, clocks_remaining: &mut f64) -> bool {
+    pub fn clock_until_frame(&mut self, clocks_remaining: &mut f64) -> Result<bool, CpuError> {
         while *clocks_remaining > 0. {
-            *clocks_remaining -= self.cpu.execute_next() as f64;
+            *clocks_remaining -= self.cpu.execute_next()? as f64;
             if self.frame_complete() {
-                return true;
+                return Ok(true);
             }
         }
-        false
+        Ok(false)
     }
 
     pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {

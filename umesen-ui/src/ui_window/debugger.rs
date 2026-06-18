@@ -40,7 +40,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
 
         if ui.button("Next Frame").clicked() {
             state.running = false;
-            state.emu.next_frame();
+            state.emu.next_frame().ok();
             state.update_ppu_texture();
         }
     });

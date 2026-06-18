@@ -35,6 +35,12 @@ impl Default for Flags {
     }
 }
 
+#[derive(Clone, Debug, thiserror::Error)]
+pub enum CpuError {
+    #[error("CPU encountered a halt instruction")]
+    Halted,
+}
+
 /// Emulated 6502 CPU
 #[derive(Clone, Default)]
 pub struct Cpu {
@@ -57,20 +63,20 @@ pub struct Cpu {
 impl Cpu {
     /// Execute the next instruction at the pc
     /// Returns the number of cpu cycles that the instruction took to execute
-    pub fn execute_next(&mut self) -> u32 {
+    pub fn execute_next(&mut self) -> Result<u32, CpuError> {
         self.bus.cpu_cycles_since_inst = 0;
 
         let byte = self.read_u8_at_pc();
         if let Some(opcode) = Opcode::from_byte(byte) {
             self.operand_address = self.read_operand_address(opcode.addr_mode);
-            self.execute(opcode);
+            self.execute(opcode)?;
         }
 
         if self.bus.require_nmi() {
             self.interrupt(0xfffa, Flags::empty(), 2);
         }
 
-        self.bus.cpu_cycles_since_inst
+        Ok(self.bus.cpu_cycles_since_inst)
     }
 
     // fn irq(&mut self) {
@@ -176,10 +182,12 @@ impl Cpu {
     }
 
     fn read_operand_value(&mut self) -> Option<u8> {
-        Some(self.bus.read_u8(self.operand_address?))
+        let value = self.bus.read_u8(self.operand_address?);
+        self.set_zero_neg_flags(value);
+        Some(value)
     }
 
-    fn execute(&mut self, opcode: Opcode) {
+    fn execute(&mut self, opcode: Opcode) -> Result<(), CpuError> {
         match opcode.name {
             // -- Stack --
             "pha" => self.stack_push(self.a),
@@ -232,12 +240,20 @@ impl Cpu {
             }
 
             // -- Register loads --
-            "lda" => self.a = self.load(),
-            "ldx" => self.x = self.load(),
-            "ldy" => self.y = self.load(),
+            "lda" => self.a = self.read_operand_value().unwrap(),
+            "ldx" => self.x = self.read_operand_value().unwrap(),
+            "ldy" => self.y = self.read_operand_value().unwrap(),
             "lax" => {
-                self.a = self.load();
+                self.a = self.read_operand_value().unwrap();
                 self.x = self.a;
+            }
+            "las" => {
+                self.a = self.read_operand_value().unwrap() & self.sp;
+                (self.x, self.sp) = (self.a, self.a);
+            }
+            "lxa" => {
+                self.a &= self.read_operand_value().unwrap();
+                self.x = self.transfer(self.a);
             }
 
             // -- Register stores --
@@ -260,19 +276,28 @@ impl Cpu {
             "tya" => self.a = self.transfer(self.y),
 
             // -- Flag clear and set --
-            "clc" => self.set_flag(Flags::CARRY, false),
-            "cld" => self.set_flag(Flags::DECIMAL, false),
-            "cli" => self.set_flag(Flags::INTERRUPT, false),
-            "clv" => self.set_flag(Flags::OVERFLOW, false),
-            "sec" => self.set_flag(Flags::CARRY, true),
-            "sed" => self.set_flag(Flags::DECIMAL, true),
-            "sei" => self.set_flag(Flags::INTERRUPT, true),
+            "clc" => self.flag(Flags::CARRY, false),
+            "cld" => self.flag(Flags::DECIMAL, false),
+            "cli" => self.flag(Flags::INTERRUPT, false),
+            "clv" => self.flag(Flags::OVERFLOW, false),
+            "sec" => self.flag(Flags::CARRY, true),
+            "sed" => self.flag(Flags::DECIMAL, true),
+            "sei" => self.flag(Flags::INTERRUPT, true),
 
             // -- Logic --
             "and" => self.a &= self.read_operand_value().unwrap(),
             "eor" => self.a ^= self.read_operand_value().unwrap(),
             "ora" => self.a |= self.read_operand_value().unwrap(),
             "bit" => self.bit(),
+            "anc" => {
+                self.a &= self.read_operand_value().unwrap();
+                self.flags.set(Flags::CARRY, self.a & 0b1000_0000 != 0)
+            }
+            "asr" => {
+                self.a &= self.read_operand_value().unwrap();
+                self.a = self.calc_shift(self.a, false, false);
+            }
+            "arr" => self.arr(),
 
             "cmp" => self.compare(self.a, None),
             "cpx" => self.compare(self.x, None),
@@ -295,16 +320,18 @@ impl Cpu {
             "bvs" => self.branch(self.flags.contains(Flags::OVERFLOW)),
 
             // Does nothing
-            "nop" => self.bus.clock(),
+            "nop" => self.nop(),
+            "hlt" => return Err(CpuError::Halted),
             _ => unreachable!("invalid opcode name {}", opcode.name),
         }
 
         match opcode.name {
-            "pla" | "and" | "eor" | "ora" | "slo" | "rla" | "sre" => {
+            "las" | "pla" | "slo" | "rla" | "sre" | "ora" | "eor" | "and" | "anc" => {
                 self.set_zero_neg_flags(self.a)
             }
             _ => (),
         }
+        Ok(())
     }
 
     fn set_zero_neg_flags(&mut self, value: u8) {
@@ -349,6 +376,18 @@ impl Cpu {
         self.flags.remove(Flags::BREAK);
     }
 
+    fn calc_shift(&mut self, value: u8, is_left: bool, contains_carry: bool) -> u8 {
+        let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
+        let (result, carry_mask) = match is_left {
+            true => ((value << 1) | carry, 0b1000_0000),
+            false => ((value >> 1) | (carry << 7), 0b0000_0001),
+        };
+
+        self.flags.set(Flags::CARRY, value & carry_mask != 0);
+        self.set_zero_neg_flags(result);
+        result
+    }
+
     fn shift(&mut self, is_left: bool, contains_carry: bool) -> u8 {
         let value = self.read_operand_value().unwrap_or(self.a);
         // Read-modify-update instructions like shift whatever immediately writes the value in the
@@ -360,15 +399,7 @@ impl Cpu {
             self.bus.clock();
         };
 
-        let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
-        let (result, carry_mask) = match is_left {
-            true => ((value << 1) | carry, 0b1000_0000),
-            false => ((value >> 1) | (carry << 7), 0b0000_0001),
-        };
-
-        self.flags.set(Flags::CARRY, value & carry_mask != 0);
-        self.set_zero_neg_flags(result);
-
+        let result = self.calc_shift(value, is_left, contains_carry);
         if let Some(address) = self.operand_address {
             self.bus.write_u8(address, result);
         } else {
@@ -412,15 +443,18 @@ impl Cpu {
         self.a = result as u8;
     }
 
-    fn load(&mut self) -> u8 {
-        let value = self.read_operand_value().unwrap();
-        self.set_zero_neg_flags(value);
-        value
-    }
-
-    fn set_flag(&mut self, flag: Flags, value: bool) {
+    fn flag(&mut self, flag: Flags, value: bool) {
         self.flags.set(flag, value);
         self.bus.clock();
+    }
+
+    fn arr(&mut self) {
+        self.a &= self.read_operand_value().unwrap();
+        self.a = self.calc_shift(self.a, false, true);
+        let bit_5 = (self.a & 0b0001_0000) >> 4;
+        let bit_6 = (self.a & 0b0010_0000) >> 5;
+        self.flags.set(Flags::CARRY, bit_5 == 1);
+        self.flags.set(Flags::OVERFLOW, bit_5 ^ bit_6 == 1);
     }
 
     fn bit(&mut self) {
@@ -473,6 +507,15 @@ impl Cpu {
                 self.bus.clock();
             }
             self.pc = address;
+        }
+    }
+
+    fn nop(&mut self) {
+        if let Some(address) = self.operand_address {
+            // Dummy read for nop instructions with address
+            self.bus.read_u8(address);
+        } else {
+            self.bus.clock();
         }
     }
 }

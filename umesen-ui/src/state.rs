@@ -44,10 +44,17 @@ impl State {
         self.clocks_remaining += elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ;
 
         while self.clocks_remaining > 0. {
-            let frame_complete = self.emu.clock_until_frame(&mut self.clocks_remaining);
-            // Don't sync to screen if speed is less than 1 for debugging
-            if frame_complete || self.speed < 1. {
-                self.update_ppu_texture();
+            match self.emu.clock_until_frame(&mut self.clocks_remaining) {
+                Ok(frame_complete) => {
+                    // Don't sync to screen if speed is less than 1 for debugging
+                    if frame_complete || self.speed < 1. {
+                        self.update_ppu_texture();
+                    }
+                }
+                Err(err) => {
+                    log::warn!("CPU halted: {err}");
+                    self.running = false
+                }
             }
         }
 
@@ -72,7 +79,7 @@ impl State {
             ActionKind::PauseResume => self.running = !self.running,
             ActionKind::Step => {
                 self.running = false;
-                self.emu.cpu.execute_next();
+                self.emu.cpu.execute_next().ok();
                 self.update_ppu_texture();
             }
             ActionKind::QuickSave => {

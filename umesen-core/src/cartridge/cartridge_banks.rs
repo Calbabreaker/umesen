@@ -42,11 +42,11 @@ impl MemoryBanks {
         }
     }
 
-    pub fn read(&self, bank_mapping: BankMapping, offset: u16) -> u8 {
+    pub fn read(&self, bank_mapping: BankMapping, offset: u16) -> Option<u8> {
         if !self.0.is_empty() {
-            self.0[self.index(bank_mapping, offset)]
+            Some(self.0[self.index(bank_mapping, offset)])
         } else {
-            0
+            None
         }
     }
 

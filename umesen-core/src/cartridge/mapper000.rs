@@ -7,11 +7,11 @@ pub struct Mapper000 {}
 
 impl Mapper for Mapper000 {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
-        Some(match address {
+        match address {
             0x6000..=0x7fff => banks.prg_ram.read((8, Bank::Number(0)), address),
             0x8000..=0xffff => banks.prg_rom.read((32, Bank::Number(0)), address),
-            _ => return None,
-        })
+            _ => None,
+        }
     }
 
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {

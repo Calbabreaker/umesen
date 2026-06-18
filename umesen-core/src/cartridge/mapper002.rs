@@ -9,13 +9,13 @@ pub struct Mapper002 {
 
 impl Mapper for Mapper002 {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
-        Some(match address {
+        match address {
             0x8000..=0xbfff => banks
                 .prg_rom
                 .read((16, Bank::Number(self.bank_number_low)), address),
             0xc000..=0xffff => banks.prg_rom.read((16, Bank::Last), address),
-            _ => return None,
-        })
+            _ => None,
+        }
     }
 
     fn cpu_write(&mut self, _: &mut CartridgeBanks, address: u16, value: u8) {

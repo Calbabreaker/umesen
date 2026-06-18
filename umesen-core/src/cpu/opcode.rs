@@ -190,6 +190,8 @@ impl Opcode {
             0xa3 => Opcode::new("lax", IndirectX),
             0xb3 => Opcode::new("lax", IndirectY),
 
+            0xbb => Opcode::new("las", AbsoluteY),
+
             // -- Register stores --
             0x85 => Opcode::new("sta", ZeroPage),
             0x95 => Opcode::new("sta", ZeroPageX),
@@ -260,6 +262,12 @@ impl Opcode {
             0x01 => Opcode::new("ora", IndirectX),
             0x11 => Opcode::new("ora", IndirectY),
 
+            0x0b => Opcode::new("anc", Immediate),
+            0x2b => Opcode::new("anc", Immediate),
+            0x4b => Opcode::new("asr", Immediate),
+            0x6b => Opcode::new("arr", Immediate),
+            0xab => Opcode::new("lxa", Immediate),
+
             0xc9 => Opcode::new("cmp", Immediate),
             0xc5 => Opcode::new("cmp", ZeroPage),
             0xd5 => Opcode::new("cmp", ZeroPageX),
@@ -295,12 +303,16 @@ impl Opcode {
             0x70 => Opcode::new("bvs", Relative),
 
             // Nop madness but like why are there so many nop opcodes
-            0xea | 0x1a | 0x3a | 0x5a | 0x7a | 0xda | 0xfa => Opcode::new("nop", Implied),
-            0x80 => Opcode::new("nop", Immediate),
+            0x1a | 0x3a | 0x5a | 0x7a | 0xda | 0xea | 0xfa => Opcode::new("nop", Implied),
+            0x80 | 0x82 | 0x89 | 0xc2 | 0xe2 => Opcode::new("nop", Immediate),
             0x04 | 0x44 | 0x64 => Opcode::new("nop", ZeroPage),
             0x14 | 0x34 | 0x54 | 0x74 | 0xd4 | 0xf4 => Opcode::new("nop", ZeroPageX),
             0x0c => Opcode::new("nop", Absolute),
             0x1c | 0x3c | 0x5c | 0x7c | 0xdc | 0xfc => Opcode::new("nop", AbsoluteX),
+
+            0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xb2 | 0xd2 | 0xf2 => {
+                Opcode::new("hlt", Implied)
+            }
             _ => return None,
         })
     }
