@@ -7,6 +7,7 @@ use crate::{ActionKind, texture::Texture};
 pub struct Preferences {
     pub key_action_map: crate::KeyActionMap,
     pub allow_illegal_press: bool,
+    pub allow_unlimted_sprites: bool,
 }
 
 #[derive(Default)]
@@ -42,7 +43,6 @@ impl State {
         }
 
         self.clocks_remaining += elapsed_secs * umesen_core::cpu::CLOCK_SPEED_HZ;
-
         while self.clocks_remaining > 0. {
             match self.emu.clock_until_frame(&mut self.clocks_remaining) {
                 Ok(frame_complete) => {

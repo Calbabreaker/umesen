@@ -69,7 +69,7 @@ impl Sprite {
         let mut fine_y = scanline - self.y as u16;
         if self.attributes.contains(Attributes::FLIP_VERTICAL) {
             // Flip the fine y
-            fine_y = (registers.control.sprite_height() as u16 - 1) - fine_y;
+            fine_y = (registers.control.sprite_height() as u16 - 1).wrapping_sub(fine_y);
         }
 
         // Go to the next tile if y is greater than tile

@@ -24,10 +24,15 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
     match tab_open {
         Tab::Emulation => {
             egui::Grid::new("pref list").striped(true).show(ui, |ui| {
-                ui.label("Allow illegal press: ").on_hover_text(
+                ui.label("Allow illegal press ").on_hover_text(
                     "Allow left and right or up and down to be pressed at the same time",
                 );
                 ui.checkbox(&mut prefs.allow_illegal_press, "");
+                ui.end_row();
+                ui.label("Allow unlimited sprites").on_hover_text(
+                    "Allow unlimited sprites to be rendered on the same scanline at a time instead of the usual 8",
+                );
+                ui.checkbox(&mut prefs.allow_unlimted_sprites, "");
                 ui.end_row();
             });
         }

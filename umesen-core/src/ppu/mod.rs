@@ -12,6 +12,7 @@ pub use sprite::Sprite;
 
 pub const WIDTH: usize = 256;
 pub const HEIGHT: usize = 240;
+pub const MAX_SPRITES_PER_SCAN: usize = 8;
 
 /// Emulated 2C02 NTSC PPU
 #[derive(Clone, Default)]
@@ -21,6 +22,7 @@ pub struct Ppu {
     pub scanline: u16,
     pub dot: u16,
     pub screen_pixels: FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>,
+    pub unlimited_sprites: bool,
     pub(crate) frame_complete: bool,
     pub(crate) require_nmi: bool,
 
@@ -33,8 +35,7 @@ pub struct Ppu {
     odd_frame: bool,
 
     /// Buffer of sprites to render next scanline
-    sprite_buffer: [Sprite; 8],
-    sprite_count: u8,
+    sprite_buffer: Vec<Sprite>,
     oam_start_address: u8,
 }
 
@@ -171,12 +172,11 @@ impl Ppu {
             // The start location of oam evaluation is taken from oam_address on dot 65
             65 => self.oam_start_address = self.registers.oam_address,
             // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
-            257 if self.scanline < HEIGHT as u16 => {
-                self.eval_sprites();
-            }
+            257 if self.scanline < HEIGHT as u16 => self.eval_sprites(),
+            257 => self.sprite_buffer.clear(),
             258..=320 => self.registers.oam_address = 0,
             321 => {
-                for sprite in &mut self.sprite_buffer[0..self.sprite_count as usize] {
+                for sprite in &mut self.sprite_buffer {
                     sprite.load_shift_bits(self.scanline, &self.registers);
                 }
             }
@@ -186,22 +186,19 @@ impl Ppu {
 
     /// Populates the sprite buffer for the next scanline and checks SPRITE_OVERFLOW
     fn eval_sprites(&mut self) {
-        self.sprite_count = 0;
-
         let mut i = 0;
         let mut byte_offset = self.oam_start_address as usize;
         while let Some(sprite) = self.registers.get_oam_sprite(i, byte_offset) {
             // Add to sprite buffer if sprite part of scanline
             if sprite.y_intersects(self.scanline, self.registers.control.sprite_height()) {
                 // Check sprite overflow
-                if self.sprite_count == 8 {
+                if self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites {
                     self.registers.status.insert(Status::SPRITE_OVERFLOW);
                     break;
                 }
 
-                self.sprite_buffer[self.sprite_count as usize] = sprite;
-                self.sprite_count += 1;
-            } else if self.sprite_count == 8 {
+                self.sprite_buffer.push(sprite);
+            } else if self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites {
                 // After 8 sprites has been filled, the PPU will check for overflow by
                 // searching for another sprite that is in the scanline.
                 // But for some reason, when it doesn't find a sprite after filled,
@@ -247,7 +244,7 @@ impl Ppu {
 
         if self.registers.mask.can_show_sprite(scan_x) {
             // Find sprite to render
-            for sprite in &self.sprite_buffer[0..self.sprite_count as usize] {
+            for sprite in &self.sprite_buffer {
                 let color_index = sprite.color_index(scan_x);
                 if color_index == 0 {
                     continue;

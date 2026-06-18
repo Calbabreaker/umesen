@@ -169,6 +169,8 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         ui.input_mut(|i| self.check_input(i));
 
+        self.state.emu.cpu.bus.ppu.unlimited_sprites = self.preferences.allow_unlimted_sprites;
+
         self.state.update_emulation(ui.ctx());
 
         let default_bg = ui.style().visuals.noninteractive().bg_fill;
