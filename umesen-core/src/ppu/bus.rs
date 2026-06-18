@@ -10,6 +10,7 @@ const PALETTE_RAM_SIZE: usize = 0x20;
 const NAMETABLE_RAM_SIZE: usize = 0x800;
 /// Size of one pattern table in number of tiles (aka one byte), add this to tile number to access the next pattern table
 pub const PATTERN_TILE_COUNT: u16 = 256;
+pub const PALETTE_START: u16 = 0x3f00;
 
 #[derive(Clone, Default)]
 pub struct PpuBus {
@@ -19,23 +20,22 @@ pub struct PpuBus {
 }
 
 impl PpuBus {
-    pub const PALETTE_START: u16 = 0x3f00;
-
-    pub fn read_u8(&self, mut address: u16) -> u8 {
-        address %= 0x4000;
+    pub fn read_u8(&self, address: u16) -> u8 {
+        std::debug_assert_matches!(address, 0x0000..=0x3fff);
         match address {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
                 Some(cartridge) => cartridge.borrow().ppu_read(address),
                 None => 0,
             },
             0x2000..=0x3eff => self.nametable_ram[self.mirror_nametable(address)],
-            Self::PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)],
+            // Palette byte is only 6 bit
+            PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)],
             _ => unreachable!(),
         }
     }
 
-    pub fn write_u8(&mut self, mut address: u16, value: u8) {
-        address %= 0x4000;
+    pub fn write_u8(&mut self, address: u16, value: u8) {
+        std::debug_assert_matches!(address, 0x0000..=0x3fff);
         match address {
             0x0000..=0x1fff => {
                 if let Some(cartridge) = self.cartridge.as_ref() {
@@ -46,7 +46,7 @@ impl PpuBus {
                 let address = self.mirror_nametable(address);
                 self.nametable_ram[address] = value;
             }
-            Self::PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)] = value,
+            PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)] = value,
             _ => unreachable!(),
         }
     }

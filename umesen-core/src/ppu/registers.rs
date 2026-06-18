@@ -1,6 +1,6 @@
 use crate::{
     cartridge::FixedArray,
-    ppu::{PATTERN_TILE_COUNT, Sprite, bus::PpuBus, sprite::Attributes},
+    ppu::{PALETTE_START, PATTERN_TILE_COUNT, Sprite, bus::PpuBus, sprite::Attributes},
 };
 
 bitflags::bitflags! {
@@ -228,20 +228,13 @@ impl Registers {
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
             4 => self.oam_data[self.oam_address as usize],
             // Get PPU memory data
-            7 => {
-                // Palette address gets data returned immediately instead of being buffered
-                if self.v.0 >= PpuBus::PALETTE_START {
-                    self.bus.read_u8(self.v.0)
-                } else {
-                    self.read_buffer
-                }
-            }
+            7 => self.read_buffer,
             _ => self.open_bus,
         }
     }
 
     pub(crate) fn read_u8(&mut self, address: u16) -> u8 {
-        let output = self.immut_read_u8(address);
+        let mut output = self.immut_read_u8(address);
         match address % 8 {
             2 => {
                 // Reset latch when read for real
@@ -249,7 +242,14 @@ impl Registers {
                 self.latch = false;
             }
             7 => {
-                self.read_buffer = self.bus.read_u8(self.v.0);
+                // Palette address gets data returned immediately instead of being buffered
+                // but read_buffer populated with nametable data
+                if self.v.0 >= PALETTE_START {
+                    output = self.read_palette_ram(self.v.0);
+                    self.read_buffer = self.bus.read_u8(0x2f00 | (self.v.0 & 0xff));
+                } else {
+                    self.read_buffer = self.bus.read_u8(self.v.0);
+                }
                 self.increment_v_register();
             }
             _ => (),
@@ -285,6 +285,15 @@ impl Registers {
         }
     }
 
+    pub fn read_palette_ram(&self, offset: u16) -> u8 {
+        let address = PALETTE_START | (offset & 0xff);
+        let mut value = (self.bus.read_u8(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
+        if self.mask.contains(Mask::GRAYSCALE) {
+            value &= 0x30;
+        }
+        value
+    }
+
     pub(crate) fn write_oam_data(&mut self, mut value: u8) {
         // Zero out unused bits when setting the attribute byte of oam
         if self.oam_address % 4 == 2 {
@@ -318,9 +327,9 @@ impl Registers {
 
     fn write_vram_address(&mut self, value: u8) {
         if !self.latch {
-            self.t.set(TvRegister::HIGH, value);
+            // The two high bits are ignore since vram address is 14 bit
+            self.t.set(TvRegister::HIGH, value & 0b0011_1111);
         } else {
-            // Write low byte and copy to v_register
             self.t.set(TvRegister::LOW, value);
             self.v = self.t;
         }

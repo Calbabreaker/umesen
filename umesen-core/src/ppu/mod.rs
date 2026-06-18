@@ -43,9 +43,8 @@ impl Ppu {
     /// Gets a RGB color from the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
     pub fn get_palette_color(&self, color_index: impl Into<u16>) -> [u8; 3] {
         let offset = color_index.into();
-        debug_assert!((0..64).contains(&offset));
-        let palette_index = self.registers.bus.read_u8(0x3f00 + offset);
-        self.palette.get(palette_index)
+        std::debug_assert_matches!(offset, 0..64);
+        self.palette.get(self.registers.read_palette_ram(offset))
     }
 
     pub fn get_palette_colors(&self, palette_id: u8) -> [[u8; 3]; 4] {
@@ -87,10 +86,10 @@ impl Ppu {
                 let color_index = if self.registers.mask.is_rendering() {
                     let bg_color_index = self.render_bg_pixel(x);
                     self.render_fg_pixel(x, bg_color_index)
-                } else if matches!(self.registers.v.0, PpuBus::PALETTE_START..=0x3fff) {
+                } else if matches!(self.registers.v.0, PALETTE_START..=0x3fff) {
                     // If v register is pointing to pallette address then use that color instead
                     // of the backdrop color
-                    (self.registers.v.0 - PpuBus::PALETTE_START) as u8
+                    (self.registers.v.0 - PALETTE_START) as u8
                 } else {
                     0
                 };
