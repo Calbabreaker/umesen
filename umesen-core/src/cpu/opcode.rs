@@ -18,20 +18,21 @@ pub enum AddrMode {
     /// Same as Absolute + x register
     AbsoluteX,
     /// Same as AbsoluteX but always clock when it would otherwise depend on page cross
-    AbsoluteXForceClock,
+    AbsoluteXForceDummy,
     /// Same as Absolute + y register
     AbsoluteY,
-    AbsoluteYForceClock,
+    AbsoluteYForceDummy,
     /// Operand contains the address to the address
     Indirect,
     /// Operand contains the address (with x added) to the address
     IndirectX,
     /// Operand contains the address to the address (with y added)
     IndirectY,
-    IndirectYForceClock,
+    IndirectYForceDummy,
     Relative,
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct Opcode {
     pub name: &'static str,
     pub addr_mode: AddrMode,
@@ -57,25 +58,25 @@ impl Opcode {
             0x06 => Opcode::new("asl", ZeroPage),
             0x16 => Opcode::new("asl", ZeroPageX),
             0x0e => Opcode::new("asl", Absolute),
-            0x1e => Opcode::new("asl", AbsoluteXForceClock),
+            0x1e => Opcode::new("asl", AbsoluteXForceDummy),
 
             0x4a => Opcode::new("lsr", Accumulator),
             0x46 => Opcode::new("lsr", ZeroPage),
             0x56 => Opcode::new("lsr", ZeroPageX),
             0x4e => Opcode::new("lsr", Absolute),
-            0x5e => Opcode::new("lsr", AbsoluteXForceClock),
+            0x5e => Opcode::new("lsr", AbsoluteXForceDummy),
 
             0x2a => Opcode::new("rol", Accumulator),
             0x26 => Opcode::new("rol", ZeroPage),
             0x36 => Opcode::new("rol", ZeroPageX),
             0x2e => Opcode::new("rol", Absolute),
-            0x3e => Opcode::new("rol", AbsoluteXForceClock),
+            0x3e => Opcode::new("rol", AbsoluteXForceDummy),
 
             0x6a => Opcode::new("ror", Accumulator),
             0x66 => Opcode::new("ror", ZeroPage),
             0x76 => Opcode::new("ror", ZeroPageX),
             0x6e => Opcode::new("ror", Absolute),
-            0x7e => Opcode::new("ror", AbsoluteXForceClock),
+            0x7e => Opcode::new("ror", AbsoluteXForceDummy),
 
             0x07 => Opcode::new("slo", ZeroPage),
             0x17 => Opcode::new("slo", ZeroPageX),
@@ -132,12 +133,12 @@ impl Opcode {
             0xe6 => Opcode::new("inc", ZeroPage),
             0xf6 => Opcode::new("inc", ZeroPageX),
             0xee => Opcode::new("inc", Absolute),
-            0xfe => Opcode::new("inc", AbsoluteXForceClock),
+            0xfe => Opcode::new("inc", AbsoluteXForceDummy),
 
             0xc6 => Opcode::new("dec", ZeroPage),
             0xd6 => Opcode::new("dec", ZeroPageX),
             0xce => Opcode::new("dec", Absolute),
-            0xde => Opcode::new("dec", AbsoluteXForceClock),
+            0xde => Opcode::new("dec", AbsoluteXForceDummy),
 
             0xe8 => Opcode::new("inx", Implied),
             0xc8 => Opcode::new("iny", Implied),
@@ -193,10 +194,10 @@ impl Opcode {
             0x85 => Opcode::new("sta", ZeroPage),
             0x95 => Opcode::new("sta", ZeroPageX),
             0x8d => Opcode::new("sta", Absolute),
-            0x9d => Opcode::new("sta", AbsoluteXForceClock),
-            0x99 => Opcode::new("sta", AbsoluteYForceClock),
+            0x9d => Opcode::new("sta", AbsoluteXForceDummy),
+            0x99 => Opcode::new("sta", AbsoluteYForceDummy),
             0x81 => Opcode::new("sta", IndirectX),
-            0x91 => Opcode::new("sta", IndirectYForceClock),
+            0x91 => Opcode::new("sta", IndirectYForceDummy),
 
             0x8e => Opcode::new("stx", Absolute),
             0x86 => Opcode::new("stx", ZeroPage),

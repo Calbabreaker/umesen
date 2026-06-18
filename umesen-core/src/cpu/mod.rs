@@ -50,6 +50,7 @@ pub struct Cpu {
     pub y: u8,
     pub flags: Flags,
     pub bus: CpuBus,
+    // Temp value storing the operand address
     operand_address: Option<u16>,
 }
 
@@ -62,7 +63,7 @@ impl Cpu {
         let byte = self.read_u8_at_pc();
         if let Some(opcode) = Opcode::from_byte(byte) {
             self.operand_address = self.read_operand_address(opcode.addr_mode);
-            self.execute(&opcode);
+            self.execute(opcode);
         }
 
         if self.bus.require_nmi() {
@@ -108,18 +109,21 @@ impl Cpu {
     }
 
     fn address_add_offset(&mut self, address: u16, offset: u8, mode: AddrMode) -> u16 {
-        let address_added = address.wrapping_add(offset as u16);
-        let force_clock = matches!(
+        let address_offset = address.wrapping_add(offset as u16);
+        let force_dummy = matches!(
             mode,
-            AddrMode::AbsoluteYForceClock
-                | AddrMode::AbsoluteXForceClock
-                | AddrMode::IndirectYForceClock
+            AddrMode::AbsoluteYForceDummy
+                | AddrMode::AbsoluteXForceDummy
+                | AddrMode::IndirectYForceDummy
         );
-        // Check page cross
-        if force_clock || address & 0xff00 != address_added & 0xff00 {
-            self.bus.clock();
+        // The CPU will first add the offset with the low byte of the address and try to read from there
+        // Then it will check if the page has been crossed and read with the correct high byte if needs be
+        if force_dummy || address_offset & 0xff00 != address & 0xff00 {
+            // The dummy read if page crossed
+            self.bus
+                .read_u8((address & 0xff00) | (address_offset & 0x00ff));
         }
-        address_added
+        address_offset
     }
 
     /// Returns the target address of the value based on the addressing mode and the operand
@@ -142,11 +146,11 @@ impl Cpu {
                 self.read_u8_at_pc().wrapping_add(self.y) as u16
             }
             AddrMode::Absolute => self.read_u16_at_pc(),
-            AddrMode::AbsoluteX | AddrMode::AbsoluteXForceClock => {
+            AddrMode::AbsoluteX | AddrMode::AbsoluteXForceDummy => {
                 let address = self.read_u16_at_pc();
                 self.address_add_offset(address, self.x, mode)
             }
-            AddrMode::AbsoluteY | AddrMode::AbsoluteYForceClock => {
+            AddrMode::AbsoluteY | AddrMode::AbsoluteYForceDummy => {
                 let address = self.read_u16_at_pc();
                 self.address_add_offset(address, self.y, mode)
             }
@@ -159,7 +163,7 @@ impl Cpu {
                 self.bus.clock();
                 self.bus.read_u16_wrapped(indirect_address as u16)
             }
-            AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
+            AddrMode::IndirectY | AddrMode::IndirectYForceDummy => {
                 let indirect_address = self.read_u8_at_pc();
                 let address = self.bus.read_u16_wrapped(indirect_address as u16);
                 self.address_add_offset(address, self.y, mode)
@@ -171,17 +175,11 @@ impl Cpu {
         })
     }
 
-    fn read_operand_value(&mut self) -> u8 {
-        let value = self
-            .operand_address
-            .map(|address| self.bus.read_u8(address))
-            // Assume we're working with the accumulator for certain instructions if no operand_address in addressing mode
-            .unwrap_or(self.a);
-        self.set_zero_neg_flags(value);
-        value
+    fn read_operand_value(&mut self) -> Option<u8> {
+        Some(self.bus.read_u8(self.operand_address?))
     }
 
-    fn execute(&mut self, opcode: &Opcode) {
+    fn execute(&mut self, opcode: Opcode) {
         match opcode.name {
             // -- Stack --
             "pha" => self.stack_push(self.a),
@@ -206,53 +204,59 @@ impl Cpu {
 
             // -- Arithmetic --
             "adc" => {
-                let adder = self.read_operand_value();
+                let adder = self.read_operand_value().unwrap();
                 self.add_carry(adder)
             }
             "sbc" => {
                 // Inverting results in inverting the sign so the adc can be resued for sbc
-                let adder = !self.read_operand_value();
+                let adder = !self.read_operand_value().unwrap();
                 self.add_carry(adder)
             }
 
             // -- Increment and decrement --
-            "inc" => drop(self.inc_mem(1)),
-            "dec" => drop(self.inc_mem(-1)),
-            "inx" => self.x = self.inc_val(self.x, 1),
-            "iny" => self.y = self.inc_val(self.y, 1),
-            "dex" => self.x = self.inc_val(self.x, -1),
-            "dey" => self.y = self.inc_val(self.y, -1),
-
+            "inc" => drop(self.increment(1, None)),
+            "dec" => drop(self.increment(-1, None)),
+            "inx" => self.x = self.increment(1, Some(self.x)),
+            "iny" => self.y = self.increment(1, Some(self.y)),
+            "dex" => self.x = self.increment(-1, Some(self.x)),
+            "dey" => self.y = self.increment(-1, Some(self.y)),
             "isc" => {
-                let adder = !self.inc_mem(1);
+                // inc + adc
+                let adder = !self.increment(1, None);
                 self.add_carry(adder);
             }
             "dcp" => {
-                let value = self.inc_mem(-1);
-                self.set_compare_flags(self.a, value);
+                // dec + cmp
+                let value = self.increment(-1, None);
+                self.compare(self.a, Some(value));
             }
 
             // -- Register loads --
-            "lda" => self.a = self.read_operand_value(),
-            "ldx" => self.x = self.read_operand_value(),
-            "ldy" => self.y = self.read_operand_value(),
+            "lda" => self.a = self.load(),
+            "ldx" => self.x = self.load(),
+            "ldy" => self.y = self.load(),
             "lax" => {
-                self.a = self.read_operand_value();
+                self.a = self.load();
                 self.x = self.a;
             }
 
             // -- Register stores --
-            "sta" => self.store_mem(self.a),
-            "stx" => self.store_mem(self.x),
-            "sty" => self.store_mem(self.y),
-            "sax" => self.store_mem(self.a & self.x),
+            "sta" => self.bus.write_u8(self.operand_address.unwrap(), self.a),
+            "stx" => self.bus.write_u8(self.operand_address.unwrap(), self.x),
+            "sty" => self.bus.write_u8(self.operand_address.unwrap(), self.y),
+            "sax" => self
+                .bus
+                .write_u8(self.operand_address.unwrap(), self.a & self.x),
 
             // -- Register transfers --
             "tax" => self.x = self.transfer(self.a),
             "tay" => self.y = self.transfer(self.a),
             "tsx" => self.x = self.transfer(self.sp),
             "txa" => self.a = self.transfer(self.x),
-            "txs" => self.sp = self.x,
+            "txs" => {
+                self.sp = self.x;
+                self.bus.clock();
+            }
             "tya" => self.a = self.transfer(self.y),
 
             // -- Flag clear and set --
@@ -265,14 +269,14 @@ impl Cpu {
             "sei" => self.set_flag(Flags::INTERRUPT, true),
 
             // -- Logic --
-            "and" => self.a &= self.read_operand_value(),
-            "eor" => self.a ^= self.read_operand_value(),
-            "ora" => self.a |= self.read_operand_value(),
+            "and" => self.a &= self.read_operand_value().unwrap(),
+            "eor" => self.a ^= self.read_operand_value().unwrap(),
+            "ora" => self.a |= self.read_operand_value().unwrap(),
             "bit" => self.bit(),
 
-            "cmp" => self.compare(self.a),
-            "cpx" => self.compare(self.x),
-            "cpy" => self.compare(self.y),
+            "cmp" => self.compare(self.a, None),
+            "cpx" => self.compare(self.x, None),
+            "cpy" => self.compare(self.y, None),
 
             // -- Control flow --
             "jmp" => self.pc = self.operand_address.unwrap(),
@@ -291,15 +295,14 @@ impl Cpu {
             "bvs" => self.branch(self.flags.contains(Flags::OVERFLOW)),
 
             // Does nothing
-            "nop" => (),
+            "nop" => self.bus.clock(),
             _ => unreachable!("invalid opcode name {}", opcode.name),
-        };
+        }
 
         match opcode.name {
             "pla" | "and" | "eor" | "ora" | "slo" | "rla" | "sre" => {
                 self.set_zero_neg_flags(self.a)
             }
-            "nop" | "txs" => self.bus.clock(),
             _ => (),
         }
     }
@@ -307,11 +310,6 @@ impl Cpu {
     fn set_zero_neg_flags(&mut self, value: u8) {
         self.flags.set(Flags::ZERO, value == 0);
         self.flags.set(Flags::NEGATIVE, value & 0b1000_0000 != 0);
-    }
-
-    fn set_compare_flags(&mut self, register: u8, value: u8) {
-        self.flags.set(Flags::CARRY, register >= value);
-        self.set_zero_neg_flags(register.wrapping_sub(value));
     }
 
     // This just returns the value but also clocks the bus and sets zero and neg flags for certain instructions
@@ -352,7 +350,16 @@ impl Cpu {
     }
 
     fn shift(&mut self, is_left: bool, contains_carry: bool) -> u8 {
-        let value = self.read_operand_value();
+        let value = self.read_operand_value().unwrap_or(self.a);
+        // Read-modify-update instructions like shift whatever immediately writes the value in the
+        // same cycle as performing the operation
+        if let Some(address) = self.operand_address {
+            self.bus.write_u8(address, value);
+        } else {
+            // Still a cycle for implied addressing mode
+            self.bus.clock();
+        };
+
         let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
         let (result, carry_mask) = match is_left {
             true => ((value << 1) | carry, 0b1000_0000),
@@ -361,7 +368,6 @@ impl Cpu {
 
         self.flags.set(Flags::CARRY, value & carry_mask != 0);
         self.set_zero_neg_flags(result);
-        self.bus.clock();
 
         if let Some(address) = self.operand_address {
             self.bus.write_u8(address, result);
@@ -371,15 +377,20 @@ impl Cpu {
         result
     }
 
-    fn inc_val(&mut self, value: u8, sign: i8) -> u8 {
+    fn increment(&mut self, sign: i8, value_override: Option<u8>) -> u8 {
+        let value = value_override
+            .or_else(|| self.read_operand_value())
+            .unwrap();
         let result = (value as i8).wrapping_add(sign) as u8;
-        self.transfer(result)
-    }
-
-    fn inc_mem(&mut self, sign: i8) -> u8 {
-        let value = self.read_operand_value();
-        let result = self.inc_val(value, sign);
-        self.store_mem(result);
+        if value_override.is_none() {
+            // Should not be a implied addressing mode
+            self.bus.write_u8(self.operand_address.unwrap(), value); // See shift func
+            self.bus.write_u8(self.operand_address.unwrap(), result);
+        } else {
+            // Still a clock for the op when implied
+            self.bus.clock();
+        }
+        self.set_zero_neg_flags(result);
         result
     }
 
@@ -401,8 +412,10 @@ impl Cpu {
         self.a = result as u8;
     }
 
-    fn store_mem(&mut self, value: u8) {
-        self.bus.write_u8(self.operand_address.unwrap(), value);
+    fn load(&mut self) -> u8 {
+        let value = self.read_operand_value().unwrap();
+        self.set_zero_neg_flags(value);
+        value
     }
 
     fn set_flag(&mut self, flag: Flags, value: bool) {
@@ -411,16 +424,17 @@ impl Cpu {
     }
 
     fn bit(&mut self) {
-        let value = self.read_operand_value();
+        let value = self.read_operand_value().unwrap();
         let result = self.a & value;
         self.flags.set(Flags::ZERO, result == 0);
         self.flags.set(Flags::OVERFLOW, value & (0b0100_0000) != 0);
         self.flags.set(Flags::NEGATIVE, value & (0b1000_0000) != 0);
     }
 
-    fn compare(&mut self, register: u8) {
-        let value = self.read_operand_value();
-        self.set_compare_flags(register, value);
+    fn compare(&mut self, register: u8, value: Option<u8>) {
+        let value = value.or_else(|| self.read_operand_value()).unwrap();
+        self.flags.set(Flags::CARRY, register >= value);
+        self.set_zero_neg_flags(register.wrapping_sub(value));
     }
 
     fn jsr(&mut self) {

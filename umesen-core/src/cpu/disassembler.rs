@@ -1,6 +1,6 @@
 use crate::{
-    cpu::{AddrMode, Opcode},
     Cpu,
+    cpu::{AddrMode, Opcode},
 };
 
 pub struct Disassembler<'a> {
@@ -51,15 +51,15 @@ impl<'a> Disassembler<'a> {
             AddrMode::ZeroPageX => write!(f, "{},X", self.next_byte())?,
             AddrMode::ZeroPageY => write!(f, "{},Y", self.next_byte())?,
             AddrMode::Absolute => write!(f, "{}", self.next_word())?,
-            AddrMode::AbsoluteX | AddrMode::AbsoluteXForceClock => {
+            AddrMode::AbsoluteX | AddrMode::AbsoluteXForceDummy => {
                 write!(f, "{},X", self.next_word())?
             }
-            AddrMode::AbsoluteY | AddrMode::AbsoluteYForceClock => {
+            AddrMode::AbsoluteY | AddrMode::AbsoluteYForceDummy => {
                 write!(f, "{},Y", self.next_word())?
             }
             AddrMode::Indirect => write!(f, "[{}]", self.next_word())?,
             AddrMode::IndirectX => write!(f, "[{},X]", self.next_byte())?,
-            AddrMode::IndirectY | AddrMode::IndirectYForceClock => {
+            AddrMode::IndirectY | AddrMode::IndirectYForceDummy => {
                 write!(f, "[{}],Y", self.next_byte())?
             }
             AddrMode::Relative => {
