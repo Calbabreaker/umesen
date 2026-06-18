@@ -1,6 +1,9 @@
 use crate::{
     cartridge::FixedArray,
-    ppu::{PALETTE_START, PATTERN_TILE_COUNT, Sprite, bus::PpuBus, sprite::Attributes},
+    ppu::{
+        HEIGHT, PALETTE_START, PATTERN_TILE_COUNT, PRERENDER_SCANLINE, Sprite, VramRegister, WIDTH,
+        bus::PpuBus, sprite::Attributes,
+    },
 };
 
 bitflags::bitflags! {
@@ -83,127 +86,6 @@ bitflags::bitflags! {
     }
 }
 
-/// Internal 15-bit registers (t and v) used for rendering and memory access
-/// These can act as a 15-bit address to access the ppu bus or a packed bitfield
-/// From nesdev wiki: https://www.nesdev.org/wiki/PPU_scrolling
-/// 0yyyNNYY YYYXXXXX
-///  ||||||| |||+++++---- coarse X scroll
-///  |||||++-+++--------- coarse Y scroll
-///  |||++--------------- nametable select X and y
-///  +++----------------- fine Y scroll
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TvRegister(pub u16);
-
-#[rustfmt::skip]
-impl TvRegister {
-    // Select bits
-    pub const COARSE_X:    u16 = 0b00000000_00011111;
-    pub const COARSE_Y:    u16 = 0b00000011_11100000;
-    pub const NAMETABLE:   u16 = 0b00001100_00000000;
-    pub const NAMETABLE_X: u16 = 0b00000100_00000000;
-    pub const NAMETABLE_Y: u16 = 0b00001000_00000000;
-    pub const FINE_Y:      u16 = 0b01110000_00000000;
-    pub const LOW:         u16 = 0b00000000_11111111;
-    pub const HIGH:        u16 = 0b11111111_00000000;
-}
-
-impl TvRegister {
-    pub fn set(&mut self, select_bits: u16, value: impl Into<u16>) {
-        let value = value.into();
-        // Check value fits into the bits
-        debug_assert!(value <= (select_bits >> select_bits.trailing_zeros()));
-
-        let value_shifted = value << select_bits.trailing_zeros();
-        self.0 = value_shifted | (self.0 & (!select_bits));
-    }
-
-    pub fn get(&self, select_bits: u16) -> u16 {
-        let value = self.0 & select_bits;
-        value >> select_bits.trailing_zeros()
-    }
-
-    /// Returns the address within the nametable portion of the ppu of which this register contains
-    /// The address should contain the tile number for the pattern table
-    pub fn nametable_address(&self) -> u16 {
-        // Lower 12 bytes should contain the address within the nametable portion of the ppu
-        // Nametable begins at 0x2000
-        0x2000 | (self.0 & 0x0fff)
-    }
-
-    /// Returns the address that contains the attribute byte in the ppu of which this register contains
-    pub fn attribute_address(&self) -> u16 {
-        // Each attribute byte controls 4x4 tiles
-        let tile_x = self.get(Self::COARSE_X) / 4;
-        let tile_y = self.get(Self::COARSE_Y) / 4;
-        let attribute_number = tile_y * 8 + tile_x;
-        let nametable = self.0 & Self::NAMETABLE;
-        // Attribute bytes begin at 0x3c0 within a nametable
-        0x23c0 | nametable | attribute_number
-    }
-
-    /// Shift an attribute byte to get the palette id into based on the coarse xy
-    pub fn palette_id(&self, attribute: u8) -> u8 {
-        let quadrant_x = (self.get(Self::COARSE_X) % 4) / 2;
-        let quadrant_y = (self.get(Self::COARSE_Y) % 4) / 2;
-        let shift = (quadrant_x + quadrant_y * 2) * 2;
-        (attribute >> shift) & 0b11
-    }
-
-    pub fn scroll_coarse_x(&mut self) {
-        if self.scroll_wrap(Self::COARSE_X, 31) {
-            // Flip nametable x bit to wrap around
-            self.0 ^= Self::NAMETABLE_X;
-        }
-    }
-
-    pub fn scroll_fine_y(&mut self) {
-        if self.scroll_wrap(Self::FINE_Y, 7) {
-            // Scroll coarse y wrappiong at 30 since bottom is taken by attribute data
-            if self.scroll_wrap(Self::COARSE_Y, 29) {
-                self.0 ^= Self::NAMETABLE_Y;
-            } else if self.get(Self::COARSE_Y) == 31 {
-                // 30-31 is invalid but still needs to be wrapped at 32
-                self.set(Self::COARSE_Y, 0u8);
-            }
-        }
-    }
-
-    pub fn set_x(&mut self, other: &TvRegister) {
-        let bits = TvRegister::COARSE_X | TvRegister::NAMETABLE_X;
-        self.set(bits, other.get(bits));
-    }
-
-    pub fn set_y(&mut self, other: &TvRegister) {
-        let bits = TvRegister::COARSE_Y | TvRegister::NAMETABLE_Y | TvRegister::FINE_Y;
-        self.set(bits, other.get(bits));
-    }
-
-    // Increment a value, wrapping at wrap and returning true
-    fn scroll_wrap(&mut self, select_bits: u16, wrap: u16) -> bool {
-        let value = self.get(select_bits);
-        if value == wrap {
-            self.set(select_bits, 0u8);
-            true
-        } else {
-            self.set(select_bits, value + 1);
-            false
-        }
-    }
-}
-
-impl std::fmt::Display for TvRegister {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "CX: {}, CY: {}, N: {}, FY: {}",
-            self.get(TvRegister::COARSE_X),
-            self.get(TvRegister::COARSE_Y),
-            self.get(TvRegister::NAMETABLE),
-            self.get(TvRegister::FINE_Y)
-        )
-    }
-}
-
 /// AKA how many frames before open bus decays to 0
 const OPEN_BUS_DECAY_START: u32 = 30;
 
@@ -213,8 +95,8 @@ pub struct Registers {
     pub control: Control,
     pub mask: Mask,
     pub status: Status,
-    pub t: TvRegister,
-    pub v: TvRegister,
+    pub t: VramRegister,
+    pub v: VramRegister,
     pub latch: bool,
     pub fine_x: u8,
     pub oam_address: u8,
@@ -222,6 +104,8 @@ pub struct Registers {
     pub read_buffer: u8,
     pub open_bus: u8,
     pub(crate) open_bus_decay_counter: u32,
+    pub scanline: usize,
+    pub dot: usize,
 }
 
 impl Registers {
@@ -230,7 +114,7 @@ impl Registers {
         match address % 8 {
             // Get status bits and fill unused with open bus
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
-            4 => self.oam_data[self.oam_address as usize],
+            4 => self.read_oam_data(),
             // Get PPU memory data
             7 => self.read_buffer,
             _ => self.open_bus,
@@ -291,6 +175,10 @@ impl Registers {
         }
     }
 
+    pub fn on_visble_dot(&self) -> bool {
+        self.dot >= 1 && (self.dot - 1 < WIDTH) && self.scanline < HEIGHT
+    }
+
     pub fn read_palette_ram(&self, offset: u16) -> u8 {
         let address = PALETTE_START | (offset & 0xff);
         let mut value = (self.bus.read_u8(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
@@ -300,20 +188,37 @@ impl Registers {
         value
     }
 
+    fn read_oam_data(&self) -> u8 {
+        if self.scanline < HEIGHT && self.mask.is_rendering() {
+            match self.dot {
+                1..=64 => return 0xff,
+                256..=320 => return 0xff,
+                _ => (),
+            };
+        }
+        self.oam_data[self.oam_address as usize]
+    }
+
     pub(crate) fn write_oam_data(&mut self, mut value: u8) {
         // Zero out unused bits when setting the attribute byte of oam
         if self.oam_address % 4 == 2 {
             value &= Attributes::all().bits();
         }
 
-        self.oam_data[self.oam_address as usize] = value;
-        self.oam_address = self.oam_address.wrapping_add(1);
+        if (self.scanline < HEIGHT || self.scanline == PRERENDER_SCANLINE)
+            && self.mask.is_rendering()
+        {
+            self.oam_address = self.oam_address.wrapping_add(4) & 0xfc;
+        } else {
+            self.oam_data[self.oam_address as usize] = value;
+            self.oam_address = self.oam_address.wrapping_add(1);
+        }
     }
 
     fn write_control(&mut self, value: u8) {
         self.control = Control::from_bits(value).unwrap();
         let nametable_bits = (self.control & Control::NAMETABLE).bits();
-        self.t.set(TvRegister::NAMETABLE, nametable_bits);
+        self.t.set(VramRegister::NAMETABLE, nametable_bits);
     }
 
     fn write_scroll(&mut self, value: u8) {
@@ -321,12 +226,12 @@ impl Registers {
         let coarse = value >> 3;
         if !self.latch {
             // X scroll
-            self.t.set(TvRegister::COARSE_X, coarse);
+            self.t.set(VramRegister::COARSE_X, coarse);
             self.fine_x = fine;
         } else {
             // Y Scroll
-            self.t.set(TvRegister::COARSE_Y, coarse);
-            self.t.set(TvRegister::FINE_Y, fine);
+            self.t.set(VramRegister::COARSE_Y, coarse);
+            self.t.set(VramRegister::FINE_Y, fine);
         }
         self.latch = !self.latch;
     }
@@ -334,9 +239,9 @@ impl Registers {
     fn write_vram_address(&mut self, value: u8) {
         if !self.latch {
             // The two high bits are ignore since vram address is 14 bit
-            self.t.set(TvRegister::HIGH, value & 0b0011_1111);
+            self.t.set(VramRegister::HIGH, value & 0b0011_1111);
         } else {
-            self.t.set(TvRegister::LOW, value);
+            self.t.set(VramRegister::LOW, value);
             self.v = self.t;
         }
         self.latch = !self.latch;
@@ -353,23 +258,11 @@ impl Registers {
         } else {
             1
         };
-        self.v.0 = self.v.0.wrapping_add(amount)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn tv_register() {
-        let mut register = TvRegister::default();
-        register.set(TvRegister::COARSE_X, 10u8);
-        register.set(TvRegister::COARSE_Y, 15u8);
-        register.set(TvRegister::NAMETABLE, 1u8);
-        assert_eq!(register.get(TvRegister::COARSE_X), 10);
-        assert_eq!(register.get(TvRegister::COARSE_Y), 15);
-        assert_eq!(register.nametable_address(), 0x2400 + 490);
-        assert_eq!(register.attribute_address(), 0x27da);
+        self.v.0 = self.v.0.wrapping_add(amount) % 0x4000;
+        // Weird increment behaviour when ppu is rendering
+        if self.on_visble_dot() && self.mask.is_rendering() {
+            self.v.scroll_fine_y();
+            self.v.scroll_coarse_x();
+        }
     }
 }

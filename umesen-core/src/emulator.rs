@@ -81,8 +81,8 @@ impl Emulator {
             self.cpu.y,
             self.cpu.flags.bits(),
             self.cpu.sp,
-            self.ppu().scanline,
-            self.ppu().dot,
+            self.ppu().registers.scanline,
+            self.ppu().registers.dot,
             self.cpu.bus.cpu_cycles_total,
         )
     }

@@ -53,8 +53,8 @@ impl Default for KeyActionMap {
         map.add(ControllerInput(0, Button::DOWN), K);
         map.add(ControllerInput(0, Button::A), C);
         map.add(ControllerInput(0, Button::B), X);
-        map.add(ControllerInput(0, Button::SELECT), S);
-        map.add(ControllerInput(0, Button::START), D);
+        map.add(ControllerInput(0, Button::START), S);
+        map.add(ControllerInput(0, Button::SELECT), D);
         map.add(ControllerInput(1, Button::RIGHT), ArrowRight);
         map.add(ControllerInput(1, Button::LEFT), ArrowLeft);
         map.add(ControllerInput(1, Button::UP), ArrowUp);

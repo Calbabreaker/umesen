@@ -10,8 +10,8 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         ppu.registers.v.0, ppu.registers.v,
     ));
     ui.label(format!("Latch: {}", ppu.registers.latch));
-    ui.label(format!("Scanline: {}", ppu.scanline));
-    ui.label(format!("Dot: {}", ppu.dot));
+    ui.label(format!("Scanline: {}", ppu.registers.scanline));
+    ui.label(format!("Dot: {}", ppu.registers.dot));
     ui.separator();
     ui.label("Control flags");
     crate::egui_util::show_flags(ui, &mut ppu.registers.control, 2);

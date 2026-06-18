@@ -1,4 +1,4 @@
-use umesen_core::ppu::{PATTERN_TILE_COUNT, TvRegister, add_bit_planes};
+use umesen_core::ppu::{PATTERN_TILE_COUNT, VramRegister, add_bit_planes};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize, Debug)]
 enum Tab {
@@ -112,10 +112,10 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
 
 fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16) {
     let get_tile_info_fn = |tile_index, ppu: &umesen_core::Ppu| {
-        let mut register = TvRegister::default();
-        register.set(TvRegister::NAMETABLE, table_number);
-        register.set(TvRegister::COARSE_X, tile_index as u16 % 32);
-        register.set(TvRegister::COARSE_Y, tile_index as u16 / 32);
+        let mut register = VramRegister::default();
+        register.set(VramRegister::NAMETABLE, table_number);
+        register.set(VramRegister::COARSE_X, tile_index as u16 % 32);
+        register.set(VramRegister::COARSE_Y, tile_index as u16 / 32);
 
         let tile_number = ppu.registers.bus.read_u8(register.nametable_address()) as u16;
         let tile_attribute = ppu.registers.bus.read_u8(register.attribute_address());
