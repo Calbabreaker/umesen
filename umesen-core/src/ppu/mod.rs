@@ -259,7 +259,7 @@ impl Ppu {
                 }
 
                 let palette_id = sprite.attributes.palette() + 4;
-                let behind_bg = sprite.attributes.contains(Attributes::BEHIND);
+                let behind_bg = sprite.attributes.contains(Attributes::BEHIND_BACKGROUND);
                 // Set to override the background color if over background or background is transparent
                 if !behind_bg || bg_color_index == 0 {
                     fg_color_index = color_index + palette_id * 4;

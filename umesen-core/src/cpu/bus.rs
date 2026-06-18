@@ -40,8 +40,9 @@ impl CpuBus {
     pub fn read_u8(&mut self, address: u16) -> u8 {
         let output = match address {
             0x2000..=0x3fff => self.ppu.registers.read_u8(address),
-            0x4016 => self.controllers[0].read_u8(),
-            0x4017 => self.controllers[1].read_u8(),
+            // Top 3 high bits always have open bus
+            0x4016 => self.controllers[0].read_u8() | (0b11100000 & self.open_bus),
+            0x4017 => self.controllers[1].read_u8() | (0b11100000 & self.open_bus),
             _ => self.immut_read_u8(address),
         };
         self.open_bus = output;

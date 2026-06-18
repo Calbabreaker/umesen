@@ -5,11 +5,8 @@ bitflags::bitflags! {
     pub struct Attributes: u8 {
         #[bitflags(flag_name = "")]
         const PALLETTE = 0b11;
-        #[bitflags(flag_name = "Behind background")]
-        const BEHIND = 1 << 5;
-        #[bitflags(flag_name = "Flipped horizontal")]
+        const BEHIND_BACKGROUND = 1 << 5;
         const FLIP_HORIZONTAL = 1 << 6;
-        #[bitflags(flag_name = "Flipped vertical")]
         const FLIP_VERTICAL = 1 << 7;
     }
 }
