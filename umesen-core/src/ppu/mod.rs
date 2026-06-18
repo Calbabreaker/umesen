@@ -288,6 +288,10 @@ impl Ppu {
         if self.scanline == 262 {
             self.odd_frame = !self.odd_frame;
             self.scanline = 0;
+            self.registers.open_bus_decay_counter -= 1;
+            if self.registers.open_bus_decay_counter == 0 {
+                self.registers.open_bus = 0;
+            }
         }
     }
 }

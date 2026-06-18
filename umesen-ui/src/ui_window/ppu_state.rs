@@ -1,5 +1,5 @@
 pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
-    let ppu = &state.emu.ppu();
+    let ppu = &mut state.emu.cpu.bus.ppu;
     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
     ui.label(format!(
         "T: ${:04x} ({})",
@@ -14,11 +14,11 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!("Dot: {}", ppu.dot));
     ui.separator();
     ui.label("Control flags");
-    crate::egui_util::show_flags_marked(ui, ppu.registers.control);
+    crate::egui_util::show_flags(ui, &mut ppu.registers.control, 2);
     ui.separator();
     ui.label("Status flags");
-    crate::egui_util::show_flags_marked(ui, ppu.registers.status);
+    crate::egui_util::show_flags(ui, &mut ppu.registers.status, 2);
     ui.separator();
     ui.label("Mask flags");
-    crate::egui_util::show_flags_marked(ui, ppu.registers.mask);
+    crate::egui_util::show_flags(ui, &mut ppu.registers.mask, 2);
 }

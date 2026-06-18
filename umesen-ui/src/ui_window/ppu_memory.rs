@@ -138,7 +138,7 @@ fn show_oam_info(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
     ui.vertical(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         if let Some(i) = ui.memory_mut(|m| m.data.get_persisted("oam_grid".into())) {
-            let sprite = ppu.registers.get_oam_sprite(i, 0).unwrap();
+            let mut sprite = ppu.registers.get_oam_sprite(i, 0).unwrap();
             ui.label(format!("INDEX: {i}"));
             ui.label(format!("Pos (x,y): {}, {}", sprite.x, sprite.y));
             ui.label(format!(
@@ -150,7 +150,7 @@ fn show_oam_info(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
                 ui.label("Pallete:");
                 show_pallete(ui, ppu, sprite.attributes.palette());
             });
-            crate::egui_util::show_flags_marked(ui, sprite.attributes);
+            crate::egui_util::show_flags(ui, &mut sprite.attributes, 1);
         }
     });
 }

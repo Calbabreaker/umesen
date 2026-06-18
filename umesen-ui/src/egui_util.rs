@@ -44,13 +44,14 @@ pub fn get_shortcut_text(shortcut: &egui::KeyboardShortcut) -> String {
     shortcut.format(&egui::ModifierNames::NAMES, cfg!(target_os = "macos"))
 }
 
-pub fn show_flags_marked<T: bitflags::Flags + Copy>(ui: &mut egui::Ui, value: T) {
+pub fn show_flags<T: bitflags::Flags + Copy>(ui: &mut egui::Ui, value: &mut T, columns: usize) {
     egui::Grid::new(std::any::TypeId::of::<T>()).show(ui, |ui| {
         for (i, flag) in T::FLAGS.iter().filter(|f| f.is_named()).enumerate() {
             ui.label(flag.name());
             let mut checked = value.contains(*flag.value());
-            ui.add_enabled(false, egui::Checkbox::new(&mut checked, ""));
-            if i % 2 == 1 {
+            ui.checkbox(&mut checked, "");
+            value.set(*flag.value(), checked);
+            if i % columns == columns - 1 {
                 ui.end_row()
             };
         }

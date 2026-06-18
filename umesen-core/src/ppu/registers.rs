@@ -204,6 +204,9 @@ impl std::fmt::Display for TvRegister {
     }
 }
 
+/// AKA how many frames before open bus decays to 0
+const OPEN_BUS_DECAY_START: u32 = 30;
+
 #[derive(Clone, Default)]
 pub struct Registers {
     pub bus: PpuBus,
@@ -218,6 +221,7 @@ pub struct Registers {
     pub oam_data: FixedArray<u8, 256>,
     pub read_buffer: u8,
     pub open_bus: u8,
+    pub(crate) open_bus_decay_counter: u32,
 }
 
 impl Registers {
@@ -255,12 +259,14 @@ impl Registers {
             _ => (),
         }
         self.open_bus = output;
+        self.open_bus_decay_counter = OPEN_BUS_DECAY_START;
         output
     }
 
     pub(crate) fn write_u8(&mut self, address: u16, value: u8) {
         std::debug_assert_matches!(address, 0x2000..=0x3fff);
         self.open_bus = value;
+        self.open_bus_decay_counter = OPEN_BUS_DECAY_START;
         match address % 8 {
             0 => self.write_control(value),
             1 => self.mask = Mask::from_bits(value).unwrap(),
@@ -274,7 +280,7 @@ impl Registers {
         }
     }
 
-    /// Get the sprite at the oam index with a individual byte offset
+    /// Get the sprite at the oam index with an individual byte offset
     pub fn get_oam_sprite(&self, index: usize, offset: usize) -> Option<Sprite> {
         let i = index * 4 + offset;
         if i < self.oam_data.len() {
