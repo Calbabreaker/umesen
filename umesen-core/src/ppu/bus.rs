@@ -6,8 +6,6 @@ use crate::{
 };
 
 const PALETTE_RAM_SIZE: usize = 0x20;
-/// Size of the nametable ram or size of 2 nametables
-const NAMETABLE_RAM_SIZE: usize = 0x800;
 /// Size of one pattern table in number of tiles (aka one byte), add this to tile number to access the next pattern table
 pub const PATTERN_TILE_COUNT: u16 = 256;
 pub const PALETTE_START: u16 = 0x3f00;
@@ -15,7 +13,7 @@ pub const PALETTE_START: u16 = 0x3f00;
 #[derive(Clone, Default)]
 pub struct PpuBus {
     pub palette_ram: FixedArray<u8, PALETTE_RAM_SIZE>,
-    pub nametable_ram: FixedArray<u8, NAMETABLE_RAM_SIZE>,
+    pub nametable_ram: FixedArray<u8, 0x800>,
     pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
 }
 
@@ -78,21 +76,32 @@ impl PpuBus {
     }
 }
 
+/// Maps the address into nametable ram index
 fn mirror_nametable(address: u16, mirroring: Mirroring) -> usize {
-    let address = address as usize % 0x1000;
-    match mirroring {
-        Mirroring::Horizontal => {
-            let nametable_offset = (address / NAMETABLE_RAM_SIZE) * (NAMETABLE_RAM_SIZE / 2);
-            let tile_offset = address % (NAMETABLE_RAM_SIZE / 2);
-            nametable_offset + tile_offset
-        }
-        Mirroring::Vertical => address % NAMETABLE_RAM_SIZE,
-    }
+    let table_address = address & 0x0fff;
+
+    let table_number = match mirroring {
+        Mirroring::Horizontal => match table_address {
+            0x000..=0x7ff => 0,
+            0x800.. => 1,
+        },
+        Mirroring::Vertical => match table_address {
+            0x000..=0x3ff => 0,
+            0x400..=0x7ff => 1,
+            0x800..=0xbff => 0,
+            0xc00.. => 1,
+        },
+        Mirroring::SingleScreenLow => 0,
+        Mirroring::SingleScreenHigh => 1,
+        Mirroring::FourScreen => todo!(),
+    };
+    (table_number * 0x400 + (address % 0x400)) as usize
 }
 
 fn mirror_palette(address: u16) -> usize {
     let address = address as usize % PALETTE_RAM_SIZE;
     match address {
+        // Mirror sprite palettes to background
         0x10 | 0x14 | 0x18 | 0x1c => address - 0x10,
         _ => address,
     }
@@ -104,14 +113,25 @@ mod test {
 
     #[test]
     fn mirroring() {
-        assert_eq!(mirror_nametable(0x2020, Mirroring::Vertical), 0x0020);
-        assert_eq!(mirror_nametable(0x2420, Mirroring::Vertical), 0x0420);
-        assert_eq!(mirror_nametable(0x2820, Mirroring::Vertical), 0x0020);
-        assert_eq!(mirror_nametable(0x2c20, Mirroring::Vertical), 0x0420);
+        use Mirroring::*;
+        assert_eq!(mirror_nametable(0x2020, Vertical), 0x0020);
+        assert_eq!(mirror_nametable(0x2420, Vertical), 0x0420);
+        assert_eq!(mirror_nametable(0x2820, Vertical), 0x0020);
+        assert_eq!(mirror_nametable(0x2c20, Vertical), 0x0420);
 
-        assert_eq!(mirror_nametable(0x2020, Mirroring::Horizontal), 0x0020);
-        assert_eq!(mirror_nametable(0x2420, Mirroring::Horizontal), 0x0020);
-        assert_eq!(mirror_nametable(0x2820, Mirroring::Horizontal), 0x0420);
-        assert_eq!(mirror_nametable(0x2c20, Mirroring::Horizontal), 0x0420);
+        assert_eq!(mirror_nametable(0x3020, Horizontal), 0x0020);
+        assert_eq!(mirror_nametable(0x3420, Horizontal), 0x0020);
+        assert_eq!(mirror_nametable(0x3820, Horizontal), 0x0420);
+        assert_eq!(mirror_nametable(0x3c20, Horizontal), 0x0420);
+
+        assert_eq!(mirror_nametable(0x2020, SingleScreenLow), 0x0020);
+        assert_eq!(mirror_nametable(0x2420, SingleScreenLow), 0x0020);
+        assert_eq!(mirror_nametable(0x2820, SingleScreenLow), 0x0020);
+        assert_eq!(mirror_nametable(0x2c20, SingleScreenLow), 0x0020);
+
+        assert_eq!(mirror_nametable(0x2020, SingleScreenHigh), 0x0420);
+        assert_eq!(mirror_nametable(0x2420, SingleScreenHigh), 0x0420);
+        assert_eq!(mirror_nametable(0x2820, SingleScreenHigh), 0x0420);
+        assert_eq!(mirror_nametable(0x2c20, SingleScreenHigh), 0x0420);
     }
 }

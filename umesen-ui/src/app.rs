@@ -43,7 +43,7 @@ impl App {
             // Make sure added path is on top
             self.recent_file_paths.retain(|x| x != path);
             self.recent_file_paths.insert(0, path.to_path_buf());
-            self.recent_file_paths.truncate(10);
+            self.recent_file_paths.truncate(20);
             self.state.emu.running = true;
         }
     }

@@ -38,7 +38,7 @@ mod test {
         let mut chr_rom = vec![0; 32 * 1024];
         chr_rom[2] = 2;
         chr_rom[8 * 1024 * 2 + 2] = 1;
-        let mut catridge = Cartridge::from_mapper(3, vec![0; 1024], prg_rom, chr_rom).unwrap();
+        let mut catridge = Cartridge::from_mapper(3, vec![], prg_rom, chr_rom).unwrap();
 
         assert_eq!(catridge.cpu_read(0x8002), Some(1));
 

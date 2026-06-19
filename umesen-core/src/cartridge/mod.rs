@@ -1,10 +1,13 @@
 mod cartridge_banks;
 mod cartridge_header;
 mod mapper000;
+mod mapper001;
 mod mapper002;
 mod mapper003;
 
-use crate::cartridge::{mapper000::Mapper000, mapper002::Mapper002, mapper003::Mapper003};
+use crate::cartridge::{
+    mapper000::Mapper000, mapper001::Mapper001, mapper002::Mapper002, mapper003::Mapper003,
+};
 pub use cartridge_banks::*;
 pub use cartridge_header::*;
 
@@ -13,6 +16,7 @@ pub trait Mapper {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8>;
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
     fn map_ppu(&self, address: u16) -> BankMapping;
+    fn reset(&mut self) {}
     /// Option to override mirroring from header
     fn mirroring(&self) -> Option<Mirroring> {
         None
@@ -33,10 +37,12 @@ impl Cartridge {
     ) -> Result<Self, NesParseError> {
         let mut mapper: Box<dyn Mapper> = match header.mapper_id {
             0 => Box::new(Mapper000::default()),
+            1 => Box::new(Mapper001::default()),
             2 => Box::new(Mapper002::default()),
             3 => Box::new(Mapper003::default()),
             id => return Err(NesParseError::UnsupportedMapper(id)),
         };
+        mapper.reset();
 
         for (i, byte) in trainer_data.iter().enumerate() {
             mapper.cpu_write(&mut banks, (0x7000 + i) as u16, *byte);
@@ -114,5 +120,9 @@ impl Cartridge {
 
     pub fn header(&self) -> &CartridgeHeader {
         &self.header
+    }
+
+    pub fn reset(&mut self) {
+        self.mapper.reset();
     }
 }

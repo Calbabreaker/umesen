@@ -10,9 +10,22 @@ pub enum NesParseError {
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum Mirroring {
+    /// A A
+    /// B B
     #[default]
     Horizontal,
+    /// A B
+    /// A B
     Vertical,
+    /// A A
+    /// A A
+    SingleScreenLow,
+    /// B B
+    /// B B
+    SingleScreenHigh,
+    /// A B
+    /// C D
+    FourScreen,
 }
 
 #[derive(Default, Debug, PartialEq, Clone)]
@@ -65,10 +78,13 @@ impl CartridgeHeader {
         Ok(Self {
             prg_rom_size,
             mapper_id,
-            mirroring: if data[6] & 0b000_0001 == 0 {
-                Mirroring::Horizontal
-            } else {
+            mirroring: if data[6] & 0b000_1000 != 0 {
+                // Note: this bit could mean a different mirrorings in some mappers?
+                Mirroring::FourScreen
+            } else if data[6] & 0b000_0001 != 0 {
                 Mirroring::Vertical
+            } else {
+                Mirroring::Horizontal
             },
             has_volatile: data[6] & 0b0000_0010 != 0,
             has_trainer: data[6] & 0b0000_0100 != 0,

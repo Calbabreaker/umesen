@@ -37,11 +37,11 @@ mod test {
     fn test() {
         let mut prg_rom = vec![0; 128 * 1024];
         prg_rom[2] = 2;
-        prg_rom[16 * 1024 * 2 + 2] = 1;
+        prg_rom[16 * 1024 * 2 + 2] = 1; // 3rd bank
         *prg_rom.last_mut().unwrap() = 3;
         let mut chr_rom = vec![0; 4 * 1024];
         chr_rom[2] = 1;
-        let mut catridge = Cartridge::from_mapper(2, vec![0; 1024], prg_rom, chr_rom).unwrap();
+        let mut catridge = Cartridge::from_mapper(2, vec![], prg_rom, chr_rom).unwrap();
 
         assert_eq!(catridge.ppu_read(0x0002), 1);
 

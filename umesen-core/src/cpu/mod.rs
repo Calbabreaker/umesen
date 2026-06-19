@@ -97,7 +97,12 @@ impl Cpu {
         self.bus.cpu_cycles_since_inst = 0;
         self.pc = self.bus.read_u16(0xfffc);
         self.sp = 0xfd;
+        // Some roms freeze when soft loading if nmi is enabled for some reason
         self.bus.ppu.registers.control = Default::default();
+        if let Some(c) = self.bus.cartridge.as_mut() {
+            c.borrow_mut().reset()
+        }
+
         for _ in 0..5 {
             self.bus.clock();
         }
