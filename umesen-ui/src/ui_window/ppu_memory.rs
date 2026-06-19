@@ -150,7 +150,7 @@ fn show_oam_info(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
                 ui.label("Pallete:");
                 show_pallete(ui, ppu, sprite.attributes.palette());
             });
-            crate::egui_util::show_flags(ui, &mut sprite.attributes, 1);
+            crate::egui_util::show_flags(ui, &mut sprite.attributes);
         }
     });
 }
@@ -191,7 +191,7 @@ fn show_pattern_tiles<'a>(
     let texture = state
         .texture_map
         .entry(config.name.clone())
-        .or_insert_with(|| crate::Texture::new(image_size, ui.ctx()));
+        .or_insert_with(|| crate::Texture::new(image_size));
     let ppu = state.emu.ppu();
 
     for tile_y in 0..tile_count_y {
@@ -215,10 +215,10 @@ fn show_pattern_tiles<'a>(
         }
     }
 
-    texture.update();
     let image_pos = ui.cursor().left_top();
     let response = ui.add(
-        egui::Image::new(&texture.handle)
+        texture
+            .image(ui)
             .sense(egui::Sense::CLICK)
             .fit_to_original_size(config.image_scale),
     );

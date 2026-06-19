@@ -1,20 +1,33 @@
 use std::time::Instant;
 
-use crate::{Cartridge, Controller, Cpu, cartridge::NesParseError, cpu::CpuError, ppu};
+use crate::{
+    Cartridge, Controller, Cpu,
+    cartridge::NesParseError,
+    cpu::{CLOCK_SPEED_HZ, CYCLES_PER_FRAME, CpuError},
+    ppu,
+};
 
 /// High level struct for controlling the cpu
 pub struct Emulator {
     pub cpu: Cpu,
+    pub speed: f64,
+    pub running: bool,
     last_frame_time: Instant,
-    frame_rate: f32,
+    frame_rate: f64,
+    clocks_remaining: f64,
+    last_update_time: std::time::Instant,
 }
 
 impl Default for Emulator {
     fn default() -> Self {
         Self {
+            last_update_time: std::time::Instant::now(),
+            running: true,
             cpu: Cpu::default(),
             last_frame_time: Instant::now(),
             frame_rate: 0.,
+            clocks_remaining: 0.,
+            speed: 1.,
         }
     }
 }
@@ -22,18 +35,29 @@ impl Default for Emulator {
 impl Emulator {
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) -> Result<(), CpuError> {
-        while !self.frame_complete() {
+        while !self.ppu().frame_complete() {
             self.cpu.execute_next()?;
         }
         Ok(())
     }
 
-    /// Let the CPU Keep executing instructions until clocks_remaining is zero or there is a new frame
-    /// Returns true if frame a frame is returned
-    pub fn clock_until_frame(&mut self, clocks_remaining: &mut f64) -> Result<bool, CpuError> {
-        while *clocks_remaining > 0. {
-            *clocks_remaining -= self.cpu.execute_next()? as f64;
-            if self.frame_complete() {
+    /// Calculates the delta time that has passed since calling this function and clock the cpu
+    /// required for that amount of time
+    /// It will return true midway of a frame was completed (only the last one)
+    /// Make sure to call this function again if it returns true
+    pub fn update(&mut self) -> Result<bool, CpuError> {
+        let delta = self.last_update_time.elapsed().as_secs_f64().min(0.05) * self.speed;
+        self.last_update_time = std::time::Instant::now();
+        if !self.running {
+            return Ok(false);
+        }
+
+        self.clocks_remaining += delta * CLOCK_SPEED_HZ;
+        while self.clocks_remaining > 0. {
+            self.clocks_remaining -= self.cpu.execute_next()? as f64;
+            if self.ppu().frame_complete() && self.clocks_remaining < CYCLES_PER_FRAME {
+                self.frame_rate = 1. / self.last_frame_time.elapsed().as_secs_f64();
+                self.last_frame_time = std::time::Instant::now();
                 return Ok(true);
             }
         }
@@ -41,6 +65,7 @@ impl Emulator {
     }
 
     pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {
+        self.last_update_time = std::time::Instant::now();
         let file = std::fs::File::open(path)?;
         let catridge = Cartridge::from_nes(file)?;
         self.cpu.bus.attach_catridge(catridge);
@@ -48,24 +73,12 @@ impl Emulator {
         Ok(())
     }
 
-    fn frame_complete(&mut self) -> bool {
-        let ppu = &mut self.cpu.bus.ppu;
-        if ppu.frame_complete {
-            ppu.frame_complete = false;
-            self.frame_rate = 1. / self.last_frame_time.elapsed().as_secs_f32();
-            self.last_frame_time = Instant::now();
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn frame_rate(&self) -> f32 {
+    pub fn frame_rate(&self) -> f64 {
         self.frame_rate
     }
 
-    pub fn ppu(&self) -> &ppu::Ppu {
-        &self.cpu.bus.ppu
+    pub fn ppu(&mut self) -> &mut ppu::Ppu {
+        &mut self.cpu.bus.ppu
     }
 
     pub fn cartridge(&self) -> Option<std::cell::Ref<'_, Cartridge>> {
@@ -81,8 +94,8 @@ impl Emulator {
             self.cpu.y,
             self.cpu.flags.bits(),
             self.cpu.sp,
-            self.ppu().registers.scanline,
-            self.ppu().registers.dot,
+            self.cpu.bus.ppu.registers.scanline,
+            self.cpu.bus.ppu.registers.dot,
             self.cpu.bus.cpu_cycles_total,
         )
     }

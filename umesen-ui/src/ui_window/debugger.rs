@@ -8,25 +8,23 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!("X:  ${0:02x}", state.emu.cpu.x));
     ui.label(format!("Y:  ${0:02x}", state.emu.cpu.y));
     ui.label(format!("CYCLES: {}", state.emu.cpu.bus.cpu_cycles_total));
-    crate::egui_util::show_flags(ui, &mut state.emu.cpu.flags, 2);
+    crate::egui_util::show_flags(ui, &mut state.emu.cpu.flags);
 
     ui.horizontal(|ui| {
         ui.label("Speed:");
         ui.style_mut().spacing.slider_width = 160.0;
-        if ui
-            .add(
-                egui::Slider::new(&mut state.speed, 0.00001..=10.000)
-                    .step_by(0.00001)
-                    .logarithmic(true),
-            )
-            .dragged()
-        {
-            state.clocks_remaining = 0.;
-        };
+        ui.add(
+            egui::Slider::new(&mut state.emu.speed, 0.00001..=10.000)
+                .step_by(0.00001)
+                .logarithmic(true),
+        );
     });
 
     ui.horizontal(|ui| {
-        if ui.button(if state.running { "⏸" } else { "⏵" }).clicked() {
+        if ui
+            .button(if state.emu.running { "⏸" } else { "⏵" })
+            .clicked()
+        {
             state.do_action(ActionKind::PauseResume);
         }
 
@@ -39,7 +37,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         }
 
         if ui.button("Next Frame").clicked() {
-            state.running = false;
+            state.emu.running = false;
             state.emu.next_frame().ok();
             state.update_ppu_texture();
         }

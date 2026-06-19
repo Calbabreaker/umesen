@@ -20,8 +20,8 @@ pub struct PpuBus {
 }
 
 impl PpuBus {
-    pub fn read_u8(&self, address: u16) -> u8 {
-        std::debug_assert_matches!(address, 0x0000..=0x3fff);
+    pub fn read_u8(&self, mut address: u16) -> u8 {
+        address %= 0x4000;
         match address {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
                 Some(cartridge) => cartridge.borrow().ppu_read(address),
@@ -34,8 +34,8 @@ impl PpuBus {
         }
     }
 
-    pub fn write_u8(&mut self, address: u16, value: u8) {
-        std::debug_assert_matches!(address, 0x0000..=0x3fff);
+    pub fn write_u8(&mut self, mut address: u16, value: u8) {
+        address %= 0x4000;
         match address {
             0x0000..=0x1fff => {
                 if let Some(cartridge) = self.cartridge.as_ref() {

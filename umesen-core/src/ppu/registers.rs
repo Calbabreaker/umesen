@@ -103,9 +103,11 @@ pub struct Registers {
     pub oam_data: FixedArray<u8, 256>,
     pub read_buffer: u8,
     pub open_bus: u8,
-    pub(crate) open_bus_decay_counter: u32,
+    open_bus_decay_counter: u32,
+
     pub scanline: usize,
     pub dot: usize,
+    pub frame_count: u32,
 }
 
 impl Registers {
@@ -115,7 +117,6 @@ impl Registers {
             // Get status bits and fill unused with open bus
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
             4 => self.read_oam_data(),
-            // Get PPU memory data
             7 => self.read_buffer,
             _ => self.open_bus,
         }
@@ -181,11 +182,29 @@ impl Registers {
 
     pub fn read_palette_ram(&self, offset: u16) -> u8 {
         let address = PALETTE_START | (offset & 0xff);
+        // Get the palette ram and with open bus
         let mut value = (self.bus.read_u8(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
         if self.mask.contains(Mask::GRAYSCALE) {
             value &= 0x30;
         }
         value
+    }
+
+    pub(crate) fn next_dot(&mut self) {
+        self.dot += 1;
+        if self.dot == 341 {
+            self.dot = 0;
+            self.scanline += 1;
+        }
+
+        if self.scanline == PRERENDER_SCANLINE + 1 {
+            self.frame_count = self.frame_count.wrapping_add(1);
+            self.scanline = 0;
+            self.open_bus_decay_counter -= 1;
+            if self.open_bus_decay_counter == 0 {
+                self.open_bus = 0;
+            }
+        }
     }
 
     fn read_oam_data(&self) -> u8 {
@@ -238,8 +257,7 @@ impl Registers {
 
     fn write_vram_address(&mut self, value: u8) {
         if !self.latch {
-            // The two high bits are ignore since vram address is 14 bit
-            self.t.set(VramRegister::HIGH, value & 0b0011_1111);
+            self.t.set(VramRegister::HIGH, value);
         } else {
             self.t.set(VramRegister::LOW, value);
             self.v = self.t;
@@ -258,7 +276,7 @@ impl Registers {
         } else {
             1
         };
-        self.v.0 = self.v.0.wrapping_add(amount) % 0x4000;
+        self.v.0 = self.v.0.wrapping_add(amount);
         // Weird increment behaviour when ppu is rendering
         if self.on_visble_dot() && self.mask.is_rendering() {
             self.v.scroll_fine_y();

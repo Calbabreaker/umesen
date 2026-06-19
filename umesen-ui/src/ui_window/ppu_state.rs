@@ -14,11 +14,11 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!("Dot: {}", ppu.registers.dot));
     ui.separator();
     ui.label("Control flags");
-    crate::egui_util::show_flags(ui, &mut ppu.registers.control, 2);
+    crate::egui_util::show_flags(ui, &mut ppu.registers.control);
     ui.separator();
     ui.label("Status flags");
-    crate::egui_util::show_flags(ui, &mut ppu.registers.status, 2);
+    crate::egui_util::show_flags(ui, &mut ppu.registers.status);
     ui.separator();
     ui.label("Mask flags");
-    crate::egui_util::show_flags(ui, &mut ppu.registers.mask, 2);
+    crate::egui_util::show_flags(ui, &mut ppu.registers.mask);
 }

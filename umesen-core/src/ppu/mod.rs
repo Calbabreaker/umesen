@@ -24,7 +24,7 @@ pub struct Ppu {
     pub palette: Palette,
     pub screen_pixels: FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>,
     pub unlimited_sprites: bool,
-    pub(crate) frame_complete: bool,
+    frame_complete: bool,
     pub(crate) require_nmi: bool,
 
     // Bits shifted left every render dot so leftmost bit contains low and high bit of the current pixel index in the palette
@@ -33,7 +33,6 @@ pub struct Ppu {
     bg_palette_id: u8,
     bg_palette_bits_low: u8,
     bg_palette_bits_high: u8,
-    odd_frame: bool,
 
     /// Buffer of sprites to render next scanline
     sprite_buffer: Vec<Sprite>,
@@ -54,6 +53,15 @@ impl Ppu {
             *color = self.get_palette_color(palette_id * 4 + i as u8);
         }
         palette
+    }
+
+    pub fn frame_complete(&mut self) -> bool {
+        if self.frame_complete {
+            self.frame_complete = false;
+            true
+        } else {
+            false
+        }
     }
 
     pub(crate) fn clock(&mut self) {
@@ -95,7 +103,7 @@ impl Ppu {
                 self.get_palette_color(color_index);
         }
 
-        self.next_dot();
+        self.registers.next_dot();
     }
 
     // Scanlines when the PPU is actually drawing to the screen
@@ -134,7 +142,7 @@ impl Ppu {
             }
             339 => {
                 // Skip last cycle on odd frames
-                if self.registers.mask.is_rendering() && self.odd_frame {
+                if self.registers.mask.is_rendering() && self.registers.frame_count % 2 == 1 {
                     self.registers.dot += 1;
                 }
             }
@@ -276,23 +284,6 @@ impl Ppu {
         let palette_msb = (self.bg_palette_id & 0b10) >> 1;
         self.bg_palette_bits_low = (self.bg_palette_bits_low << 1) | palette_lsb;
         self.bg_palette_bits_high = (self.bg_palette_bits_high << 1) | palette_msb;
-    }
-
-    fn next_dot(&mut self) {
-        self.registers.dot += 1;
-        if self.registers.dot == 341 {
-            self.registers.dot = 0;
-            self.registers.scanline += 1;
-        }
-
-        if self.registers.scanline == PRERENDER_SCANLINE + 1 {
-            self.odd_frame = !self.odd_frame;
-            self.registers.scanline = 0;
-            self.registers.open_bus_decay_counter -= 1;
-            if self.registers.open_bus_decay_counter == 0 {
-                self.registers.open_bus = 0;
-            }
-        }
     }
 }
 

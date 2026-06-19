@@ -24,7 +24,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.add_space(4.);
 
     let cpu_bus = &state.emu.cpu.bus;
-    let ppu_bus = &state.emu.ppu().registers.bus;
+    let ppu_bus = &state.emu.cpu.bus.ppu.registers.bus;
     match selected {
         HexViewKind::Cpu => show_hex_view(ui, |address| cpu_bus.immut_read_u8(address), 0x1000),
         HexViewKind::Ppu => show_hex_view(ui, |address| ppu_bus.read_u8(address), 0x400),

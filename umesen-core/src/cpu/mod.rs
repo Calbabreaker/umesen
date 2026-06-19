@@ -8,6 +8,7 @@ pub use opcode::{AddrMode, Opcode};
 
 /// Number of clock cycles per second
 pub const CLOCK_SPEED_HZ: f64 = 1789773.;
+pub const CYCLES_PER_FRAME: f64 = 29780.5;
 
 bitflags::bitflags! {
     /// Flags for the cpu register

@@ -24,8 +24,6 @@ impl App {
         if let Some(path) = app.recent_file_paths.first().cloned() {
             app.load_nes_rom(&path);
         }
-
-        app.state.init(&cc.egui_ctx);
         app
     }
 
@@ -46,7 +44,7 @@ impl App {
             self.recent_file_paths.retain(|x| x != path);
             self.recent_file_paths.insert(0, path.to_path_buf());
             self.recent_file_paths.truncate(10);
-            self.state.running = true;
+            self.state.emu.running = true;
         }
     }
 
@@ -187,8 +185,9 @@ impl eframe::App for App {
             .frame(egui::Frame::NONE)
             .show_inside(ui, |ui| {
                 ui.centered_and_justified(|ui| {
-                    let texture = &self.state.texture_map["ppu_output"];
-                    ui.add(egui::Image::new(&texture.handle).fit_to_fraction(egui::vec2(1., 1.)));
+                    if let Some(texture) = self.state.texture_map.get_mut("ppu_output") {
+                        ui.add(texture.image(ui).fit_to_fraction(egui::vec2(1., 1.)));
+                    }
                 });
             });
 
