@@ -12,7 +12,7 @@ pub use cartridge_banks::*;
 pub use cartridge_header::*;
 
 /// Generic trait for underlying circuitry inside a catridge that will read and write to a catridge memory bank
-pub trait Mapper {
+pub trait Mapper: std::fmt::Debug {
     fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8>;
     fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
     fn map_ppu(&self, address: u16) -> BankMapping;
@@ -120,6 +120,10 @@ impl Cartridge {
 
     pub fn header(&self) -> &CartridgeHeader {
         &self.header
+    }
+
+    pub fn mapper(&self) -> &dyn Mapper {
+        self.mapper.as_ref()
     }
 
     pub fn reset(&mut self) {

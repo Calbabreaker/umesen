@@ -2,7 +2,7 @@ use crate::cartridge::{Bank, CartridgeBanks, Mapper};
 
 /// INES designation for UxROM boards
 /// https://www.nesdev.org/wiki/UxROM
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Mapper002 {
     bank_number_low: usize,
 }

@@ -1,3 +1,4 @@
+mod catridge_info;
 mod debugger;
 pub mod hex_viewer;
 pub mod ppu_memory;
@@ -13,19 +14,21 @@ pub enum UiWindowKind {
     PpuState,
     Stats,
     Preferences,
+    CatridgeInfo,
     Popup { heading: String, message: String },
 }
 
 impl UiWindowKind {
     pub fn title(&self) -> &'static str {
         match self {
-            UiWindowKind::Debugger => "Debugger",
-            UiWindowKind::HexViewer => "Hex Viewer",
-            UiWindowKind::Popup { .. } => "Error",
-            UiWindowKind::Stats => "Stats",
-            UiWindowKind::PpuMemory => "Ppu Memory",
-            UiWindowKind::PpuState => "Ppu State",
-            UiWindowKind::Preferences => "Preferences",
+            Self::Debugger => "Debugger",
+            Self::HexViewer => "Hex Viewer",
+            Self::Popup { .. } => "Error",
+            Self::Stats => "Stats",
+            Self::CatridgeInfo => "Catridge Info",
+            Self::PpuMemory => "Ppu Memory",
+            Self::PpuState => "Ppu State",
+            Self::Preferences => "Preferences",
         }
     }
 
@@ -54,13 +57,14 @@ impl UiWindowKind {
             .min_width(200.)
             .open(&mut open)
             .show(ctx, |ui| match self {
-                UiWindowKind::Debugger => debugger::show(ui, state),
-                UiWindowKind::HexViewer => hex_viewer::show(ui, state),
-                UiWindowKind::PpuMemory => ppu_memory::show(ui, state),
-                UiWindowKind::Stats => stats::show(ui, state),
-                UiWindowKind::PpuState => ppu_state::show(ui, state),
-                UiWindowKind::Preferences => preferences::show(ui, preferences),
-                UiWindowKind::Popup { .. } => unreachable!(),
+                Self::Debugger => debugger::show(ui, state),
+                Self::HexViewer => hex_viewer::show(ui, state),
+                Self::PpuMemory => ppu_memory::show(ui, state),
+                Self::Stats => stats::show(ui, state),
+                Self::PpuState => ppu_state::show(ui, state),
+                Self::Preferences => preferences::show(ui, preferences),
+                Self::CatridgeInfo => catridge_info::show(ui, state),
+                Self::Popup { .. } => unreachable!(),
             });
 
         open

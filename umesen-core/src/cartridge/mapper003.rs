@@ -2,7 +2,7 @@ use crate::cartridge::{Bank, BankMapping, CartridgeBanks, Mapper};
 
 /// INES designation for CNROM boards
 /// https://www.nesdev.org/wiki/CNROM
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Mapper003 {
     bank_number: usize,
 }

@@ -5,7 +5,7 @@ const SHIFT_CHECK_BIT_POS: u8 = 5;
 
 /// INES designation for MMC1 boards
 /// https://www.nesdev.org/wiki/MMC1
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Mapper001 {
     shift_register: u8,
     control_register: u8,

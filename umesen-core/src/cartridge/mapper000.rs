@@ -2,7 +2,7 @@ use crate::cartridge::{Bank, BankMapping, CartridgeBanks, Mapper};
 
 /// INES designation for NROM boards
 /// https://www.nesdev.org/wiki/NROM
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Mapper000 {}
 
 impl Mapper for Mapper000 {
