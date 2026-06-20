@@ -1,27 +1,10 @@
 mod cartridge_banks;
 mod cartridge_header;
-mod mapper000;
-mod mapper001;
-mod mapper002;
-mod mapper003;
+mod mapper;
 
-use crate::cartridge::{
-    mapper000::Mapper000, mapper001::Mapper001, mapper002::Mapper002, mapper003::Mapper003,
-};
 pub use cartridge_banks::*;
 pub use cartridge_header::*;
-
-/// Generic trait for underlying circuitry inside a catridge that will read and write to a catridge memory bank
-pub trait Mapper: std::fmt::Debug {
-    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8>;
-    fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8);
-    fn map_ppu(&self, address: u16) -> BankMapping;
-    fn reset(&mut self) {}
-    /// Option to override mirroring from header
-    fn mirroring(&self) -> Option<Mirroring> {
-        None
-    }
-}
+pub use mapper::{Mapper, create_mapper};
 
 pub struct Cartridge {
     banks: CartridgeBanks,
@@ -30,24 +13,10 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-    fn new(
-        header: CartridgeHeader,
-        mut banks: CartridgeBanks,
-        trainer_data: Vec<u8>,
-    ) -> Result<Self, NesParseError> {
-        let mut mapper: Box<dyn Mapper> = match header.mapper_id {
-            0 => Box::new(Mapper000::default()),
-            1 => Box::new(Mapper001::default()),
-            2 => Box::new(Mapper002::default()),
-            3 => Box::new(Mapper003::default()),
-            id => return Err(NesParseError::UnsupportedMapper(id)),
-        };
+    fn new(header: CartridgeHeader, banks: CartridgeBanks) -> Result<Self, NesParseError> {
+        let mut mapper = create_mapper(header.mapper_id)
+            .ok_or(NesParseError::UnsupportedMapper(header.mapper_id))?;
         mapper.reset();
-
-        for (i, byte) in trainer_data.iter().enumerate() {
-            mapper.cpu_write(&mut banks, (0x7000 + i) as u16, *byte);
-        }
-
         Ok(Cartridge {
             mapper,
             header,
@@ -73,7 +42,11 @@ impl Cartridge {
         }
 
         let banks = CartridgeBanks::new(vec![0; header.prg_ram_size], prg_rom, chr_mem);
-        Self::new(header, banks, trainer_data)
+        let mut cartridge = Self::new(header, banks)?;
+        for (i, byte) in trainer_data.iter().enumerate() {
+            cartridge.cpu_write((0x7000 + i) as u16, *byte);
+        }
+        Ok(cartridge)
     }
 
     pub fn from_mapper(
@@ -88,16 +61,26 @@ impl Cartridge {
                 ..Default::default()
             },
             CartridgeBanks::new(prg_ram, prg_rom, chr_rom),
-            vec![],
         )
     }
 
     pub fn cpu_read(&self, address: u16) -> Option<u8> {
-        self.mapper.cpu_read(&self.banks, address)
+        if let Some(mapping) = self.mapper.map_cpu_read(address) {
+            self.banks.prg_rom.read(mapping, address)
+        } else if let 0x6000..=0x7fff = address {
+            self.banks.prg_ram.read((8, Bank::Number(0)), address)
+        } else {
+            None
+        }
     }
 
     pub fn cpu_write(&mut self, address: u16, value: u8) {
-        self.mapper.cpu_write(&mut self.banks, address, value);
+        if let 0x6000..=0x7fff = address {
+            self.banks
+                .prg_ram
+                .write((8, Bank::Number(0)), address, value);
+        }
+        self.mapper.cpu_write(address, value);
     }
 
     pub fn ppu_read(&self, address: u16) -> u8 {

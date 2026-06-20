@@ -1,0 +1,60 @@
+use crate::cartridge::{BankMapping, Mirroring};
+
+use mapper000::Mapper000;
+use mapper001::Mapper001;
+use mapper002::Mapper002;
+use mapper003::Mapper003;
+
+mod mapper000;
+mod mapper001;
+mod mapper002;
+mod mapper003;
+
+/// Generic trait for underlying circuitry inside a catridge that will read and write to a catridge memory bank
+pub trait Mapper: std::fmt::Debug {
+    fn map_cpu_read(&self, address: u16) -> Option<BankMapping>;
+    fn cpu_write(&mut self, address: u16, value: u8);
+    fn map_ppu(&self, address: u16) -> BankMapping;
+    fn reset(&mut self) {}
+    /// Option to override mirroring from header
+    fn mirroring(&self) -> Option<Mirroring> {
+        None
+    }
+}
+
+pub fn create_mapper(id: u16) -> Option<Box<dyn Mapper>> {
+    Some(match id {
+        0 => Box::new(Mapper000::default()),
+        1 => Box::new(Mapper001::default()),
+        2 => Box::new(Mapper002::default()),
+        3 => Box::new(Mapper003::default()),
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod test {
+    use crate::Cartridge;
+
+    pub fn create_test_catridge(
+        mapper_id: u16,
+        prg_rom_bank_size: usize,
+        prg_rom_banks_values: &[&[u8]],
+        chr_rom_bank_size: usize,
+        chr_rom_banks_values: &[&[u8]],
+    ) -> Cartridge {
+        let prg_rom = create_banks_rom(prg_rom_bank_size, prg_rom_banks_values);
+        let chr_rom = create_banks_rom(chr_rom_bank_size, chr_rom_banks_values);
+        Cartridge::from_mapper(mapper_id, vec![0; 1024], prg_rom, chr_rom).unwrap()
+    }
+
+    fn create_banks_rom(bank_size: usize, banks_values: &[&[u8]]) -> Vec<u8> {
+        let mut rom = vec![0; bank_size * 1024 * banks_values.len()];
+        for (i, bank) in banks_values.iter().enumerate() {
+            for (j, value) in bank.iter().enumerate() {
+                rom[i * bank_size * 1024 + j] = *value;
+            }
+        }
+        rom
+    }
+}

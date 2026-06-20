@@ -1,4 +1,4 @@
-use crate::cartridge::{Bank, BankMapping, CartridgeBanks, Mapper, Mirroring};
+use crate::cartridge::{Bank, BankMapping, Mapper, Mirroring};
 
 // 0b0010_0000
 const SHIFT_CHECK_BIT_POS: u8 = 5;
@@ -37,7 +37,7 @@ impl Mapper001 {
 }
 
 impl Mapper for Mapper001 {
-    fn cpu_read(&self, banks: &CartridgeBanks, address: u16) -> Option<u8> {
+    fn map_cpu_read(&self, address: u16) -> Option<BankMapping> {
         let bank_number = self.prg_bank_number as usize;
         let (bank_8000, bank_c000) = match self.control_register & 0b01100 {
             // 32 kib mode
@@ -49,19 +49,16 @@ impl Mapper for Mapper001 {
             _ => unreachable!(),
         };
 
-        match address {
-            0x6000..=0x7fff => banks.prg_ram.read((8, Bank::Number(0)), address),
-            0x8000..=0xbfff => banks.prg_rom.read((16, bank_8000), address),
-            0xc000..=0xffff => banks.prg_rom.read((16, bank_c000), address),
-            _ => None,
-        }
+        Some(match address {
+            0x8000..=0xbfff => (16, bank_8000),
+            0xc000..=0xffff => (16, bank_c000),
+            _ => return None,
+        })
     }
 
-    fn cpu_write(&mut self, banks: &mut CartridgeBanks, address: u16, value: u8) {
-        match address {
-            0x6000..=0x7fff => banks.prg_ram.write((8, Bank::Number(0)), address, value),
-            0x8000..=0xffff => self.write_load_register(address, value),
-            _ => (),
+    fn cpu_write(&mut self, address: u16, value: u8) {
+        if let 0x8000..=0xffff = address {
+            self.write_load_register(address, value);
         }
     }
 
@@ -110,7 +107,10 @@ fn split_large_bank(bank_number: usize) -> (Bank, Bank) {
 
 #[cfg(test)]
 mod test {
-    use crate::{Cartridge, cartridge::Mirroring};
+    use crate::{
+        Cartridge,
+        cartridge::{Mirroring, mapper::test::create_test_catridge},
+    };
 
     fn write_register(catridge: &mut Cartridge, address: u16, bits: u8) {
         for i in 0..5 {
@@ -119,22 +119,13 @@ mod test {
     }
 
     fn setup_catridge() -> Cartridge {
-        let mut prg_rom = vec![0; 128 * 1024];
-        prg_rom[2] = 2;
-        prg_rom[16 * 1024 + 2] = 9; // 2nd bank
-        prg_rom[16 * 1024 * 2 + 2] = 1; // 3rd bank
-        *prg_rom.last_mut().unwrap() = 3;
-        let mut chr_rom = vec![0; 32 * 1024];
-        chr_rom[2] = 2;
-        chr_rom[4 * 1024 + 2] = 9; // 2nd bank
-        chr_rom[4 * 1024 * 2 + 2] = 1; // 3rd bank
-        Cartridge::from_mapper(1, vec![0; 1024], prg_rom, chr_rom).unwrap()
+        create_test_catridge(1, 16, &[&[1, 69], &[2], &[3], &[4]], 4, &[&[6], &[7], &[8]])
     }
 
     #[test]
     fn shift_and_control_register() {
         let mut catridge = setup_catridge();
-        assert_eq!(catridge.cpu_read(0xffff), Some(3));
+        assert_eq!(catridge.cpu_read(0xc000), Some(4));
 
         // Write control register
         catridge.cpu_write(0x9999, 0b0001_1001);
@@ -143,12 +134,12 @@ mod test {
         catridge.cpu_write(0xcccc, 0b0000_0000);
         catridge.cpu_write(0x8000, 0b0000_0000);
         assert_eq!(catridge.mirroring(), Mirroring::SingleScreenHigh);
-        assert_eq!(catridge.cpu_read(0xffff), Some(0));
+        assert_eq!(catridge.cpu_read(0xc000), Some(2));
 
         catridge.cpu_write(0x8000, 0b0000_0001);
         catridge.cpu_write(0x8000, 0b0000_0001);
         catridge.cpu_write(0x8000, 0b1000_0000); // Reset
-        assert_eq!(catridge.cpu_read(0xffff), Some(3));
+        assert_eq!(catridge.cpu_read(0xc000), Some(4));
         catridge.cpu_write(0xcccc, 0b0000_0000);
         catridge.cpu_write(0x8000, 0b0000_0000);
         catridge.cpu_write(0x8000, 0b0000_0000);
@@ -160,28 +151,24 @@ mod test {
         let mut catridge = setup_catridge();
         // 0xc000 last bank
         write_register(&mut catridge, 0x8000, 0b11111);
-        assert_eq!(catridge.cpu_read(0xffff), Some(3));
-        assert_eq!(catridge.cpu_read(0x8002), Some(2));
+        assert_eq!(catridge.cpu_read(0x8000), Some(1));
         write_register(&mut catridge, 0xe000, 0b00010);
-        assert_eq!(catridge.cpu_read(0x8002), Some(1));
+        assert_eq!(catridge.cpu_read(0x8000), Some(3));
+        assert_eq!(catridge.cpu_read(0xc000), Some(4));
 
         // 0x8000 last bank
         write_register(&mut catridge, 0x8000, 0b01000);
-        assert_eq!(catridge.cpu_read(0xbfff), Some(3));
-        assert_eq!(catridge.cpu_read(0xc002), Some(1));
+        assert_eq!(catridge.cpu_read(0x8000), Some(4));
+        assert_eq!(catridge.cpu_read(0xc000), Some(3));
 
         // 32 KB mode
         write_register(&mut catridge, 0x8000, 0b00100);
-        assert_eq!(catridge.cpu_read(0xffff), Some(0));
-        assert_eq!(catridge.cpu_read(0xbfff), Some(0));
-        assert_eq!(catridge.cpu_read(0x8002), Some(1));
+        assert_eq!(catridge.cpu_read(0x8000), Some(3));
+        assert_eq!(catridge.cpu_read(0xc000), Some(4));
         write_register(&mut catridge, 0xe000, 0b00001);
-        assert_eq!(catridge.cpu_read(0x8002), Some(2));
-        assert_eq!(catridge.cpu_read(0xc002), Some(9));
-
-        // prg ram
-        catridge.cpu_write(0x6969, 69);
-        assert_eq!(catridge.cpu_read(0x6969), Some(69));
+        assert_eq!(catridge.cpu_read(0x8000), Some(1));
+        assert_eq!(catridge.cpu_read(0x8001), Some(69));
+        assert_eq!(catridge.cpu_read(0xc000), Some(2));
     }
 
     #[test]
@@ -190,12 +177,11 @@ mod test {
         write_register(&mut catridge, 0x8000, 0b11111);
         write_register(&mut catridge, 0xa000, 0b00001);
         write_register(&mut catridge, 0xc000, 0b00010);
-        assert_eq!(catridge.ppu_read(0x0002), 9);
-        assert_eq!(catridge.ppu_read(0x1002), 1);
+        assert_eq!(catridge.ppu_read(0x0000), 7);
+        assert_eq!(catridge.ppu_read(0x1000), 8);
 
         write_register(&mut catridge, 0x8000, 0b00000);
         write_register(&mut catridge, 0xa000, 0b00001);
-        assert_eq!(catridge.ppu_read(0x0002), 2);
-        assert_eq!(catridge.ppu_read(0x1002), 9);
+        assert_eq!(catridge.ppu_read(0x0000), 6);
     }
 }

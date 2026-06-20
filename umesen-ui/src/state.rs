@@ -22,15 +22,17 @@ pub struct State {
 
 impl State {
     pub fn update_emulation(&mut self, ctx: &egui::Context) {
+        if self.emu.running {
+            ctx.request_repaint();
+        }
         match self.emu.update() {
             Ok(frame_complete) => {
                 // Don't sync to screen if speed is less than 1 for debugging
                 if frame_complete || self.emu.speed < 1. {
                     self.update_ppu_texture();
-                    ctx.request_repaint();
                 }
                 if frame_complete {
-                    self.update_ppu_texture();
+                    self.update_emulation(ctx);
                 }
             }
             Err(err) => {

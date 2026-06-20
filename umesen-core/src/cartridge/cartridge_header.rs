@@ -31,6 +31,7 @@ pub enum Mirroring {
 #[derive(Default, Debug, PartialEq, Clone)]
 pub struct CartridgeHeader {
     pub mapper_id: u16,
+    pub submapper_id: u8,
     pub prg_rom_size: usize,
     pub prg_ram_size: usize,
     pub chr_mem_size: usize,
@@ -75,9 +76,14 @@ impl CartridgeHeader {
             mapper_id |= (data[8] as u16 & 0x0f) << 8;
         }
 
+        if data[12] & 0b01 != 0 {
+            log::warn!("Detected PAL ROM, this emulator only supports NTSC");
+        }
+
         Ok(Self {
             prg_rom_size,
             mapper_id,
+            submapper_id: data[8] & 0xf0 >> 4,
             mirroring: if data[6] & 0b000_1000 != 0 {
                 // Note: this bit could mean a different mirrorings in some mappers?
                 Mirroring::FourScreen
@@ -123,6 +129,7 @@ mod test {
         assert_eq!(
             header,
             CartridgeHeader {
+                submapper_id: 0,
                 has_volatile: false,
                 mapper_id: 3,
                 mirroring: Mirroring::Vertical,
