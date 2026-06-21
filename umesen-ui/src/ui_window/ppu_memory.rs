@@ -188,10 +188,7 @@ fn show_pattern_tiles<'a>(
     let [tile_count_x, tile_count_y] = config.tile_count;
     let id = egui::Id::new(&config.name);
     let image_size = [tile_count_x * 8, tile_count_y * 8];
-    let texture = state
-        .texture_map
-        .entry(config.name.clone())
-        .or_insert_with(|| crate::Texture::new(image_size));
+    let texture = state.texture_map.get(config.name.clone(), image_size);
     let ppu = state.emu.ppu();
 
     for tile_y in 0..tile_count_y {

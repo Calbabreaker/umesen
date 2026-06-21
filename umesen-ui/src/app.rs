@@ -170,13 +170,15 @@ impl eframe::App for App {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
+    fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        self.state.emu.cpu.bus.ppu.unlimited_sprites = self.preferences.allow_unlimted_sprites;
+
+        self.state.update_emulation(ctx);
+    }
+
     /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         ui.input_mut(|i| self.check_input(i));
-
-        self.state.emu.cpu.bus.ppu.unlimited_sprites = self.preferences.allow_unlimted_sprites;
-
-        self.state.update_emulation(ui.ctx());
 
         let default_bg = ui.style().visuals.noninteractive().bg_fill;
         egui::Panel::top("top_panel")
@@ -192,7 +194,7 @@ impl eframe::App for App {
             .frame(egui::Frame::NONE)
             .show_inside(ui, |ui| {
                 ui.centered_and_justified(|ui| {
-                    if let Some(texture) = self.state.texture_map.get_mut("ppu_output") {
+                    if let Some(texture) = self.state.texture_map.0.get_mut("ppu_output") {
                         ui.add(texture.image(ui).fit_to_fraction(egui::vec2(1., 1.)));
                     }
                 });

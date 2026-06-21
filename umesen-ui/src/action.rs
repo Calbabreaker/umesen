@@ -8,6 +8,7 @@ pub enum ActionKind {
     QuickLoad,
     Reset,
     Step,
+    NextFrame,
 }
 
 impl ActionKind {
@@ -16,6 +17,7 @@ impl ActionKind {
             Self::ControllerInput(number, button) => {
                 format!("Controller {number} {}", button.name())
             }
+            Self::NextFrame => "Step next frame".to_owned(),
             Self::PauseResume => "Pause/Resume".to_owned(),
             Self::Reset => "Reset".to_owned(),
             Self::Step => "Step Instruction".to_owned(),

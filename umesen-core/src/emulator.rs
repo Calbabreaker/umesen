@@ -4,7 +4,7 @@ use crate::{
     Cartridge, Controller, Cpu,
     cartridge::NesParseError,
     cpu::{CLOCK_SPEED_HZ, CYCLES_PER_FRAME, CpuError},
-    ppu,
+    ppu::{self, ScreenPixels},
 };
 
 /// High level struct for controlling the cpu
@@ -43,13 +43,15 @@ impl Emulator {
 
     /// Calculates the delta time that has passed since calling this function and clock the cpu
     /// required for that amount of time
-    /// It will return true midway of a frame was completed (only the last one)
-    /// Make sure to call this function again if it returns true
-    pub fn update(&mut self) -> Result<bool, CpuError> {
-        let delta = self.last_update_time.elapsed().as_secs_f64().min(0.05) * self.speed;
+    /// On
+    pub fn update(
+        &mut self,
+        mut on_frame_completed: impl FnMut(&ScreenPixels),
+    ) -> Result<(), CpuError> {
+        let delta = self.last_update_time.elapsed().as_secs_f64() * self.speed;
         self.last_update_time = std::time::Instant::now();
         if !self.running {
-            return Ok(false);
+            return Ok(());
         }
 
         self.clocks_remaining += delta * CLOCK_SPEED_HZ;
@@ -58,10 +60,10 @@ impl Emulator {
             if self.ppu().frame_complete() && self.clocks_remaining < CYCLES_PER_FRAME {
                 self.frame_rate = 1. / self.last_frame_time.elapsed().as_secs_f64();
                 self.last_frame_time = std::time::Instant::now();
-                return Ok(true);
+                on_frame_completed(&self.ppu().screen_pixels);
             }
         }
-        Ok(false)
+        Ok(())
     }
 
     pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {

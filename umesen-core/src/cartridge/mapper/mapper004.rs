@@ -13,7 +13,6 @@ pub struct Mapper004 {
     irq_counter: u8,
     irq_latch_value: u8,
     irq_status: bool,
-    irq_reload: bool,
     irq_enable: bool,
 }
 
@@ -59,7 +58,7 @@ impl Mapper for Mapper004 {
                 }
             }
             0xc000..=0xdfff if even => self.irq_latch_value = value,
-            0xc000..=0xdfff if !even => self.irq_reload = true,
+            0xc000..=0xdfff if !even => self.irq_counter = 0,
             // Disable IRQs and acknowledge them
             0xe000..=0xffff if even => {
                 self.irq_enable = false;
@@ -99,12 +98,11 @@ impl Mapper for Mapper004 {
     }
 
     fn signal_scanline(&mut self) {
-        if self.irq_counter == 0 && self.irq_enable {
-            self.irq_status = true;
-        }
-        if self.irq_counter == 0 || self.irq_reload {
+        if self.irq_counter == 0 {
+            if self.irq_enable {
+                self.irq_status = true;
+            }
             self.irq_counter = self.irq_latch_value;
-            self.irq_reload = false;
         } else {
             self.irq_counter -= 1;
         }

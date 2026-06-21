@@ -1,6 +1,4 @@
-use egui::ahash::HashMap;
-
-use crate::{ActionKind, texture::Texture};
+use crate::{ActionKind, texture::TextureMap};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -13,7 +11,7 @@ pub struct Preferences {
 #[derive(Default)]
 pub struct State {
     pub emu: Box<umesen_core::Emulator>,
-    pub texture_map: HashMap<String, Texture>,
+    pub texture_map: TextureMap,
     pub ui_render_time: f32,
     pub save_states: std::collections::HashMap<u8, umesen_core::Cpu>,
     pub selected_quick_save: u8,
@@ -22,36 +20,20 @@ pub struct State {
 
 impl State {
     pub fn update_emulation(&mut self, ctx: &egui::Context) {
+        if let Err(err) = self
+            .emu
+            .update(|pixels| self.texture_map.update_ppu_texture(pixels))
+        {
+            log::warn!("CPU halted: {err}");
+            self.emu.running = false;
+        }
+
+        if self.emu.speed < 1. {
+            self.texture_map
+                .update_ppu_texture(&self.emu.ppu().screen_pixels);
+        }
         if self.emu.running {
             ctx.request_repaint();
-        }
-        match self.emu.update() {
-            Ok(frame_complete) => {
-                // Don't sync to screen if speed is less than 1 for debugging
-                if frame_complete || self.emu.speed < 1. {
-                    self.update_ppu_texture();
-                }
-                if frame_complete {
-                    self.update_emulation(ctx);
-                }
-            }
-            Err(err) => {
-                log::warn!("CPU halted: {err}");
-                self.emu.running = false;
-            }
-        }
-    }
-
-    pub fn update_ppu_texture(&mut self) {
-        let pixels = &self.emu.ppu().screen_pixels;
-        let texture = self
-            .texture_map
-            .entry("ppu_output".into())
-            .or_insert_with(|| {
-                crate::Texture::new([umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT])
-            });
-        for (i, color) in pixels.iter().enumerate() {
-            texture.image_buffer.pixels[i] = egui::Color32::from_rgb(color[0], color[1], color[2]);
         }
     }
 
@@ -65,7 +47,6 @@ impl State {
             ActionKind::Step => {
                 self.emu.running = false;
                 self.emu.cpu.execute_next().ok();
-                self.update_ppu_texture();
             }
             ActionKind::QuickSave => {
                 self.save_states
@@ -76,7 +57,13 @@ impl State {
                     self.emu.cpu = cpu.clone();
                 }
             }
+            ActionKind::NextFrame => {
+                self.emu.running = false;
+                self.emu.next_frame().ok();
+            }
             ActionKind::ControllerInput(..) => unreachable!(),
         }
+        self.texture_map
+            .update_ppu_texture(&self.emu.ppu().screen_pixels);
     }
 }

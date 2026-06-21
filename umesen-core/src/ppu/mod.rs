@@ -17,6 +17,8 @@ pub const HEIGHT: usize = 240;
 pub const MAX_SPRITES_PER_SCAN: usize = 8;
 pub const PRERENDER_SCANLINE: usize = 261;
 
+pub type ScreenPixels = FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>;
+
 pub enum PpuClockReport {
     None,
     Nmi,
@@ -28,7 +30,7 @@ pub enum PpuClockReport {
 pub struct Ppu {
     pub registers: Registers,
     pub palette: Palette,
-    pub screen_pixels: FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>,
+    pub screen_pixels: ScreenPixels,
     pub unlimited_sprites: bool,
     frame_complete: bool,
 
