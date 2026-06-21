@@ -97,6 +97,14 @@ impl Cartridge {
         }
     }
 
+    pub fn irq_status(&self) -> bool {
+        self.mapper.irq_status()
+    }
+
+    pub fn signal_scanline(&mut self) {
+        self.mapper.signal_scanline();
+    }
+
     pub fn mirroring(&self) -> Mirroring {
         self.mapper.mirroring().unwrap_or(self.header.mirroring)
     }

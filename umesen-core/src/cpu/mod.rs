@@ -75,17 +75,12 @@ impl Cpu {
 
         if self.bus.require_nmi() {
             self.interrupt(0xfffa, Flags::empty(), 2);
+        } else if self.bus.irq_status() && !self.flags.contains(Flags::INTERRUPT) {
+            self.interrupt(0xfffe, Flags::empty(), 2);
         }
 
         Ok(self.bus.cpu_cycles_since_inst)
     }
-
-    // fn irq(&mut self) {
-    //     if !self.flags.contains(Flags::INTERRUPT) {
-    //         self.interrupt(0xfffe, Flags::empty());
-    //         self.bus.clock();
-    //     }
-    // }
 
     pub fn reset(&mut self) {
         self.a = 0;

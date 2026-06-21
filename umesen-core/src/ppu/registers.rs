@@ -208,6 +208,7 @@ impl Registers {
     }
 
     fn read_oam_data(&self) -> u8 {
+        // Weird stuff happens when reading from ppu oam data during rendering
         if self.scanline < HEIGHT && self.mask.is_rendering() {
             match self.dot {
                 1..=64 => return 0xff,

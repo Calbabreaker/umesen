@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{
     Controller, Ppu,
     cartridge::{Cartridge, FixedArray},
+    ppu::PpuClockReport,
 };
 
 #[derive(Clone, Default)]
@@ -16,6 +17,7 @@ pub struct CpuBus {
     pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
     open_bus: u8,
     pub controllers: [Controller; 2],
+    require_nmi: bool,
 }
 
 impl CpuBus {
@@ -97,7 +99,15 @@ impl CpuBus {
         self.cpu_cycles_since_inst += 1;
         self.cpu_cycles_total += 1;
         for _ in 0..3 {
-            self.ppu.clock();
+            match self.ppu.clock() {
+                PpuClockReport::None => (),
+                PpuClockReport::EndScanline => {
+                    if let Some(cartridge) = self.cartridge.as_ref() {
+                        cartridge.borrow_mut().signal_scanline()
+                    }
+                }
+                PpuClockReport::Nmi => self.require_nmi = true,
+            }
         }
     }
 
@@ -107,9 +117,16 @@ impl CpuBus {
         self.ppu.registers.bus.cartridge = Some(catridge_rc);
     }
 
+    pub fn irq_status(&self) -> bool {
+        self.cartridge
+            .as_ref()
+            .map(|c| c.borrow().irq_status())
+            .unwrap_or(false)
+    }
+
     pub fn require_nmi(&mut self) -> bool {
-        let status = self.ppu.require_nmi;
-        self.ppu.require_nmi = false;
+        let status = self.require_nmi;
+        self.require_nmi = false;
         status
     }
 

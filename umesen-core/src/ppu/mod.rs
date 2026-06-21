@@ -17,6 +17,12 @@ pub const HEIGHT: usize = 240;
 pub const MAX_SPRITES_PER_SCAN: usize = 8;
 pub const PRERENDER_SCANLINE: usize = 261;
 
+pub enum PpuClockReport {
+    None,
+    Nmi,
+    EndScanline,
+}
+
 /// Emulated 2C02 NTSC PPU
 #[derive(Clone, Default)]
 pub struct Ppu {
@@ -25,7 +31,6 @@ pub struct Ppu {
     pub screen_pixels: FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>,
     pub unlimited_sprites: bool,
     frame_complete: bool,
-    pub(crate) require_nmi: bool,
 
     // Bits shifted left every render dot so leftmost bit contains low and high bit of the current pixel index in the palette
     bg_shift_bits_low: u16,
@@ -64,7 +69,9 @@ impl Ppu {
         }
     }
 
-    pub(crate) fn clock(&mut self) {
+    pub(crate) fn clock(&mut self) -> PpuClockReport {
+        let mut report = PpuClockReport::None;
+
         // Specific scanline timings
         // See https://www.nesdev.org/w/images/default/4/4f/Ppu.svg
         match self.registers.scanline {
@@ -77,7 +84,7 @@ impl Ppu {
                 self.frame_complete = true;
                 self.registers.status.set(Status::VBLANK, true);
                 if self.registers.control.contains(Control::VBLANK_NMI) {
-                    self.require_nmi = true;
+                    report = PpuClockReport::Nmi;
                 }
             }
             PRERENDER_SCANLINE => {
@@ -103,7 +110,12 @@ impl Ppu {
                 self.get_palette_color(color_index);
         }
 
+        if self.registers.dot == 260 && self.registers.mask.is_rendering() {
+            report = PpuClockReport::EndScanline;
+        }
+
         self.registers.next_dot();
+        report
     }
 
     // Scanlines when the PPU is actually drawing to the screen

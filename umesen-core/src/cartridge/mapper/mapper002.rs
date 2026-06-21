@@ -4,21 +4,21 @@ use crate::cartridge::{Bank, Mapper};
 /// https://www.nesdev.org/wiki/UxROM
 #[derive(Default, Debug)]
 pub struct Mapper002 {
-    bank_number_low: usize,
+    bank_number_low: u8,
 }
 
 impl Mapper for Mapper002 {
     fn map_cpu_read(&self, address: u16) -> Option<crate::cartridge::BankMapping> {
         Some(match address {
             0x8000..=0xbfff => (16, Bank::Number(self.bank_number_low)),
-            0xc000..=0xffff => (16, Bank::Last),
+            0xc000..=0xffff => (16, Bank::FromLast(0)),
             _ => return None,
         })
     }
 
     fn cpu_write(&mut self, address: u16, value: u8) {
         if let 0x8000..=0xffff = address {
-            self.bank_number_low = value as usize;
+            self.bank_number_low = value;
         }
     }
 

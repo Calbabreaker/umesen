@@ -4,7 +4,7 @@ use crate::cartridge::{Bank, BankMapping, Mapper};
 /// https://www.nesdev.org/wiki/CNROM
 #[derive(Default, Debug)]
 pub struct Mapper003 {
-    bank_number: usize,
+    bank_number: u8,
 }
 
 impl Mapper for Mapper003 {
@@ -17,7 +17,7 @@ impl Mapper for Mapper003 {
 
     fn cpu_write(&mut self, address: u16, value: u8) {
         if let 0x8000..=0xffff = address {
-            self.bank_number = value as usize;
+            self.bank_number = value;
         }
     }
 

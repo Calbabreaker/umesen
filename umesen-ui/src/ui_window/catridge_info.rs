@@ -16,9 +16,9 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label(format!(
         "CHR {} size: {:?}",
         if catridge.header().chr_mem_is_rom {
-            "RAM"
-        } else {
             "ROM"
+        } else {
+            "RAM"
         },
         catridge.header().chr_mem_size
     ));

@@ -24,8 +24,8 @@ impl<T, const C: usize> std::ops::DerefMut for FixedArray<T, C> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Bank {
-    Number(usize),
-    Last,
+    Number(u8),
+    FromLast(u8),
 }
 
 #[derive(Default)]
@@ -58,9 +58,13 @@ impl MemoryBanks {
 
         match bank {
             Bank::Number(number) => {
-                (bank_size * (number % num_banks) + (offset as usize % bank_size)) % self.0.len()
+                (bank_size * (number as usize % num_banks) + (offset as usize % bank_size))
+                    % self.0.len()
             }
-            Bank::Last => self.index((bank_size_kb, Bank::Number(num_banks - 1)), offset),
+            Bank::FromLast(from_last) => self.index(
+                (bank_size_kb, Bank::Number(num_banks as u8 - from_last - 1)),
+                offset,
+            ),
         }
     }
 }

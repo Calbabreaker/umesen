@@ -4,11 +4,13 @@ use mapper000::Mapper000;
 use mapper001::Mapper001;
 use mapper002::Mapper002;
 use mapper003::Mapper003;
+use mapper004::Mapper004;
 
 mod mapper000;
 mod mapper001;
 mod mapper002;
 mod mapper003;
+mod mapper004;
 
 /// Generic trait for underlying circuitry inside a catridge that will read and write to a catridge memory bank
 pub trait Mapper: std::fmt::Debug {
@@ -16,6 +18,11 @@ pub trait Mapper: std::fmt::Debug {
     fn cpu_write(&mut self, address: u16, value: u8);
     fn map_ppu(&self, address: u16) -> BankMapping;
     fn reset(&mut self) {}
+    /// Used to send irq to cpu
+    fn irq_status(&self) -> bool {
+        false
+    }
+    fn signal_scanline(&mut self) {}
     /// Option to override mirroring from header
     fn mirroring(&self) -> Option<Mirroring> {
         None
@@ -28,6 +35,7 @@ pub fn create_mapper(id: u16) -> Option<Box<dyn Mapper>> {
         1 => Box::new(Mapper001::default()),
         2 => Box::new(Mapper002::default()),
         3 => Box::new(Mapper003::default()),
+        4 => Box::new(Mapper004::default()),
         _ => return None,
     })
 }

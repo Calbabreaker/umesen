@@ -38,14 +38,13 @@ impl Mapper001 {
 
 impl Mapper for Mapper001 {
     fn map_cpu_read(&self, address: u16) -> Option<BankMapping> {
-        let bank_number = self.prg_bank_number as usize;
         let (bank_8000, bank_c000) = match self.control_register & 0b01100 {
             // 32 kib mode
-            0b00000 | 0b00100 => split_large_bank(bank_number),
+            0b00000 | 0b00100 => half_double_bank(self.prg_bank_number),
             // 16 kib, 8000 = last bank
-            0b01000 => ((Bank::Last), (Bank::Number(bank_number))),
+            0b01000 => ((Bank::FromLast(0)), (Bank::Number(self.prg_bank_number))),
             // 16 kib, c000 = last bank
-            0b01100 => (Bank::Number(bank_number), (Bank::Last)),
+            0b01100 => (Bank::Number(self.prg_bank_number), (Bank::FromLast(0))),
             _ => unreachable!(),
         };
 
@@ -63,13 +62,14 @@ impl Mapper for Mapper001 {
     }
 
     fn map_ppu(&self, address: u16) -> BankMapping {
-        let bank_number_0 = self.chr_bank_number_0 as usize;
-        let bank_number_1 = self.chr_bank_number_1 as usize;
         let (bank_0000, bank_1000) = match self.control_register & 0b10000 {
             // 8 Kib mode
-            0b00000 => split_large_bank(bank_number_0),
+            0b00000 => half_double_bank(self.chr_bank_number_0),
             // 4 Kib split mode
-            0b10000 => (Bank::Number(bank_number_0), Bank::Number(bank_number_1)),
+            0b10000 => (
+                Bank::Number(self.chr_bank_number_0),
+                Bank::Number(self.chr_bank_number_1),
+            ),
             _ => unreachable!(),
         };
 
@@ -98,10 +98,10 @@ impl Mapper for Mapper001 {
     }
 }
 
-fn split_large_bank(bank_number: usize) -> (Bank, Bank) {
+fn half_double_bank(bank_number: u8) -> (Bank, Bank) {
     (
-        Bank::Number(bank_number & 0b1110),
-        Bank::Number((bank_number & 0b1110) + 1),
+        Bank::Number(bank_number & !1),
+        Bank::Number((bank_number & !1) + 1),
     )
 }
 
