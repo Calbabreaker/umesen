@@ -11,6 +11,7 @@ pub struct Mapper004 {
     chr_mode_flip: bool,
 
     irq_counter: u8,
+    irq_reload: bool,
     irq_latch_value: u8,
     irq_status: bool,
     irq_enable: bool,
@@ -51,14 +52,14 @@ impl Mapper for Mapper004 {
             }
             // Mirroring
             0xa000..=0xbfff if even => {
-                self.mirroring = if value & 0b1 != 0 {
+                self.mirroring = if value & 0b1 == 0 {
                     Mirroring::Vertical
                 } else {
                     Mirroring::Horizontal
                 }
             }
             0xc000..=0xdfff if even => self.irq_latch_value = value,
-            0xc000..=0xdfff if !even => self.irq_counter = 0,
+            0xc000..=0xdfff if !even => self.irq_reload = true,
             // Disable IRQs and acknowledge them
             0xe000..=0xffff if even => {
                 self.irq_enable = false;
@@ -98,6 +99,12 @@ impl Mapper for Mapper004 {
     }
 
     fn signal_scanline(&mut self) {
+        if self.irq_reload {
+            self.irq_counter = self.irq_latch_value;
+            self.irq_reload = false;
+            return;
+        }
+
         if self.irq_counter == 0 {
             if self.irq_enable {
                 self.irq_status = true;
@@ -127,11 +134,10 @@ mod test {
     #[test]
     fn mirroring() {
         let mut cartridge = setup_catridge();
-        assert_eq!(cartridge.mirroring(), Mirroring::Horizontal);
+        cartridge.cpu_write(0xa000, 0b100);
+        assert_eq!(cartridge.mirroring(), Mirroring::Vertical);
         cartridge.cpu_write(0xa000, 0b101);
-        assert_eq!(cartridge.mirroring(), Mirroring::Vertical);
-        cartridge.cpu_write(0xa001, 0b101);
-        assert_eq!(cartridge.mirroring(), Mirroring::Vertical);
+        assert_eq!(cartridge.mirroring(), Mirroring::Horizontal);
     }
 
     #[test]
@@ -164,12 +170,11 @@ mod test {
         cartridge.cpu_write(0xe001, 0);
 
         cartridge.signal_scanline();
+        assert!(!cartridge.irq_status());
+        cartridge.signal_scanline();
+        assert!(!cartridge.irq_status());
+        cartridge.signal_scanline();
         assert!(cartridge.irq_status());
-        cartridge.cpu_write(0xe000, 0);
-        assert!(!cartridge.irq_status());
-        cartridge.signal_scanline();
-        cartridge.signal_scanline();
-        assert!(!cartridge.irq_status());
 
         cartridge.cpu_write(0xe001, 0);
         cartridge.signal_scanline();

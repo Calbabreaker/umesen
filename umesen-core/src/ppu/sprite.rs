@@ -5,7 +5,7 @@ bitflags::bitflags! {
     pub struct Attributes: u8 {
         #[bitflags(flag_name = "")]
         const PALLETTE = 0b11;
-        const BEHIND_BACKGROUND = 1 << 5;
+        const RENDER_BEHIND = 1 << 5;
         const FLIP_HORIZONTAL = 1 << 6;
         const FLIP_VERTICAL = 1 << 7;
     }

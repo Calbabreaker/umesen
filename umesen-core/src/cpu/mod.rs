@@ -42,7 +42,7 @@ pub enum CpuError {
     Halted,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum InterruptKind {
     Brk,
     Irq,

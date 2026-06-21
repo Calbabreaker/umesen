@@ -81,43 +81,52 @@ impl Ppu {
                 self.frame_complete = false;
                 self.clock_sprite_render_line();
                 self.clock_bg_render_line();
+                if self.registers.on_visble_dot() {
+                    self.render_pixel();
+                }
+                report = self.check_scanline_report();
             }
             241 if self.registers.dot == 1 => {
                 self.frame_complete = true;
                 self.registers.status.set(Status::VBLANK, true);
                 if self.registers.control.contains(Control::VBLANK_NMI) {
-                    report = PpuClockReport::Nmi;
+                    report = PpuClockReport::Nmi
                 }
             }
             PRERENDER_SCANLINE => {
                 self.clock_sprite_render_line();
                 self.clock_bg_prerender_line();
+                report = self.check_scanline_report();
             }
             _ => (),
         }
 
-        if self.registers.on_visble_dot() {
-            let x = self.registers.dot - 1;
-            let color_index = if self.registers.mask.is_rendering() {
-                let bg_color_index = self.render_bg_pixel(x);
-                self.render_fg_pixel(x, bg_color_index)
-            } else if matches!(self.registers.v.0, PALETTE_START..=0x3fff) {
-                // If v register is pointing to pallette address then use that color instead
-                // of the backdrop color
-                (self.registers.v.0 - PALETTE_START) as u8
-            } else {
-                0
-            };
-            *self.screen_pixels[x + self.registers.scanline * WIDTH] =
-                self.get_palette_color(color_index);
-        }
-
-        if self.registers.dot == 260 && self.registers.mask.is_rendering() {
-            report = PpuClockReport::EndScanline;
-        }
-
         self.registers.next_dot();
         report
+    }
+
+    fn check_scanline_report(&self) -> PpuClockReport {
+        if self.registers.dot == 260 && self.registers.mask.is_rendering() {
+            PpuClockReport::EndScanline
+        } else {
+            PpuClockReport::None
+        }
+    }
+
+    fn render_pixel(&mut self) {
+        let x = self.registers.dot - 1;
+        let color_index = if self.registers.mask.is_rendering() {
+            let bg_color_index = self.render_bg_pixel(x);
+            self.render_fg_pixel(x, bg_color_index)
+        } else if matches!(self.registers.v.0, PALETTE_START..=0x3fff) {
+            // If v register is pointing to pallette address then use that color instead
+            // of the backdrop color
+            (self.registers.v.0 - PALETTE_START) as u8
+        } else {
+            0
+        };
+        *self.screen_pixels[x + self.registers.scanline * WIDTH] =
+            self.get_palette_color(color_index);
     }
 
     // Scanlines when the PPU is actually drawing to the screen
@@ -262,9 +271,6 @@ impl Ppu {
 
     /// Returns the palette ram index for the current pixel if a sprite is there or the background based on piority
     fn render_fg_pixel(&mut self, scan_x: usize, bg_color_index: u8) -> u8 {
-        // Start off using the background color
-        let mut fg_color_index = bg_color_index;
-
         if self.registers.mask.can_show_sprite(scan_x) {
             // Find sprite to render
             for sprite in &self.sprite_buffer {
@@ -279,15 +285,17 @@ impl Ppu {
                 }
 
                 let palette_id = sprite.attributes.palette() + 4;
-                let behind_bg = sprite.attributes.contains(Attributes::BEHIND_BACKGROUND);
-                // Set to override the background color if over background or background is transparent
-                if !behind_bg || bg_color_index == 0 {
-                    fg_color_index = color_index + palette_id * 4;
+                let behind_bg = sprite.attributes.contains(Attributes::RENDER_BEHIND);
+                if behind_bg && bg_color_index != 0 {
+                    // Sprite still gets drawn on top of later sprites but it uses background
+                    return bg_color_index;
+                } else {
+                    return color_index + palette_id * 4;
                 }
             }
         }
 
-        fg_color_index
+        bg_color_index
     }
 
     fn shift_registers(&mut self) {

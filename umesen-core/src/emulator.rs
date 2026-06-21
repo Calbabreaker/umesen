@@ -51,6 +51,7 @@ impl Emulator {
         let delta = self.last_update_time.elapsed().as_secs_f64() * self.speed;
         self.last_update_time = std::time::Instant::now();
         if !self.running {
+            self.clocks_remaining = 0.;
             return Ok(());
         }
 

@@ -177,7 +177,7 @@ impl Registers {
     }
 
     pub fn on_visble_dot(&self) -> bool {
-        self.dot >= 1 && (self.dot - 1 < WIDTH) && self.scanline < HEIGHT
+        self.dot >= 1 && (self.dot - 1 < WIDTH)
     }
 
     pub fn read_palette_ram(&self, offset: u16) -> u8 {
@@ -279,7 +279,7 @@ impl Registers {
         };
         self.v.0 = self.v.0.wrapping_add(amount);
         // Weird increment behaviour when ppu is rendering
-        if self.on_visble_dot() && self.mask.is_rendering() {
+        if self.on_visble_dot() && self.scanline < HEIGHT && self.mask.is_rendering() {
             self.v.scroll_fine_y();
             self.v.scroll_coarse_x();
         }
