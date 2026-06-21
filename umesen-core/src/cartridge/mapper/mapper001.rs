@@ -41,8 +41,8 @@ impl Mapper for Mapper001 {
         let (bank_8000, bank_c000) = match self.control_register & 0b01100 {
             // 32 kib mode
             0b00000 | 0b00100 => half_double_bank(self.prg_bank_number),
-            // 16 kib, 8000 = last bank
-            0b01000 => ((Bank::FromLast(0)), (Bank::Number(self.prg_bank_number))),
+            // 16 kib, 8000 = first bank
+            0b01000 => ((Bank::Number(0)), (Bank::Number(self.prg_bank_number))),
             // 16 kib, c000 = last bank
             0b01100 => (Bank::Number(self.prg_bank_number), (Bank::FromLast(0))),
             _ => unreachable!(),
@@ -91,8 +91,8 @@ impl Mapper for Mapper001 {
         Some(match self.control_register & 0b11 {
             0 => Mirroring::SingleScreenLow,
             1 => Mirroring::SingleScreenHigh,
-            2 => Mirroring::Horizontal,
-            3 => Mirroring::Vertical,
+            2 => Mirroring::Vertical,
+            3 => Mirroring::Horizontal,
             _ => unreachable!(),
         })
     }
@@ -120,6 +120,19 @@ mod test {
 
     fn setup_catridge() -> Cartridge {
         create_test_catridge(1, 16, &[&[1, 69], &[2], &[3], &[4]], 4, &[&[6], &[7], &[8]])
+    }
+
+    #[test]
+    fn mirroring() {
+        let mut catridge = setup_catridge();
+        write_register(&mut catridge, 0x8000, 0b00000);
+        assert_eq!(catridge.mirroring(), Mirroring::SingleScreenLow);
+        write_register(&mut catridge, 0x8000, 0b00001);
+        assert_eq!(catridge.mirroring(), Mirroring::SingleScreenHigh);
+        write_register(&mut catridge, 0x8000, 0b00010);
+        assert_eq!(catridge.mirroring(), Mirroring::Vertical);
+        write_register(&mut catridge, 0x8000, 0b00011);
+        assert_eq!(catridge.mirroring(), Mirroring::Horizontal);
     }
 
     #[test]
@@ -156,9 +169,9 @@ mod test {
         assert_eq!(catridge.cpu_read(0x8000), Some(3));
         assert_eq!(catridge.cpu_read(0xc000), Some(4));
 
-        // 0x8000 last bank
+        // 0x8000 first bank
         write_register(&mut catridge, 0x8000, 0b01000);
-        assert_eq!(catridge.cpu_read(0x8000), Some(4));
+        assert_eq!(catridge.cpu_read(0x8000), Some(1));
         assert_eq!(catridge.cpu_read(0xc000), Some(3));
 
         // 32 KB mode

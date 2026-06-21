@@ -39,7 +39,7 @@ pub struct CartridgeHeader {
     pub has_trainer: bool,
     pub mirroring: Mirroring,
     pub is_v2: bool,
-    pub has_volatile: bool,
+    pub has_battery: bool,
 }
 
 impl CartridgeHeader {
@@ -51,18 +51,19 @@ impl CartridgeHeader {
             return Err(NesParseError::InvalidMagicNumber(magic_number));
         }
 
+        let has_battery = data[6] & 0b0000_0010 != 0;
         let is_v2 = data[7] & 0b0000_1100 == 0b0000_1000;
         let mut mapper_id = ((data[6] >> 4) | (data[7] & 0xf0)) as u16;
 
         let prg_ram_size = if is_v2 {
-            get_shifted_size(data[10] & 0x0f)
+            get_ram_size(data[10], has_battery)
         } else {
             let units = data[8].max(1);
             (units as usize) * 8 * 1024
         };
 
         let chr_ram_size = if is_v2 {
-            get_shifted_size(data[11] & 0x0f)
+            get_ram_size(data[11], false)
         } else {
             8 * 1024
         };
@@ -92,7 +93,7 @@ impl CartridgeHeader {
             } else {
                 Mirroring::Horizontal
             },
-            has_volatile: data[6] & 0b0000_0010 != 0,
+            has_battery,
             has_trainer: data[6] & 0b0000_0100 != 0,
             chr_mem_size: if chr_rom_size == 0 {
                 chr_ram_size
@@ -106,12 +107,15 @@ impl CartridgeHeader {
     }
 }
 
-fn get_shifted_size(shift_count: u8) -> usize {
-    if shift_count == 0 {
-        0
+fn get_ram_size(byte: u8, has_battery: bool) -> usize {
+    let shift_count = if byte == 0 {
+        return 0;
+    } else if has_battery {
+        (byte & 0xf0) >> 4
     } else {
-        64 << (shift_count as usize)
-    }
+        byte & 0x0f
+    };
+    64 << shift_count as usize
 }
 
 #[cfg(test)]
@@ -130,7 +134,7 @@ mod test {
             header,
             CartridgeHeader {
                 submapper_id: 0,
-                has_volatile: false,
+                has_battery: false,
                 mapper_id: 3,
                 mirroring: Mirroring::Vertical,
                 prg_rom_size: 32 * 1024,
