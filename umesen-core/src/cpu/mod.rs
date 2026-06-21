@@ -42,6 +42,13 @@ pub enum CpuError {
     Halted,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum InterruptKind {
+    Brk,
+    Irq,
+    Nmi,
+}
+
 /// Emulated 6502 CPU
 #[derive(Clone, Default)]
 pub struct Cpu {
@@ -67,16 +74,16 @@ impl Cpu {
     pub fn execute_next(&mut self) -> Result<u32, CpuError> {
         self.bus.cpu_cycles_since_inst = 0;
 
+        if self.bus.require_nmi() {
+            self.interrupt(InterruptKind::Nmi);
+        } else if self.bus.irq_status() && !self.flags.contains(Flags::INTERRUPT) {
+            self.interrupt(InterruptKind::Irq);
+        }
+
         let byte = self.read_u8_at_pc();
         if let Some(opcode) = Opcode::from_byte(byte) {
             self.operand_address = self.read_operand_address(opcode.addr_mode);
             self.execute(opcode)?;
-        }
-
-        if self.bus.require_nmi() {
-            self.interrupt(0xfffa, Flags::empty(), 2);
-        } else if self.bus.irq_status() && !self.flags.contains(Flags::INTERRUPT) {
-            self.interrupt(0xfffe, Flags::empty(), 2);
         }
 
         Ok(self.bus.cpu_cycles_since_inst)
@@ -308,7 +315,7 @@ impl Cpu {
             "jmp" => self.pc = self.operand_address.unwrap(),
             "jsr" => self.jsr(),
             "rts" => self.rts(),
-            "brk" => self.interrupt(0xfffe, Flags::BREAK, 1),
+            "brk" => self.interrupt(InterruptKind::Brk),
             "rti" => self.rti(),
 
             "bcc" => self.branch(!self.flags.contains(Flags::CARRY)),
@@ -490,14 +497,26 @@ impl Cpu {
         self.pc = self.stack_pop_u16();
     }
 
-    fn interrupt(&mut self, load_vector: u16, push_flags: Flags, extra_clocks: usize) {
+    fn interrupt(&mut self, interrupt: InterruptKind) {
+        let mut push_flags = self.flags;
+        if interrupt == InterruptKind::Brk {
+            push_flags |= Flags::BREAK;
+            self.pc += 1; // BRK has padding byte
+        }
+
         self.stack_push_u16(self.pc);
         self.stack_push((self.flags | push_flags).bits());
+        // If there is a nmi when we're about the load the load vector then the nmi hijacks it
+        // No later than cycle 4
+        let load_vector = if self.bus.require_nmi() || interrupt == InterruptKind::Nmi {
+            0xfffa
+        } else {
+            0xfffe
+        };
+
+        self.bus.clock();
         self.flags.set(Flags::INTERRUPT, true);
         self.pc = self.bus.read_u16(load_vector);
-        for _ in 0..extra_clocks {
-            self.bus.clock();
-        }
     }
 
     fn branch(&mut self, condition: bool) {
