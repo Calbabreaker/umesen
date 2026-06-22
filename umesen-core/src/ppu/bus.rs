@@ -6,7 +6,7 @@ use crate::{
 };
 
 const PALETTE_RAM_SIZE: usize = 0x20;
-/// Size of one pattern table in number of tiles (aka one byte), add this to tile number to access the next pattern table
+/// Size of one pattern table in number of tiles, add this to tile number to access the next pattern table
 pub const PATTERN_TILE_COUNT: u16 = 256;
 pub const PALETTE_START: u16 = 0x3f00;
 

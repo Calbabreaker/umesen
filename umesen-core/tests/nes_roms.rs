@@ -1,17 +1,4 @@
-use umesen_core::{Cartridge, Emulator};
-
-// Test rom obtained from https://github.com/christopherpow/nes-test-roms
-// #[test]
-// fn scanline() {
-//     let rom_file = File::open("tests/scanline.nes").unwrap();
-//     let mut cpu = umesen_core::Cpu::default();
-//     cpu.bus
-//         .attach_catridge(umesen_core::Cartridge::from_nes(rom_file).unwrap());
-//     cpu.reset();
-//     for i in 0..1000 {
-//         cpu.execute_next().unwrap();
-//     }
-// }
+use umesen_core::Emulator;
 
 // Test rom by kevtris https://www.qmtpro.com/~nes/misc/nestest.txt
 #[test]
@@ -19,9 +6,7 @@ fn nestest() {
     let correct_logs = include_str!("nestest.log");
 
     let mut emu = Emulator::default();
-    let cartridge = Cartridge::from_nes(&include_bytes!("nestest.nes")[..]).unwrap();
-    emu.cpu.bus.attach_catridge(cartridge);
-    emu.cpu.reset();
+    emu.load_nes_rom("tests/nestest.nes").unwrap();
     emu.cpu.pc = 0xc000;
 
     let mut prev_disassem = "CPU RESET";
@@ -39,12 +24,4 @@ fn nestest() {
 
         emu.cpu.execute_next().unwrap();
     }
-}
-
-// https://github.com/christopherpow/nes-test-roms/blob/master/instr_test-v5/readme.txt
-#[test]
-#[ignore = "Need mapper 001"]
-fn instr_test() {
-    let mut emu = Emulator::default();
-    emu.load_nes_rom("tests/instr_test_official.nes").unwrap();
 }

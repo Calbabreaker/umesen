@@ -103,8 +103,8 @@ fn show_pattern_table(ui: &mut egui::Ui, state: &mut crate::State, table_number:
         let id = egui::Id::new(config.name.as_str());
         if let Some(i) = ui.memory_mut(|m| m.data.get_persisted::<usize>(id)) {
             ui.label(format!(
-                "Address: ${:04x}",
-                (i as u16 + table_number * PATTERN_TILE_COUNT) << 4
+                "Address: ${:03x}0",
+                (i as u16 + table_number * PATTERN_TILE_COUNT)
             ));
         }
     });
@@ -142,7 +142,7 @@ fn show_oam_info(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
             ui.label(format!("INDEX: {i}"));
             ui.label(format!("Pos (x,y): {}, {}", sprite.x, sprite.y));
             ui.label(format!(
-                "Tile number: ${:02x}",
+                "Tile address: ${:03x}0",
                 sprite.tile_number(&ppu.registers)
             ));
 

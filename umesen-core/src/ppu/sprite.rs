@@ -56,7 +56,7 @@ impl Sprite {
             self.tile_number
         };
 
-        tile_number as u16 + table_number as u16 * PATTERN_TILE_COUNT
+        tile_number as u16 | (table_number as u16 * PATTERN_TILE_COUNT)
     }
 
     pub(crate) fn load_shift_bits(&mut self, scanline: u16, registers: &Registers) {

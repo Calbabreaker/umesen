@@ -48,10 +48,10 @@ pub struct Ppu {
 
 impl Ppu {
     /// Gets a RGB color from the palette ram based on index from 0-64 (8 palettes with 4 indexable colors)
-    pub fn get_palette_color(&self, color_index: impl Into<u16>) -> [u8; 3] {
-        let offset = color_index.into();
-        std::debug_assert_matches!(offset, 0..64);
-        self.palette.get(self.registers.read_palette_ram(offset))
+    pub fn get_palette_color(&self, palette_index: impl Into<u16>) -> [u8; 3] {
+        let color_index = self.registers.read_palette_ram(palette_index.into());
+        let emphasis_bits = self.registers.mask.bits() >> 5;
+        self.palette.get(color_index % 64, emphasis_bits)
     }
 
     pub fn get_palette_colors(&self, palette_id: u8) -> [[u8; 3]; 4] {
@@ -202,7 +202,9 @@ impl Ppu {
             // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
             256 => self.sprite_buffer.clear(),
             257 if self.registers.scanline < HEIGHT => self.eval_sprites(),
-            258..=320 => self.registers.oam_address = 0,
+            257..=320 if self.registers.mask.contains(Mask::RENDER_SPRITE) => {
+                self.registers.oam_address = 0
+            }
             321 => {
                 for sprite in &mut self.sprite_buffer {
                     sprite.load_shift_bits(self.registers.scanline as u16, &self.registers);
@@ -271,27 +273,28 @@ impl Ppu {
 
     /// Returns the palette ram index for the current pixel if a sprite is there or the background based on piority
     fn render_fg_pixel(&mut self, scan_x: usize, bg_color_index: u8) -> u8 {
-        if self.registers.mask.can_show_sprite(scan_x) {
-            // Find sprite to render
-            for sprite in &self.sprite_buffer {
-                let color_index = sprite.color_index(scan_x);
-                if color_index == 0 {
-                    continue;
-                }
+        if !self.registers.mask.can_show_sprite(scan_x) {
+            return bg_color_index;
+        }
 
-                // Check if sprite 0 is rendering and set status flag
-                if sprite.oam_index == 0 && bg_color_index != 0 && scan_x != 255 {
-                    self.registers.status.insert(Status::SPRITE_0_HIT);
-                }
+        for sprite in &self.sprite_buffer {
+            let color_index = sprite.color_index(scan_x);
+            if color_index == 0 {
+                continue;
+            }
 
-                let palette_id = sprite.attributes.palette() + 4;
-                let behind_bg = sprite.attributes.contains(Attributes::RENDER_BEHIND);
-                if behind_bg && bg_color_index != 0 {
-                    // Sprite still gets drawn on top of later sprites but it uses background
-                    return bg_color_index;
-                } else {
-                    return color_index + palette_id * 4;
-                }
+            // Check if sprite 0 is rendering and set status flag
+            if sprite.oam_index == 0 && bg_color_index != 0 && scan_x != 255 {
+                self.registers.status.insert(Status::SPRITE_0_HIT);
+            }
+
+            let palette_id = sprite.attributes.palette() + 4;
+            let behind_bg = sprite.attributes.contains(Attributes::RENDER_BEHIND);
+            if behind_bg && bg_color_index != 0 {
+                // Sprite still gets drawn on top of later sprites but it uses background
+                return bg_color_index;
+            } else {
+                return color_index + palette_id * 4;
             }
         }
 

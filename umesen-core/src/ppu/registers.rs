@@ -200,22 +200,16 @@ impl Registers {
         if self.scanline == PRERENDER_SCANLINE + 1 {
             self.frame_count = self.frame_count.wrapping_add(1);
             self.scanline = 0;
-            self.open_bus_decay_counter -= 1;
             if self.open_bus_decay_counter == 0 {
                 self.open_bus = 0;
+            } else {
+                self.open_bus_decay_counter -= 1;
             }
         }
     }
 
+    // TODO: weird oam behaviour while reading/writing during rendering
     fn read_oam_data(&self) -> u8 {
-        // Weird stuff happens when reading from ppu oam data during rendering
-        if self.scanline < HEIGHT && self.mask.is_rendering() {
-            match self.dot {
-                1..=64 => return 0xff,
-                256..=320 => return 0xff,
-                _ => (),
-            };
-        }
         self.oam_data[self.oam_address as usize]
     }
 
@@ -225,14 +219,8 @@ impl Registers {
             value &= Attributes::all().bits();
         }
 
-        if (self.scanline < HEIGHT || self.scanline == PRERENDER_SCANLINE)
-            && self.mask.is_rendering()
-        {
-            self.oam_address = self.oam_address.wrapping_add(4) & 0xfc;
-        } else {
-            self.oam_data[self.oam_address as usize] = value;
-            self.oam_address = self.oam_address.wrapping_add(1);
-        }
+        self.oam_data[self.oam_address as usize] = value;
+        self.oam_address = self.oam_address.wrapping_add(1);
     }
 
     fn write_control(&mut self, value: u8) {

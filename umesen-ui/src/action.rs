@@ -66,7 +66,7 @@ impl Default for KeyActionMap {
         map.add(ControllerInput(1, Button::SELECT), Quote);
         map.add(ControllerInput(1, Button::START), Semicolon);
         map.add(QuickSave, W);
-        map.add(QuickLoad, Q);
+        map.add(QuickLoad, O);
 
         map
     }
