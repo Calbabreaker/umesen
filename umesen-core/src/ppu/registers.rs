@@ -62,7 +62,7 @@ bitflags::bitflags! {
 
 impl Mask {
     /// Is rendering sprite or background
-    pub fn is_rendering(&self) -> bool {
+    pub fn rendering(&self) -> bool {
         self.intersects(Mask::RENDER_SPRITE | Mask::RENDER_BACKGROUND)
     }
 
@@ -267,7 +267,7 @@ impl Registers {
         };
         self.v.0 = self.v.0.wrapping_add(amount);
         // Weird increment behaviour when ppu is rendering
-        if self.on_visble_dot() && self.scanline < HEIGHT && self.mask.is_rendering() {
+        if self.on_visble_dot() && self.scanline < HEIGHT && self.mask.rendering() {
             self.v.scroll_fine_y();
             self.v.scroll_coarse_x();
         }

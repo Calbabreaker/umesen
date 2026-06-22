@@ -22,7 +22,7 @@ impl PpuBus {
         address %= 0x4000;
         match address {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
-                Some(cartridge) => cartridge.borrow().ppu_read(address),
+                Some(cartridge) => cartridge.borrow_mut().ppu_read(address),
                 None => 0,
             },
             0x2000..=0x3eff => self.nametable_ram[self.mirror_nametable(address)],

@@ -101,11 +101,6 @@ impl CpuBus {
         for _ in 0..3 {
             match self.ppu.clock() {
                 PpuClockReport::None => (),
-                PpuClockReport::EndScanline => {
-                    if let Some(cartridge) = self.cartridge.as_ref() {
-                        cartridge.borrow_mut().signal_scanline()
-                    }
-                }
                 PpuClockReport::Nmi => self.require_nmi = true,
             }
         }

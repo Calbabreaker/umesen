@@ -21,7 +21,7 @@ impl Mapper for Mapper003 {
         }
     }
 
-    fn map_ppu(&self, _: u16) -> BankMapping {
+    fn map_ppu(&mut self, _: u16) -> BankMapping {
         (8, Bank::Number(self.bank_number))
     }
 }

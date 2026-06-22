@@ -83,7 +83,7 @@ impl Cartridge {
         self.mapper.cpu_write(address, value);
     }
 
-    pub fn ppu_read(&self, address: u16) -> u8 {
+    pub fn ppu_read(&mut self, address: u16) -> u8 {
         std::debug_assert_matches!(address, 0x0000..=0x1fff);
         let mapping = self.mapper.map_ppu(address);
         self.banks.chr_mem.read(mapping, address).unwrap_or(0)
@@ -99,10 +99,6 @@ impl Cartridge {
 
     pub fn irq_status(&self) -> bool {
         self.mapper.irq_status()
-    }
-
-    pub fn signal_scanline(&mut self) {
-        self.mapper.signal_scanline();
     }
 
     pub fn mirroring(&self) -> Mirroring {

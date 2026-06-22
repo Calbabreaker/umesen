@@ -16,13 +16,12 @@ mod mapper004;
 pub trait Mapper: std::fmt::Debug {
     fn map_cpu_read(&self, address: u16) -> Option<BankMapping>;
     fn cpu_write(&mut self, address: u16, value: u8);
-    fn map_ppu(&self, address: u16) -> BankMapping;
+    fn map_ppu(&mut self, address: u16) -> BankMapping;
     fn reset(&mut self) {}
     /// Used to send irq to cpu
     fn irq_status(&self) -> bool {
         false
     }
-    fn signal_scanline(&mut self) {}
     /// Option to override mirroring from header
     fn mirroring(&self) -> Option<Mirroring> {
         None

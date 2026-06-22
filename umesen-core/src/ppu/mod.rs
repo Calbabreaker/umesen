@@ -22,7 +22,6 @@ pub type ScreenPixels = FixedArray<FixedArray<u8, 3>, { WIDTH * HEIGHT }>;
 pub enum PpuClockReport {
     None,
     Nmi,
-    EndScanline,
 }
 
 /// Emulated 2C02 NTSC PPU
@@ -43,7 +42,6 @@ pub struct Ppu {
 
     /// Buffer of sprites to render next scanline
     sprite_buffer: Vec<Sprite>,
-    oam_start_address: u8,
 }
 
 impl Ppu {
@@ -79,12 +77,13 @@ impl Ppu {
         match self.registers.scanline {
             0..=239 => {
                 self.frame_complete = false;
-                self.clock_sprite_render_line();
-                self.clock_bg_render_line();
+                if self.registers.mask.rendering() {
+                    self.clock_sprite_render_line();
+                    self.clock_bg_render_line();
+                }
                 if self.registers.on_visble_dot() {
                     self.render_pixel();
                 }
-                report = self.check_scanline_report();
             }
             241 if self.registers.dot == 1 => {
                 self.frame_complete = true;
@@ -93,10 +92,14 @@ impl Ppu {
                     report = PpuClockReport::Nmi
                 }
             }
-            PRERENDER_SCANLINE => {
+            PRERENDER_SCANLINE if self.registers.dot == 1 => {
+                self.registers.status.remove(Status::VBLANK);
+                self.registers.status.remove(Status::SPRITE_OVERFLOW);
+                self.registers.status.remove(Status::SPRITE_0_HIT);
+            }
+            PRERENDER_SCANLINE if self.registers.mask.rendering() => {
                 self.clock_sprite_render_line();
                 self.clock_bg_prerender_line();
-                report = self.check_scanline_report();
             }
             _ => (),
         }
@@ -105,17 +108,9 @@ impl Ppu {
         report
     }
 
-    fn check_scanline_report(&self) -> PpuClockReport {
-        if self.registers.dot == 260 && self.registers.mask.is_rendering() {
-            PpuClockReport::EndScanline
-        } else {
-            PpuClockReport::None
-        }
-    }
-
     fn render_pixel(&mut self) {
         let x = self.registers.dot - 1;
-        let color_index = if self.registers.mask.is_rendering() {
+        let color_index = if self.registers.mask.rendering() {
             let bg_color_index = self.render_bg_pixel(x);
             self.render_fg_pixel(x, bg_color_index)
         } else if matches!(self.registers.v.0, PALETTE_START..=0x3fff) {
@@ -136,14 +131,13 @@ impl Ppu {
             // Last 16 dots load the shift register with the next tiles on the next scanline
             1..=256 | 328..=336 => {
                 self.shift_registers();
-
                 if (self.registers.dot - 1).is_multiple_of(8) {
                     self.load_background_shift_bits();
                 }
             }
             // Scroll y and reset x when end of visible scanline
             // Scroll y technically meant to happen previous dot but should work still
-            257 if self.registers.mask.is_rendering() => {
+            257 => {
                 self.registers.v.scroll_fine_y();
                 self.registers.v.set_x(&self.registers.t);
             }
@@ -153,22 +147,9 @@ impl Ppu {
 
     fn clock_bg_prerender_line(&mut self) {
         match self.registers.dot {
-            1 => {
-                self.registers.status.remove(Status::VBLANK);
-                self.registers.status.remove(Status::SPRITE_OVERFLOW);
-                self.registers.status.remove(Status::SPRITE_0_HIT);
-            }
-            280..=304 => {
-                if self.registers.mask.is_rendering() {
-                    self.registers.v.set_y(&self.registers.t);
-                }
-            }
-            339 => {
-                // Skip last cycle on odd frames
-                if self.registers.mask.is_rendering() && self.registers.frame_count % 2 == 1 {
-                    self.registers.dot += 1;
-                }
-            }
+            280..=304 => self.registers.v.set_y(&self.registers.t),
+            // Skip last cycle on odd frames
+            339 if self.registers.frame_count % 2 == 1 => self.registers.dot += 1,
             // Prerender line does same stuff as render line but with extra stuff
             _ => self.clock_bg_render_line(),
         }
@@ -189,27 +170,16 @@ impl Ppu {
 
         self.bg_shift_bits_low = (self.bg_shift_bits_low & 0xff00) | tile_lsb as u16;
         self.bg_shift_bits_high = (self.bg_shift_bits_high & 0xff00) | tile_msb as u16;
-
-        if registers.mask.is_rendering() {
-            registers.v.scroll_coarse_x();
-        }
+        registers.v.scroll_coarse_x();
     }
 
     fn clock_sprite_render_line(&mut self) {
         match self.registers.dot {
-            // The start location of oam evaluation is taken from oam_address on dot 65
-            65 => self.oam_start_address = self.registers.oam_address,
             // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
-            256 => self.sprite_buffer.clear(),
-            257 if self.registers.scanline < HEIGHT => self.eval_sprites(),
-            257..=320 if self.registers.mask.contains(Mask::RENDER_SPRITE) => {
-                self.registers.oam_address = 0
-            }
-            321 => {
-                for sprite in &mut self.sprite_buffer {
-                    sprite.load_shift_bits(self.registers.scanline as u16, &self.registers);
-                }
-            }
+            255 => self.sprite_buffer.clear(),
+            256 if self.registers.scanline != PRERENDER_SCANLINE => self.eval_sprites(),
+            261 => self.load_sprites(),
+            257..=320 => self.registers.oam_address = 0,
             _ => (),
         }
     }
@@ -217,7 +187,7 @@ impl Ppu {
     /// Populates the sprite buffer for the next scanline and checks SPRITE_OVERFLOW
     fn eval_sprites(&mut self) {
         let mut i = 0;
-        let mut byte_offset = self.oam_start_address as usize;
+        let mut byte_offset = 0;
         let height = self.registers.control.sprite_height() as usize;
         while let Some(sprite) = self.registers.get_oam_sprite(i, byte_offset) {
             // Add to sprite buffer if sprite part of scanline
@@ -242,6 +212,16 @@ impl Ppu {
             }
 
             i += 1;
+        }
+    }
+
+    fn load_sprites(&mut self) {
+        // The ppu will always fetch 8 sprites so we need to do that here (for mappers that track
+        // ppu reads) unless of course unlimited_sprites is on
+        for i in 0..MAX_SPRITES_PER_SCAN.max(self.sprite_buffer.len()) {
+            let mut empty_sprite = Sprite::new(&[0xff, 0xff, 0xff, 0xff], i as u8);
+            let sprite = self.sprite_buffer.get_mut(i).unwrap_or(&mut empty_sprite);
+            sprite.load_shift_bits(self.registers.scanline as u16, &self.registers);
         }
     }
 
@@ -277,7 +257,7 @@ impl Ppu {
             return bg_color_index;
         }
 
-        for sprite in &self.sprite_buffer {
+        for sprite in self.sprite_buffer.iter() {
             let color_index = sprite.color_index(scan_x);
             if color_index == 0 {
                 continue;

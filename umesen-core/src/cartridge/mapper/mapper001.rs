@@ -61,7 +61,7 @@ impl Mapper for Mapper001 {
         }
     }
 
-    fn map_ppu(&self, address: u16) -> BankMapping {
+    fn map_ppu(&mut self, address: u16) -> BankMapping {
         let (bank_0000, bank_1000) = match self.control_register & 0b10000 {
             // 8 Kib mode
             0b00000 => half_double_bank(self.chr_bank_number_0),

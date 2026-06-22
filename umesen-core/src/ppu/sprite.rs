@@ -62,7 +62,7 @@ impl Sprite {
     pub(crate) fn load_shift_bits(&mut self, scanline: u16, registers: &Registers) {
         let mut tile_number = self.tile_number(registers);
 
-        let mut fine_y = scanline - self.y as u16;
+        let mut fine_y = scanline.saturating_sub(self.y as u16);
         if self.attributes.contains(Attributes::FLIP_VERTICAL) {
             // Flip the fine y
             fine_y = (registers.control.sprite_height() as u16 - 1).wrapping_sub(fine_y);

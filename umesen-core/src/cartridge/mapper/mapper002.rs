@@ -22,7 +22,7 @@ impl Mapper for Mapper002 {
         }
     }
 
-    fn map_ppu(&self, _: u16) -> super::BankMapping {
+    fn map_ppu(&mut self, _: u16) -> super::BankMapping {
         (8, Bank::Number(0))
     }
 }
