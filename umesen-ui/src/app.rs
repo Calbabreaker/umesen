@@ -171,6 +171,8 @@ impl eframe::App for App {
     }
 
     fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        ctx.input_mut(|i| self.check_input(i));
+
         self.state.emu.cpu.bus.ppu.unlimited_sprites = self.preferences.allow_unlimted_sprites;
 
         self.state.update_emulation(ctx);
@@ -178,8 +180,6 @@ impl eframe::App for App {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        ui.input_mut(|i| self.check_input(i));
-
         let default_bg = ui.style().visuals.noninteractive().bg_fill;
         egui::Panel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))

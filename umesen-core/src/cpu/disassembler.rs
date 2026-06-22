@@ -41,7 +41,8 @@ impl<'a> Disassembler<'a> {
             }
         };
 
-        write!(f, "{} ", opcode.name)?;
+        let name = format!("{:?}", opcode.instruction);
+        write!(f, "{} ", name.to_lowercase())?;
 
         match opcode.addr_mode {
             AddrMode::Accumulator => write!(f, "A")?,

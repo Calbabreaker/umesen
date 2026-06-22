@@ -4,7 +4,7 @@ mod opcode;
 
 use bus::CpuBus;
 pub use disassembler::Disassembler;
-pub use opcode::{AddrMode, Opcode};
+pub use opcode::{AddrMode, Inst, Opcode};
 
 /// Number of clock cycles per second
 pub const CLOCK_SPEED_HZ: f64 = 1789773.;
@@ -196,149 +196,149 @@ impl Cpu {
     }
 
     fn execute(&mut self, opcode: Opcode) -> Result<(), CpuError> {
-        match opcode.name {
+        match opcode.instruction {
             // -- Stack --
-            "pha" => self.stack_push(self.a),
-            "php" => self.stack_push((self.flags | Flags::BREAK).bits()),
-            "pla" => self.a = self.stack_pop(),
-            "plp" => self.plp(),
+            Inst::Pha => self.stack_push(self.a),
+            Inst::Php => self.stack_push((self.flags | Flags::BREAK).bits()),
+            Inst::Pla => self.a = self.stack_pop(),
+            Inst::Plp => self.plp(),
 
             // -- Shift and rotate --
-            "asl" => drop(self.shift(true, false)), // Use drop to return nothing
-            "lsr" => drop(self.shift(false, false)),
-            "rol" => drop(self.shift(true, true)),
-            "ror" => drop(self.shift(false, true)),
+            Inst::Asl => drop(self.shift(true, false)), // Use drop to return nothing
+            Inst::Lsr => drop(self.shift(false, false)),
+            Inst::Rol => drop(self.shift(true, true)),
+            Inst::Ror => drop(self.shift(false, true)),
 
-            "slo" => self.a |= self.shift(true, false), // asl + ora
-            "rla" => self.a &= self.shift(true, true),  // rol + and
-            "sre" => self.a ^= self.shift(false, false), // lsr + eor
-            "rra" => {
+            Inst::Slo => self.a |= self.shift(true, false), // asl + ora
+            Inst::Rla => self.a &= self.shift(true, true),  // rol + and
+            Inst::Sre => self.a ^= self.shift(false, false), // lsr + eor
+            Inst::Rra => {
                 // ror + adc
                 let adder = self.shift(false, true);
                 self.add_carry(adder);
             }
 
             // -- Arithmetic --
-            "adc" => {
+            Inst::Adc => {
                 let adder = self.read_operand_value().unwrap();
                 self.add_carry(adder)
             }
-            "sbc" => {
+            Inst::Sbc => {
                 // Inverting results in inverting the sign so the adc can be resued for sbc
                 let adder = !self.read_operand_value().unwrap();
                 self.add_carry(adder)
             }
 
             // -- Increment and decrement --
-            "inc" => drop(self.increment(1, None)),
-            "dec" => drop(self.increment(-1, None)),
-            "inx" => self.x = self.increment(1, Some(self.x)),
-            "iny" => self.y = self.increment(1, Some(self.y)),
-            "dex" => self.x = self.increment(-1, Some(self.x)),
-            "dey" => self.y = self.increment(-1, Some(self.y)),
-            "isc" => {
+            Inst::Inc => drop(self.increment(1, None)),
+            Inst::Dec => drop(self.increment(-1, None)),
+            Inst::Inx => self.x = self.increment(1, Some(self.x)),
+            Inst::Iny => self.y = self.increment(1, Some(self.y)),
+            Inst::Dex => self.x = self.increment(-1, Some(self.x)),
+            Inst::Dey => self.y = self.increment(-1, Some(self.y)),
+            Inst::Isc => {
                 // inc + adc
                 let adder = !self.increment(1, None);
                 self.add_carry(adder);
             }
-            "dcp" => {
+            Inst::Dcp => {
                 // dec + cmp
                 let value = self.increment(-1, None);
                 self.compare(self.a, Some(value));
             }
 
             // -- Register loads --
-            "lda" => self.a = self.read_operand_value().unwrap(),
-            "ldx" => self.x = self.read_operand_value().unwrap(),
-            "ldy" => self.y = self.read_operand_value().unwrap(),
-            "lax" => {
+            Inst::Lda => self.a = self.read_operand_value().unwrap(),
+            Inst::Ldx => self.x = self.read_operand_value().unwrap(),
+            Inst::Ldy => self.y = self.read_operand_value().unwrap(),
+            Inst::Lax => {
                 self.a = self.read_operand_value().unwrap();
                 self.x = self.a;
             }
-            "las" => {
+            Inst::Las => {
                 self.a = self.read_operand_value().unwrap() & self.sp;
                 (self.x, self.sp) = (self.a, self.a);
             }
-            "lxa" => {
+            Inst::Lxa => {
                 self.a &= self.read_operand_value().unwrap();
                 self.x = self.transfer(self.a);
             }
 
             // -- Register stores --
-            "sta" => self.bus.write_u8(self.operand_address.unwrap(), self.a),
-            "stx" => self.bus.write_u8(self.operand_address.unwrap(), self.x),
-            "sty" => self.bus.write_u8(self.operand_address.unwrap(), self.y),
-            "sax" => self
+            Inst::Sta => self.bus.write_u8(self.operand_address.unwrap(), self.a),
+            Inst::Stx => self.bus.write_u8(self.operand_address.unwrap(), self.x),
+            Inst::Sty => self.bus.write_u8(self.operand_address.unwrap(), self.y),
+            Inst::Sax => self
                 .bus
                 .write_u8(self.operand_address.unwrap(), self.a & self.x),
 
             // -- Register transfers --
-            "tax" => self.x = self.transfer(self.a),
-            "tay" => self.y = self.transfer(self.a),
-            "tsx" => self.x = self.transfer(self.sp),
-            "txa" => self.a = self.transfer(self.x),
-            "txs" => {
+            Inst::Tax => self.x = self.transfer(self.a),
+            Inst::Tay => self.y = self.transfer(self.a),
+            Inst::Tsx => self.x = self.transfer(self.sp),
+            Inst::Txa => self.a = self.transfer(self.x),
+            Inst::Txs => {
                 self.sp = self.x;
                 self.bus.clock();
             }
-            "tya" => self.a = self.transfer(self.y),
+            Inst::Tya => self.a = self.transfer(self.y),
 
             // -- Flag clear and set --
-            "clc" => self.flag(Flags::CARRY, false),
-            "cld" => self.flag(Flags::DECIMAL, false),
-            "cli" => self.flag(Flags::INTERRUPT, false),
-            "clv" => self.flag(Flags::OVERFLOW, false),
-            "sec" => self.flag(Flags::CARRY, true),
-            "sed" => self.flag(Flags::DECIMAL, true),
-            "sei" => self.flag(Flags::INTERRUPT, true),
+            Inst::Clc => self.flag(Flags::CARRY, false),
+            Inst::Cld => self.flag(Flags::DECIMAL, false),
+            Inst::Cli => self.flag(Flags::INTERRUPT, false),
+            Inst::Clv => self.flag(Flags::OVERFLOW, false),
+            Inst::Sec => self.flag(Flags::CARRY, true),
+            Inst::Sed => self.flag(Flags::DECIMAL, true),
+            Inst::Sei => self.flag(Flags::INTERRUPT, true),
 
             // -- Logic --
-            "and" => self.a &= self.read_operand_value().unwrap(),
-            "eor" => self.a ^= self.read_operand_value().unwrap(),
-            "ora" => self.a |= self.read_operand_value().unwrap(),
-            "bit" => self.bit(),
-            "anc" => {
+            Inst::And => self.a &= self.read_operand_value().unwrap(),
+            Inst::Eor => self.a ^= self.read_operand_value().unwrap(),
+            Inst::Ora => self.a |= self.read_operand_value().unwrap(),
+            Inst::Bit => self.bit(),
+            Inst::Anc => {
                 self.a &= self.read_operand_value().unwrap();
                 self.flags.set(Flags::CARRY, self.a & 0b1000_0000 != 0)
             }
-            "asr" => {
+            Inst::Asr => {
                 self.a &= self.read_operand_value().unwrap();
                 self.a = self.calc_shift(self.a, false, false);
             }
-            "arr" => self.arr(),
+            Inst::Arr => self.arr(),
 
-            "cmp" => self.compare(self.a, None),
-            "cpx" => self.compare(self.x, None),
-            "cpy" => self.compare(self.y, None),
+            Inst::Cmp => self.compare(self.a, None),
+            Inst::Cpx => self.compare(self.x, None),
+            Inst::Cpy => self.compare(self.y, None),
 
             // -- Control flow --
-            "jmp" => self.pc = self.operand_address.unwrap(),
-            "jsr" => self.jsr(),
-            "rts" => self.rts(),
-            "brk" => self.interrupt(InterruptKind::Brk),
-            "rti" => self.rti(),
+            Inst::Jmp => self.pc = self.operand_address.unwrap(),
+            Inst::Jsr => self.jsr(),
+            Inst::Rts => self.rts(),
+            Inst::Brk => self.interrupt(InterruptKind::Brk),
+            Inst::Rti => self.rti(),
 
-            "bcc" => self.branch(!self.flags.contains(Flags::CARRY)),
-            "bcs" => self.branch(self.flags.contains(Flags::CARRY)),
-            "beq" => self.branch(self.flags.contains(Flags::ZERO)),
-            "bmi" => self.branch(self.flags.contains(Flags::NEGATIVE)),
-            "bne" => self.branch(!self.flags.contains(Flags::ZERO)),
-            "bpl" => self.branch(!self.flags.contains(Flags::NEGATIVE)),
-            "bvc" => self.branch(!self.flags.contains(Flags::OVERFLOW)),
-            "bvs" => self.branch(self.flags.contains(Flags::OVERFLOW)),
+            Inst::Bcc => self.branch(!self.flags.contains(Flags::CARRY)),
+            Inst::Bcs => self.branch(self.flags.contains(Flags::CARRY)),
+            Inst::Beq => self.branch(self.flags.contains(Flags::ZERO)),
+            Inst::Bmi => self.branch(self.flags.contains(Flags::NEGATIVE)),
+            Inst::Bne => self.branch(!self.flags.contains(Flags::ZERO)),
+            Inst::Bpl => self.branch(!self.flags.contains(Flags::NEGATIVE)),
+            Inst::Bvc => self.branch(!self.flags.contains(Flags::OVERFLOW)),
+            Inst::Bvs => self.branch(self.flags.contains(Flags::OVERFLOW)),
 
             // Does nothing
-            "nop" => self.nop(),
-            "hlt" => return Err(CpuError::Halted),
-            _ => unreachable!("invalid opcode name {}", opcode.name),
+            Inst::Nop => self.nop(),
+            Inst::Hlt => return Err(CpuError::Halted),
         }
 
-        match opcode.name {
-            "las" | "pla" | "slo" | "rla" | "sre" | "ora" | "eor" | "and" | "anc" => {
-                self.set_zero_neg_flags(self.a)
-            }
-            _ => (),
-        }
+        #[rustfmt::skip]
+        if matches!(opcode.instruction,
+            Inst::Las | Inst::Pla | Inst::Slo | Inst::Rla | Inst::Sre | Inst::Ora | Inst::Eor
+                | Inst::And | Inst::Anc
+        ) {
+            self.set_zero_neg_flags(self.a)
+        };
         Ok(())
     }
 
