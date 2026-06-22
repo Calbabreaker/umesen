@@ -72,14 +72,9 @@ impl VramRegister {
     }
 
     pub fn scroll_fine_y(&mut self) {
-        if self.scroll_wrap(Self::FINE_Y, 7) {
-            if self.get(Self::COARSE_Y) == 31 {
-                // 30-31 is invalid but still needs to be wrapped at 32
-                self.0 ^= Self::NAMETABLE_Y;
-            } else if self.scroll_wrap(Self::COARSE_Y, 29) {
-                // Scroll coarse y wrappiong at 30 since bottom is taken by attribute data
-                self.set(Self::COARSE_Y, 0u16);
-            }
+        if self.scroll_wrap(Self::FINE_Y, 7) && self.scroll_wrap(Self::COARSE_Y, 29) {
+            // Scroll coarse y wrapping at 30 since bottom is taken by attribute data
+            self.0 ^= Self::NAMETABLE_Y;
         }
     }
 
@@ -96,7 +91,7 @@ impl VramRegister {
     // Increment a value, wrapping at wrap and returning true
     fn scroll_wrap(&mut self, select_bits: u16, wrap: u16) -> bool {
         let value = self.get(select_bits);
-        if value == wrap {
+        if value >= wrap {
             self.set(select_bits, 0u8);
             true
         } else {
