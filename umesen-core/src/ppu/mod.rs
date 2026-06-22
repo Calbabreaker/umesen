@@ -40,7 +40,8 @@ pub struct Ppu {
     bg_palette_bits_low: u8,
     bg_palette_bits_high: u8,
 
-    /// Buffer of sprites to render next scanline
+    eval_byte_offset: usize,
+    /// Buffer of sprites to render for the current scanline
     sprite_buffer: Vec<Sprite>,
 }
 
@@ -175,8 +176,8 @@ impl Ppu {
 
     fn clock_sprite_render_line(&mut self) {
         match self.registers.dot {
+            64 => self.eval_byte_offset = self.registers.oam_address as usize,
             // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
-            255 => self.sprite_buffer.clear(),
             256 if self.registers.scanline != PRERENDER_SCANLINE => self.eval_sprites(),
             261 => self.load_sprites(),
             257..=320 => self.registers.oam_address = 0,
@@ -186,29 +187,31 @@ impl Ppu {
 
     /// Populates the sprite buffer for the next scanline and checks SPRITE_OVERFLOW
     fn eval_sprites(&mut self) {
-        let mut i = 0;
-        let mut byte_offset = 0;
+        self.sprite_buffer.clear();
         let height = self.registers.control.sprite_height() as usize;
-        while let Some(sprite) = self.registers.get_oam_sprite(i, byte_offset) {
+
+        let mut i = 0;
+        while let Some(sprite) = self.registers.get_oam_sprite(i, self.eval_byte_offset) {
             // Add to sprite buffer if sprite part of scanline
             // Note that it's loading sprites for the next scanline so all sprite y is offset by one
+            let overflowed =
+                self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites;
             if self.registers.scanline >= sprite.y as usize
                 && self.registers.scanline < sprite.y as usize + height
             {
                 // Check sprite overflow
-                if self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites {
+                if overflowed {
                     self.registers.status.insert(Status::SPRITE_OVERFLOW);
                     break;
                 }
-
                 self.sprite_buffer.push(sprite);
-            } else if self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites {
+            } else if overflowed {
                 // After 8 sprites has been filled, the PPU will check for overflow by
                 // searching for another sprite that is in the scanline.
                 // But for some reason, when it doesn't find a sprite after filled,
                 // the next OAM y it checks is offseted by one extra byte which causes buggy
                 // behaviour when setting SPRITE_OVERFLOW flag.
-                byte_offset += 1;
+                self.eval_byte_offset += 1;
             }
 
             i += 1;
@@ -219,9 +222,13 @@ impl Ppu {
         // The ppu will always fetch 8 sprites so we need to do that here (for mappers that track
         // ppu reads) unless of course unlimited_sprites is on
         for i in 0..MAX_SPRITES_PER_SCAN.max(self.sprite_buffer.len()) {
-            let mut empty_sprite = Sprite::new(&[0xff, 0xff, 0xff, 0xff], i as u8);
+            let mut empty_sprite = Sprite::new(&[0xff, 0xff, 0xff, 0xff], 0);
             let sprite = self.sprite_buffer.get_mut(i).unwrap_or(&mut empty_sprite);
             sprite.load_shift_bits(self.registers.scanline as u16, &self.registers);
+        }
+        // Prender scanline still makes same tile fetches but nothing gets rendered
+        if self.registers.scanline == PRERENDER_SCANLINE {
+            self.sprite_buffer.clear();
         }
     }
 

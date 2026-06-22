@@ -69,8 +69,7 @@ impl Sprite {
         }
 
         // Go to the next tile if y is greater than tile
-        // Should only be possible if TALL_SPRITES because if checking for sprite intersection
-        if fine_y >= 8 {
+        if fine_y >= 8 && registers.control.contains(Control::TALL_SPRITES) {
             tile_number += 1;
         }
 
