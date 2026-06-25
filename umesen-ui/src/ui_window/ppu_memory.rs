@@ -191,6 +191,7 @@ fn show_pattern_tiles<'a>(
     let texture = state.texture_map.get(config.name.clone(), image_size);
     let ppu = state.emu.ppu();
 
+    let mut pixels = vec![egui::Color32::BLACK; image_size[0] * image_size[1]];
     for tile_y in 0..tile_count_y {
         for tile_x in 0..tile_count_x {
             let tile_index = (tile_y * tile_count_x) + tile_x;
@@ -205,12 +206,13 @@ fn show_pattern_tiles<'a>(
                     let pixel_x = tile_x * 8 + x as usize;
                     let pixel_y = tile_y * 8 + y as usize;
                     let c = palette[pixel_index as usize];
-                    texture.image_buffer.pixels[pixel_y * image_size[0] + pixel_x] =
+                    pixels[pixel_y * image_size[0] + pixel_x] =
                         egui::Color32::from_rgb(c[0], c[1], c[2]);
                 }
             }
         }
     }
+    texture.update_pixels(pixels);
 
     let image_pos = ui.cursor().left_top();
     let response = ui.add(

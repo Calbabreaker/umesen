@@ -32,14 +32,14 @@ pub enum Mirroring {
 pub struct CartridgeHeader {
     pub mapper_id: u16,
     pub submapper_id: u8,
+    pub is_v2: bool,
+    pub has_trainer: bool,
+    pub mirroring: Mirroring,
+    pub has_battery: bool,
     pub prg_rom_size: usize,
     pub prg_ram_size: usize,
     pub chr_mem_size: usize,
     pub chr_mem_is_rom: bool,
-    pub has_trainer: bool,
-    pub mirroring: Mirroring,
-    pub is_v2: bool,
-    pub has_battery: bool,
 }
 
 impl CartridgeHeader {

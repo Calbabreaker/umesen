@@ -176,7 +176,7 @@ impl Registers {
         }
     }
 
-    pub fn on_visble_dot(&self) -> bool {
+    pub(crate) fn on_visble_dot(&self) -> bool {
         self.dot >= 1 && (self.dot - 1 < WIDTH)
     }
 

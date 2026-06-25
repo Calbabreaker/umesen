@@ -35,14 +35,14 @@ pub struct MemoryBanks(Vec<u8>);
 pub type BankMapping = (usize, Bank);
 
 impl MemoryBanks {
-    pub fn write(&mut self, bank_mapping: BankMapping, offset: u16, value: u8) {
+    pub(crate) fn write(&mut self, bank_mapping: BankMapping, offset: u16, value: u8) {
         if !self.0.is_empty() {
             let index = self.index(bank_mapping, offset);
             self.0[index] = value;
         }
     }
 
-    pub fn read(&self, bank_mapping: BankMapping, offset: u16) -> Option<u8> {
+    pub(crate) fn read(&self, bank_mapping: BankMapping, offset: u16) -> Option<u8> {
         if !self.0.is_empty() {
             Some(self.0[self.index(bank_mapping, offset)])
         } else {

@@ -91,6 +91,7 @@ impl Mapper for Mapper004 {
     }
 
     fn map_ppu(&mut self, address: u16) -> BankMapping {
+        // Checks if bit 12 of the address is low for three cycles and then becomes high
         if address & 0x1000 == 0 {
             self.low_cycles += 1;
         } else {
@@ -172,25 +173,5 @@ mod test {
         assert_eq!(cartridge.cpu_read(0xa001), Some(69));
         assert_eq!(cartridge.cpu_read(0xc000), Some(2));
         assert_eq!(cartridge.cpu_read(0xe000), Some(4));
-    }
-
-    #[test]
-    fn irq() {
-        let mut cartridge = setup_catridge();
-        cartridge.cpu_write(0xc000, 1);
-        cartridge.cpu_write(0xc001, 0);
-        cartridge.cpu_write(0xe001, 0);
-
-        // cartridge.signal_scanline();
-        // assert!(!cartridge.irq_status());
-        // cartridge.signal_scanline();
-        // assert!(!cartridge.irq_status());
-        // cartridge.signal_scanline();
-        // assert!(cartridge.irq_status());
-
-        // cartridge.cpu_write(0xe001, 0);
-        // cartridge.signal_scanline();
-        // cartridge.signal_scanline();
-        // assert!(cartridge.irq_status());
     }
 }

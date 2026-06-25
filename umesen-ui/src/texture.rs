@@ -1,27 +1,37 @@
 pub struct Texture {
     handle: Option<egui::TextureHandle>,
-    pub image_buffer: egui::ColorImage,
+    image_data: Option<egui::ColorImage>,
+    size: [usize; 2],
 }
 
 impl Texture {
     pub fn new(size: [usize; 2]) -> Self {
         Self {
+            size,
             handle: None,
-            image_buffer: egui::ColorImage::filled(size, egui::Color32::BLACK),
+            image_data: None,
         }
     }
 
     pub fn image(&mut self, ui: &egui::Ui) -> egui::Image<'_> {
-        if let Some(handle) = self.handle.as_mut() {
-            handle.set(self.image_buffer.clone(), egui::TextureOptions::NEAREST);
-        } else {
-            self.handle = Some(ui.ctx().load_texture(
+        let mut handle = self.handle.take().unwrap_or_else(|| {
+            ui.ctx().load_texture(
                 "",
-                self.image_buffer.clone(),
+                egui::ColorImage::new([0, 0], Vec::new()),
                 egui::TextureOptions::NEAREST,
-            ));
+            )
+        });
+
+        if let Some(data) = self.image_data.take() {
+            handle.set(data, egui::TextureOptions::NEAREST);
         }
+        self.handle = Some(handle);
+
         egui::Image::new(self.handle.as_ref().unwrap())
+    }
+
+    pub fn update_pixels(&mut self, pixels: Vec<egui::Color32>) {
+        self.image_data = Some(egui::ColorImage::new(self.size, pixels));
     }
 }
 
@@ -33,9 +43,13 @@ impl TextureMap {
         let texture = self.0.entry("ppu_output".into()).or_insert_with(|| {
             Texture::new([umesen_core::ppu::WIDTH, umesen_core::ppu::HEIGHT]) //
         });
-        for (i, color) in pixels.iter().enumerate() {
-            texture.image_buffer.pixels[i] = egui::Color32::from_rgb(color[0], color[1], color[2]);
-        }
+
+        texture.update_pixels(
+            pixels
+                .iter()
+                .map(|c| egui::Color32::from_rgb(c[0], c[1], c[2]))
+                .collect(),
+        );
     }
 
     pub fn get(&mut self, name: impl ToString, size: [usize; 2]) -> &mut Texture {
