@@ -114,7 +114,7 @@ impl Registers {
     pub(crate) fn immut_read_u8(&self, address: u16) -> u8 {
         std::debug_assert_matches!(address, 0x2000..=0x3fff);
         match address % 8 {
-            // Get status bits and fill unused with open bus
+            // PPUSTATUS (with unused bits filled with open bus)
             2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
             4 => self.read_oam_data(),
             7 => self.read_buffer,
@@ -126,7 +126,7 @@ impl Registers {
         let mut output = self.immut_read_u8(address);
         match address % 8 {
             2 => {
-                // Reset latch when read for real
+                // Reset VBLANK and latch when read PPUSTATUS for real
                 self.status.remove(Status::VBLANK);
                 self.latch = false;
             }

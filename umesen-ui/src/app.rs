@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{ActionKind, Preferences, ui_window::UiWindowKind};
+use crate::{ActionKind, Preferences, audio::setup_audio_stream, ui_window::UiWindowKind};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -11,6 +11,8 @@ pub struct App {
 
     #[serde(skip)]
     state: crate::State,
+    #[serde(skip)]
+    audio_stream: Option<cpal::Stream>,
 }
 
 impl App {
@@ -24,6 +26,17 @@ impl App {
         if let Some(path) = app.recent_file_paths.first().cloned() {
             app.load_nes_rom(&path);
         }
+
+        match setup_audio_stream(&mut app.state.emu) {
+            Ok(stream) => app.audio_stream = Some(stream),
+            Err(err) => {
+                app.ui_windows.insert(UiWindowKind::Popup {
+                    heading: "Failed to initialize audio".to_string(),
+                    message: format!("{err}"),
+                });
+            }
+        }
+
         app
     }
 

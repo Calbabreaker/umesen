@@ -1,10 +1,10 @@
-use std::time::Instant;
+use ringbuf::traits::Split;
 
 use crate::{
-    Cartridge, Controller, Cpu,
+    Cartridge, Controller, Cpu, Ppu,
     cartridge::NesParseError,
     cpu::{CLOCK_SPEED_HZ, CYCLES_PER_FRAME, CpuError},
-    ppu::{self, ScreenPixels},
+    ppu::ScreenPixels,
 };
 
 /// High level struct for controlling the cpu
@@ -12,19 +12,21 @@ pub struct Emulator {
     pub cpu: Cpu,
     pub speed: f64,
     pub running: bool,
-    last_frame_time: Instant,
+    last_frame_time: std::time::Instant,
     frame_rate: f64,
     clocks_remaining: f64,
     last_update_time: std::time::Instant,
+    audio_sample_rate: f64,
 }
 
 impl Default for Emulator {
     fn default() -> Self {
         Self {
             last_update_time: std::time::Instant::now(),
+            audio_sample_rate: 0.,
             running: true,
             cpu: Cpu::default(),
-            last_frame_time: Instant::now(),
+            last_frame_time: std::time::Instant::now(),
             frame_rate: 0.,
             clocks_remaining: 0.,
             speed: 1.,
@@ -33,6 +35,19 @@ impl Default for Emulator {
 }
 
 impl Emulator {
+    pub fn setup_audio_buffer(
+        &mut self,
+        sample_rate: u32,
+        buffer_length: std::time::Duration,
+    ) -> ringbuf::HeapCons<f32> {
+        self.audio_sample_rate = sample_rate as f64;
+        let size = self.audio_sample_rate * buffer_length.as_secs_f64();
+        let rb = ringbuf::SharedRb::new(size as usize);
+        let (prod, cons) = rb.split();
+        self.cpu.bus.apu.sample_prod = Some(prod);
+        cons
+    }
+
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) -> Result<(), CpuError> {
         while !self.ppu().frame_complete() {
@@ -43,12 +58,12 @@ impl Emulator {
 
     /// Calculates the delta time that has passed since calling this function and clock the cpu
     /// required for that amount of time
-    /// On
     pub fn update(
         &mut self,
         mut on_frame_completed: impl FnMut(&ScreenPixels),
     ) -> Result<(), CpuError> {
         let delta = self.last_update_time.elapsed().as_secs_f64() * self.speed;
+        self.cpu.bus.apu.sample_rate = self.audio_sample_rate / self.speed;
         self.last_update_time = std::time::Instant::now();
         if !self.running {
             self.clocks_remaining = 0.;
@@ -80,7 +95,7 @@ impl Emulator {
         self.frame_rate
     }
 
-    pub fn ppu(&mut self) -> &mut ppu::Ppu {
+    pub fn ppu(&mut self) -> &mut Ppu {
         &mut self.cpu.bus.ppu
     }
 

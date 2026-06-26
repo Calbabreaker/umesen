@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    Controller, Ppu,
+    Apu, Controller, Ppu,
     cartridge::{Cartridge, FixedArray},
     ppu::PpuClockReport,
 };
@@ -10,9 +10,10 @@ use crate::{
 pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,
+    pub apu: Apu,
     /// Number of cycles added when executing the previous instruction)
     pub(crate) cpu_cycles_since_inst: u32,
-    pub cpu_cycles_total: u32,
+    pub cpu_cycles_total: u64,
     pub ppu: Ppu,
     pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
     open_bus: u8,
@@ -67,6 +68,7 @@ impl CpuBus {
                 self.controllers[0].write_u8(value);
                 self.controllers[1].write_u8(value);
             }
+            0x4000..=0x4017 => self.apu.write_u8(address, value),
             _ => (),
         }
         self.clock();
@@ -96,14 +98,15 @@ impl CpuBus {
 
     // Clock all devices on the cpu bus relative to a cpu cycle
     pub fn clock(&mut self) {
-        self.cpu_cycles_since_inst += 1;
-        self.cpu_cycles_total += 1;
+        self.apu.clock(self.cpu_cycles_total);
         for _ in 0..3 {
             match self.ppu.clock() {
                 PpuClockReport::None => (),
                 PpuClockReport::Nmi => self.require_nmi = true,
             }
         }
+        self.cpu_cycles_since_inst += 1;
+        self.cpu_cycles_total += 1;
     }
 
     pub fn attach_catridge(&mut self, catridge: Cartridge) {
