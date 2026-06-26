@@ -6,7 +6,7 @@ use crate::{
     ppu::PpuClockReport,
 };
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,

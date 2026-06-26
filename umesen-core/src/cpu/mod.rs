@@ -50,7 +50,7 @@ enum InterruptKind {
 }
 
 /// Emulated 6502 CPU
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Cpu {
     /// Program counter
     pub pc: u16,

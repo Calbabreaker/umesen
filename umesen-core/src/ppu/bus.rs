@@ -10,7 +10,7 @@ const PALETTE_RAM_SIZE: usize = 0x20;
 pub const PATTERN_TILE_COUNT: u16 = 256;
 pub const PALETTE_START: u16 = 0x3f00;
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct PpuBus {
     pub palette_ram: FixedArray<u8, PALETTE_RAM_SIZE>,
     pub nametable_ram: FixedArray<u8, 0x800>,

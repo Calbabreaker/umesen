@@ -89,7 +89,7 @@ bitflags::bitflags! {
 /// AKA how many frames before open bus decays to 0
 const OPEN_BUS_DECAY_START: u32 = 30;
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Registers {
     pub bus: PpuBus,
     pub control: Control,

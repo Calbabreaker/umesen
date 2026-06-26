@@ -25,7 +25,7 @@ pub enum PpuClockReport {
 }
 
 /// Emulated 2C02 NTSC PPU
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Ppu {
     pub registers: Registers,
     pub palette: Palette,

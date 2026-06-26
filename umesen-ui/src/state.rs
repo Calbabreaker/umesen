@@ -49,12 +49,12 @@ impl State {
                 self.emu.cpu.execute_next().ok();
             }
             ActionKind::QuickSave => {
-                self.save_states
-                    .insert(self.selected_quick_save, self.emu.cpu.clone());
+                // self.save_states
+                //     .insert(self.selected_quick_save, self.emu.cpu.clone());
             }
             ActionKind::QuickLoad => {
                 if let Some(cpu) = self.save_states.get(&self.selected_quick_save) {
-                    self.emu.cpu = cpu.clone();
+                    // self.emu.cpu = cpu.clone();
                 }
             }
             ActionKind::NextFrame => {

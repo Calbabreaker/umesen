@@ -4,11 +4,11 @@ use umesen_core::controller::Button;
 pub enum ActionKind {
     ControllerInput(u8, Button),
     PauseResume,
-    QuickSave,
-    QuickLoad,
     Reset,
     Step,
     NextFrame,
+    QuickSave,
+    QuickLoad,
 }
 
 impl ActionKind {
@@ -25,51 +25,44 @@ impl ActionKind {
             Self::QuickLoad => "Quick Load".to_owned(),
         }
     }
+
+    pub fn default_shortcut(&self) -> egui::KeyboardShortcut {
+        use egui::Key::*;
+        let key = match self {
+            Self::PauseResume => F5,
+            Self::Reset => F4,
+            Self::Step => OpenBracket,
+            Self::QuickSave => W,
+            Self::QuickLoad => O,
+            Self::NextFrame => CloseBracket,
+            Self::ControllerInput(0, Button::RIGHT) => L,
+            Self::ControllerInput(0, Button::LEFT) => J,
+            Self::ControllerInput(0, Button::UP) => I,
+            Self::ControllerInput(0, Button::DOWN) => K,
+            Self::ControllerInput(0, Button::A) => C,
+            Self::ControllerInput(0, Button::B) => X,
+            Self::ControllerInput(0, Button::START) => S,
+            Self::ControllerInput(0, Button::SELECT) => D,
+            Self::ControllerInput(1, Button::RIGHT) => ArrowRight,
+            Self::ControllerInput(1, Button::LEFT) => ArrowLeft,
+            Self::ControllerInput(1, Button::UP) => ArrowUp,
+            Self::ControllerInput(1, Button::DOWN) => ArrowDown,
+            Self::ControllerInput(1, Button::A) => Slash,
+            Self::ControllerInput(1, Button::B) => Period,
+            Self::ControllerInput(1, Button::SELECT) => Quote,
+            Self::ControllerInput(1, Button::START) => Semicolon,
+            _ => unreachable!("got action {:?}", self),
+        };
+        egui::KeyboardShortcut::new(egui::Modifiers::NONE, key)
+    }
 }
 
-#[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)]
+#[derive(Default, serde::Deserialize, serde::Serialize)]
 pub struct KeyActionMap {
-    pub map: indexmap::IndexMap<ActionKind, egui::KeyboardShortcut>,
+    pub map: std::collections::HashMap<ActionKind, egui::KeyboardShortcut>,
     /// The button to bind the next pressed key to
     #[serde(skip)]
     pub action_to_rebind: Option<ActionKind>,
-}
-
-impl Default for KeyActionMap {
-    fn default() -> Self {
-        let mut map = KeyActionMap {
-            map: indexmap::IndexMap::default(),
-            action_to_rebind: None,
-        };
-
-        use ActionKind::*;
-        use egui::Key::*;
-
-        map.add(PauseResume, F5);
-        map.add(Reset, F4);
-        map.add(Step, CloseBracket);
-        map.add(ControllerInput(0, Button::RIGHT), L);
-        map.add(ControllerInput(0, Button::LEFT), J);
-        map.add(ControllerInput(0, Button::UP), I);
-        map.add(ControllerInput(0, Button::DOWN), K);
-        map.add(ControllerInput(0, Button::A), C);
-        map.add(ControllerInput(0, Button::B), X);
-        map.add(ControllerInput(0, Button::START), S);
-        map.add(ControllerInput(0, Button::SELECT), D);
-        map.add(ControllerInput(1, Button::RIGHT), ArrowRight);
-        map.add(ControllerInput(1, Button::LEFT), ArrowLeft);
-        map.add(ControllerInput(1, Button::UP), ArrowUp);
-        map.add(ControllerInput(1, Button::DOWN), ArrowDown);
-        map.add(ControllerInput(1, Button::A), Slash);
-        map.add(ControllerInput(1, Button::B), Period);
-        map.add(ControllerInput(1, Button::SELECT), Quote);
-        map.add(ControllerInput(1, Button::START), Semicolon);
-        map.add(QuickSave, W);
-        map.add(QuickLoad, O);
-
-        map
-    }
 }
 
 impl KeyActionMap {
@@ -81,25 +74,8 @@ impl KeyActionMap {
         }
     }
 
-    pub fn add(&mut self, action: ActionKind, key: egui::Key) {
-        self.add_with_mod(action, egui::Modifiers::NONE, key);
-    }
-
     pub fn add_with_mod(&mut self, action: ActionKind, modifiers: egui::Modifiers, key: egui::Key) {
         self.map
             .insert(action, egui::KeyboardShortcut::new(modifiers, key));
-    }
-
-    pub fn map_iter(
-        &self,
-        controller_num: Option<u8>,
-    ) -> impl Iterator<Item = (&ActionKind, &egui::KeyboardShortcut)> {
-        self.map.iter().filter(move |(a, _)| {
-            if let Some(num) = controller_num {
-                matches!(a, ActionKind::ControllerInput(n, _) if *n == num)
-            } else {
-                !matches!(a, ActionKind::ControllerInput(..))
-            }
-        })
     }
 }

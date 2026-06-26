@@ -49,10 +49,6 @@ impl App {
     }
 
     fn show_top_bar(&mut self, ui: &mut egui::Ui) {
-        // Doing ui.style_mut doesn't actually set the style so you have to do this for some stupid reason
-        ui.ctx()
-            .global_style_mut(|style| style.spacing.menu_width = 10000.);
-
         ui.menu_button("File", |ui| {
             if ui.button("Open ROM...").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
@@ -133,12 +129,6 @@ impl App {
     }
 
     fn check_input(&mut self, i: &mut egui::InputState) {
-        for (action, shortcut) in self.preferences.key_action_map.map_iter(None) {
-            if i.consume_shortcut(shortcut) {
-                self.state.do_action(*action);
-            }
-        }
-
         // Do controller input seperate
         for (action, shortcut) in &self.preferences.key_action_map.map {
             if let ActionKind::ControllerInput(number, button) = action {
@@ -148,6 +138,10 @@ impl App {
 
                 if !is_illegal || self.preferences.allow_illegal_press {
                     controller.state.set(*button, key_down);
+                }
+            } else {
+                if i.consume_shortcut(shortcut) {
+                    self.state.do_action(*action);
                 }
             }
         }
@@ -183,7 +177,7 @@ impl eframe::App for App {
         let default_bg = ui.style().visuals.noninteractive().bg_fill;
         egui::Panel::top("top_panel")
             .frame(egui::Frame::default().fill(default_bg).inner_margin(6.0))
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 egui::MenuBar::new().ui(ui, |ui| self.show_top_bar(ui))
             });
 
@@ -192,7 +186,7 @@ impl eframe::App for App {
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 ui.centered_and_justified(|ui| {
                     if let Some(texture) = self.state.texture_map.0.get_mut("ppu_output") {
                         ui.add(texture.image(ui).fit_to_fraction(egui::vec2(1., 1.)));

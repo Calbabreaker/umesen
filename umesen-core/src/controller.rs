@@ -30,7 +30,7 @@ impl Button {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Controller {
     strobe_active: bool,
     shift_register: u8,

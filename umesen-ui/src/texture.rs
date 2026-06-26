@@ -36,7 +36,7 @@ impl Texture {
 }
 
 #[derive(Default)]
-pub struct TextureMap(pub egui::ahash::HashMap<String, Texture>);
+pub struct TextureMap(pub std::collections::HashMap<String, Texture>);
 
 impl TextureMap {
     pub fn update_ppu_texture(&mut self, pixels: &umesen_core::ppu::ScreenPixels) {

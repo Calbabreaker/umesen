@@ -11,7 +11,6 @@ const EMPHASIS_FACTOR: [[f32; 3]; 8] = [
     [0.70, 0.70, 0.70],
 ];
 
-#[derive(Clone)]
 pub struct Palette {
     /// Palettes for each ephamsis mode
     palettes: [[[u8; 3]; 64]; 8],
