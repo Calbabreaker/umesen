@@ -180,7 +180,8 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         ctx.input_mut(|i| self.check_input(i));
 
-        self.state.emu.cpu.bus.ppu.unlimited_sprites = self.preferences.allow_unlimted_sprites;
+        self.state.emu.ppu().unlimited_sprites = self.preferences.allow_unlimted_sprites;
+        self.state.emu.apu().volume = self.preferences.volume;
 
         self.state.update_emulation(ctx);
     }

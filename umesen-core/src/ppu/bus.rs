@@ -18,7 +18,7 @@ pub struct PpuBus {
 }
 
 impl PpuBus {
-    pub fn read_u8(&self, mut address: u16) -> u8 {
+    pub fn read(&self, mut address: u16) -> u8 {
         address %= 0x4000;
         match address {
             0x0000..=0x1fff => match self.cartridge.as_ref() {
@@ -32,7 +32,7 @@ impl PpuBus {
         }
     }
 
-    pub fn write_u8(&mut self, mut address: u16, value: u8) {
+    pub fn write(&mut self, mut address: u16, value: u8) {
         address %= 0x4000;
         match address {
             0x0000..=0x1fff => {
@@ -62,7 +62,7 @@ impl PpuBus {
         // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
         // +--------------- 0: Pattern table is at $0000-$1FFF
         let address = ((tile_number) << 4) | (fine_y % 8);
-        (self.read_u8(address), self.read_u8(address + 8))
+        (self.read(address), self.read(address + 8))
     }
 
     fn mirror_nametable(&self, address: u16) -> usize {

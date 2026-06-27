@@ -117,8 +117,8 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         register.set(VramRegister::COARSE_X, tile_index as u16 % 32);
         register.set(VramRegister::COARSE_Y, tile_index as u16 / 32);
 
-        let tile_number = ppu.registers.bus.read_u8(register.nametable_address()) as u16;
-        let tile_attribute = ppu.registers.bus.read_u8(register.attribute_address());
+        let tile_number = ppu.registers.bus.read(register.nametable_address()) as u16;
+        let tile_attribute = ppu.registers.bus.read(register.attribute_address());
         let palette_id = register.palette_id(tile_attribute);
         (
             tile_number + ppu.registers.control.background_table_offset(),

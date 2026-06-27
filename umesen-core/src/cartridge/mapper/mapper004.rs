@@ -27,9 +27,7 @@ impl Mapper004 {
         }
 
         if self.irq_counter == 0 {
-            if self.irq_enable {
-                self.irq_status = true;
-            }
+            self.irq_status = self.irq_enable;
             self.irq_counter = self.irq_latch_value;
         } else {
             self.irq_counter -= 1;

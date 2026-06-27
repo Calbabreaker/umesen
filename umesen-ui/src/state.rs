@@ -6,6 +6,7 @@ pub struct Preferences {
     pub key_action_map: crate::KeyActionMap,
     pub allow_illegal_press: bool,
     pub allow_unlimted_sprites: bool,
+    pub volume: f32,
 }
 
 #[derive(Default)]

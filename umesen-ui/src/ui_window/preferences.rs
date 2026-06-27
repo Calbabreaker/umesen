@@ -37,6 +37,9 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
                 );
                 ui.checkbox(&mut prefs.allow_unlimted_sprites, "");
                 ui.end_row();
+                ui.label("Audio volume");
+                ui.add(egui::Slider::new(&mut prefs.volume, (0.)..=1.));
+                ui.end_row();
             });
         }
         Tab::KeyBinds => {

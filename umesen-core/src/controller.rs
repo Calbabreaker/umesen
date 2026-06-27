@@ -39,14 +39,14 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn write_u8(&mut self, value: u8) {
+    pub fn write(&mut self, value: u8) {
         self.strobe_active = value & 0b1 != 0;
         if !self.strobe_active {
             self.shift_register = self.state.bits();
         }
     }
 
-    pub fn read_u8(&mut self) -> u8 {
+    pub fn read(&mut self) -> u8 {
         if self.strobe_active {
             // Always return A when strobe active
             self.state.contains(Button::A) as u8
@@ -79,17 +79,17 @@ mod test {
     #[test]
     fn read_correct() {
         let mut con = Controller::default();
-        con.write_u8(1);
-        assert_eq!(con.read_u8(), 0);
+        con.write(1);
+        assert_eq!(con.read(), 0);
         con.state.set(Button::A, true);
-        assert_eq!(con.read_u8(), 1);
+        assert_eq!(con.read(), 1);
 
         con.state.set(Button::SELECT, true);
-        con.write_u8(0);
+        con.write(0);
         con.state.set(Button::B, true);
         let mut out = 0;
         for i in 0..10 {
-            out |= (con.read_u8() as u16) << i;
+            out |= (con.read() as u16) << i;
         }
         assert_eq!(out, 0b11_0000_0101);
     }

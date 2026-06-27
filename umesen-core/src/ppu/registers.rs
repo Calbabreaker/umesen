@@ -111,7 +111,7 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub(crate) fn immut_read_u8(&self, address: u16) -> u8 {
+    pub(crate) fn peek_read(&self, address: u16) -> u8 {
         std::debug_assert_matches!(address, 0x2000..=0x3fff);
         match address % 8 {
             // PPUSTATUS (with unused bits filled with open bus)
@@ -122,8 +122,8 @@ impl Registers {
         }
     }
 
-    pub(crate) fn read_u8(&mut self, address: u16) -> u8 {
-        let mut output = self.immut_read_u8(address);
+    pub(crate) fn read(&mut self, address: u16) -> u8 {
+        let mut output = self.peek_read(address);
         match address % 8 {
             2 => {
                 // Reset VBLANK and latch when read PPUSTATUS for real
@@ -135,9 +135,9 @@ impl Registers {
                 // but read_buffer populated with nametable data
                 if self.v.0 >= PALETTE_START {
                     output = self.read_palette_ram(self.v.0);
-                    self.read_buffer = self.bus.read_u8(0x2f00 | (self.v.0 & 0xff));
+                    self.read_buffer = self.bus.read(0x2f00 | (self.v.0 & 0xff));
                 } else {
-                    self.read_buffer = self.bus.read_u8(self.v.0);
+                    self.read_buffer = self.bus.read(self.v.0);
                 }
                 self.increment_v_register();
             }
@@ -148,7 +148,7 @@ impl Registers {
         output
     }
 
-    pub(crate) fn write_u8(&mut self, address: u16, value: u8) {
+    pub(crate) fn write(&mut self, address: u16, value: u8) {
         std::debug_assert_matches!(address, 0x2000..=0x3fff);
         self.open_bus = value;
         self.open_bus_decay_counter = OPEN_BUS_DECAY_START;
@@ -183,7 +183,7 @@ impl Registers {
     pub fn read_palette_ram(&self, offset: u16) -> u8 {
         let address = PALETTE_START | (offset & 0xff);
         // Get the palette ram and with open bus
-        let mut value = (self.bus.read_u8(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
+        let mut value = (self.bus.read(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
         if self.mask.contains(Mask::GRAYSCALE) {
             value &= 0x30;
         }
@@ -255,7 +255,7 @@ impl Registers {
     }
 
     fn write_vram_data(&mut self, value: u8) {
-        self.bus.write_u8(self.v.0, value);
+        self.bus.write(self.v.0, value);
         self.increment_v_register();
     }
 

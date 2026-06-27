@@ -24,7 +24,7 @@ pub struct CpuBus {
 impl CpuBus {
     /// Immutable read function for peeking into memory
     /// Reads into some address cause side effects
-    pub fn immut_read_u8(&self, address: u16) -> u8 {
+    pub fn peek_read(&self, address: u16) -> u8 {
         if let Some(cart) = self.cartridge.as_ref()
             && let Some(byte) = cart.borrow().cpu_read(address)
         {
@@ -35,25 +35,25 @@ impl CpuBus {
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[address as usize % self.ram.len()],
-            0x2000..=0x3fff => self.ppu.registers.immut_read_u8(address),
+            0x2000..=0x3fff => self.ppu.registers.peek_read(address),
             _ => self.open_bus,
         }
     }
 
-    pub fn read_u8(&mut self, address: u16) -> u8 {
+    pub fn read(&mut self, address: u16) -> u8 {
         let output = match address {
-            0x2000..=0x3fff => self.ppu.registers.read_u8(address),
+            0x2000..=0x3fff => self.ppu.registers.read(address),
             // Top 3 high bits always have open bus
-            0x4016 => self.controllers[0].read_u8() | (0b11100000 & self.open_bus),
-            0x4017 => self.controllers[1].read_u8() | (0b11100000 & self.open_bus),
-            _ => self.immut_read_u8(address),
+            0x4016 => self.controllers[0].read() | (0b11100000 & self.open_bus),
+            0x4017 => self.controllers[1].read() | (0b11100000 & self.open_bus),
+            _ => self.peek_read(address),
         };
         self.open_bus = output;
         self.clock();
         output
     }
 
-    pub fn write_u8(&mut self, address: u16, value: u8) {
+    pub fn write(&mut self, address: u16, value: u8) {
         if let Some(cartridge) = self.cartridge.as_ref() {
             cartridge.borrow_mut().cpu_write(address, value);
         }
@@ -62,11 +62,11 @@ impl CpuBus {
         match address {
             // 2kb of ram is mirrored 3 times
             0x0000..=0x1fff => self.ram[address as usize % ram_len] = value,
-            0x2000..=0x3fff => self.ppu.registers.write_u8(address, value),
+            0x2000..=0x3fff => self.ppu.registers.write(address, value),
             0x4014 => self.oam_dma((value as u16) << 8),
             0x4016 => {
-                self.controllers[0].write_u8(value);
-                self.controllers[1].write_u8(value);
+                self.controllers[0].write(value);
+                self.controllers[1].write(value);
             }
             0x4000..=0x4017 => self.apu.write_u8(address, value),
             _ => (),
@@ -75,25 +75,25 @@ impl CpuBus {
     }
 
     pub fn read_u16(&mut self, address: u16) -> u16 {
-        let lsb = self.read_u8(address) as u16;
-        let msb = self.read_u8(address + 1) as u16;
+        let lsb = self.read(address) as u16;
+        let msb = self.read(address + 1) as u16;
         (msb << 8) | lsb
     }
 
     /// Same as read u16 but the high byte is wrapped to the beggining of the page
     pub fn read_u16_wrapped(&mut self, address: u16) -> u16 {
-        let lsb = self.read_u8(address) as u16;
+        let lsb = self.read(address) as u16;
         // Wrap the page by always getting the address high byte from the current page
         let address_for_msb = (address & 0xff00) | ((address + 1) & 0x00ff);
-        let msb = self.read_u8(address_for_msb) as u16;
+        let msb = self.read(address_for_msb) as u16;
         (msb << 8) | lsb
     }
 
     pub fn write_u16(&mut self, address: u16, value: u16) {
         let lsb = value as u8;
         let msb = (value >> 8) as u8;
-        self.write_u8(address, lsb);
-        self.write_u8(address + 1, msb);
+        self.write(address, lsb);
+        self.write(address + 1, msb);
     }
 
     // Clock all devices on the cpu bus relative to a cpu cycle
@@ -116,10 +116,8 @@ impl CpuBus {
     }
 
     pub fn irq_status(&self) -> bool {
-        self.cartridge
-            .as_ref()
-            .map(|c| c.borrow().irq_status())
-            .unwrap_or(false)
+        let cart = self.cartridge.as_ref();
+        self.apu.irq_status() | cart.map(|c| c.borrow().irq_status()).unwrap_or(false)
     }
 
     pub fn require_nmi(&mut self) -> bool {
@@ -137,7 +135,7 @@ impl CpuBus {
 
         // 512 r/w cycles
         for i in 0..256 {
-            let value = self.read_u8(address_start + i);
+            let value = self.read(address_start + i);
             self.clock();
             self.ppu.registers.write_oam_data(value);
         }

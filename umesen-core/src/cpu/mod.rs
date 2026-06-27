@@ -80,7 +80,7 @@ impl Cpu {
             self.interrupt(InterruptKind::Irq);
         }
 
-        let byte = self.read_u8_at_pc();
+        let byte = self.read_at_pc();
         if let Some(opcode) = Opcode::from_byte(byte) {
             self.operand_address = self.read_operand_address(opcode.addr_mode);
             self.execute(opcode)?;
@@ -110,10 +110,10 @@ impl Cpu {
         }
     }
 
-    fn read_u8_at_pc(&mut self) -> u8 {
+    fn read_at_pc(&mut self) -> u8 {
         let pc = self.pc;
         self.pc = self.pc.wrapping_add(1);
-        self.bus.read_u8(pc)
+        self.bus.read(pc)
     }
 
     fn read_u16_at_pc(&mut self) -> u16 {
@@ -135,7 +135,7 @@ impl Cpu {
         if force_dummy || address_offset & 0xff00 != address & 0xff00 {
             // The dummy read if page crossed
             self.bus
-                .read_u8((address & 0xff00) | (address_offset & 0x00ff));
+                .read((address & 0xff00) | (address_offset & 0x00ff));
         }
         address_offset
     }
@@ -150,14 +150,14 @@ impl Cpu {
                 self.pc = self.pc.wrapping_add(1);
                 address
             }
-            AddrMode::ZeroPage => self.read_u8_at_pc() as u16,
+            AddrMode::ZeroPage => self.read_at_pc() as u16,
             AddrMode::ZeroPageX => {
                 self.bus.clock();
-                self.read_u8_at_pc().wrapping_add(self.x) as u16
+                self.read_at_pc().wrapping_add(self.x) as u16
             }
             AddrMode::ZeroPageY => {
                 self.bus.clock();
-                self.read_u8_at_pc().wrapping_add(self.y) as u16
+                self.read_at_pc().wrapping_add(self.y) as u16
             }
             AddrMode::Absolute => self.read_u16_at_pc(),
             AddrMode::AbsoluteX | AddrMode::AbsoluteXForceDummy => {
@@ -173,24 +173,24 @@ impl Cpu {
                 self.bus.read_u16_wrapped(indirect_address)
             }
             AddrMode::IndirectX => {
-                let indirect_address = self.read_u8_at_pc().wrapping_add(self.x);
+                let indirect_address = self.read_at_pc().wrapping_add(self.x);
                 self.bus.clock();
                 self.bus.read_u16_wrapped(indirect_address as u16)
             }
             AddrMode::IndirectY | AddrMode::IndirectYForceDummy => {
-                let indirect_address = self.read_u8_at_pc();
+                let indirect_address = self.read_at_pc();
                 let address = self.bus.read_u16_wrapped(indirect_address as u16);
                 self.address_add_offset(address, self.y, mode)
             }
             AddrMode::Relative => {
-                let offset = self.read_u8_at_pc() as i8 as u16;
+                let offset = self.read_at_pc() as i8 as u16;
                 self.pc.wrapping_add(offset)
             }
         })
     }
 
     fn read_operand_value(&mut self) -> Option<u8> {
-        let value = self.bus.read_u8(self.operand_address?);
+        let value = self.bus.read(self.operand_address?);
         self.set_zero_neg_flags(value);
         Some(value)
     }
@@ -265,12 +265,12 @@ impl Cpu {
             }
 
             // -- Register stores --
-            Inst::Sta => self.bus.write_u8(self.operand_address.unwrap(), self.a),
-            Inst::Stx => self.bus.write_u8(self.operand_address.unwrap(), self.x),
-            Inst::Sty => self.bus.write_u8(self.operand_address.unwrap(), self.y),
+            Inst::Sta => self.bus.write(self.operand_address.unwrap(), self.a),
+            Inst::Stx => self.bus.write(self.operand_address.unwrap(), self.x),
+            Inst::Sty => self.bus.write(self.operand_address.unwrap(), self.y),
             Inst::Sax => self
                 .bus
-                .write_u8(self.operand_address.unwrap(), self.a & self.x),
+                .write(self.operand_address.unwrap(), self.a & self.x),
 
             // -- Register transfers --
             Inst::Tax => self.x = self.transfer(self.a),
@@ -355,7 +355,7 @@ impl Cpu {
     }
 
     fn stack_push(&mut self, value: u8) {
-        self.bus.write_u8(0x100 + self.sp as u16, value);
+        self.bus.write(0x100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
         self.bus.clock();
     }
@@ -370,7 +370,7 @@ impl Cpu {
         self.sp = self.sp.wrapping_add(1);
         self.bus.clock();
         self.bus.clock();
-        self.bus.read_u8(0x100 + self.sp as u16)
+        self.bus.read(0x100 + self.sp as u16)
     }
 
     fn stack_pop_u16(&mut self) -> u16 {
@@ -401,7 +401,7 @@ impl Cpu {
         // Read-modify-update instructions like shift whatever immediately writes the value in the
         // same cycle as performing the operation
         if let Some(address) = self.operand_address {
-            self.bus.write_u8(address, value);
+            self.bus.write(address, value);
         } else {
             // Still a cycle for implied addressing mode
             self.bus.clock();
@@ -409,7 +409,7 @@ impl Cpu {
 
         let result = self.calc_shift(value, is_left, contains_carry);
         if let Some(address) = self.operand_address {
-            self.bus.write_u8(address, result);
+            self.bus.write(address, result);
         } else {
             self.a = result;
         }
@@ -423,8 +423,8 @@ impl Cpu {
         let result = (value as i8).wrapping_add(sign) as u8;
         if value_override.is_none() {
             // Should not be a implied addressing mode
-            self.bus.write_u8(self.operand_address.unwrap(), value); // See shift func
-            self.bus.write_u8(self.operand_address.unwrap(), result);
+            self.bus.write(self.operand_address.unwrap(), value); // See shift func
+            self.bus.write(self.operand_address.unwrap(), result);
         } else {
             // Still a clock for the op when implied
             self.bus.clock();
@@ -533,7 +533,7 @@ impl Cpu {
     fn nop(&mut self) {
         if let Some(address) = self.operand_address {
             // Dummy read for nop instructions with address
-            self.bus.read_u8(address);
+            self.bus.read(address);
         } else {
             self.bus.clock();
         }

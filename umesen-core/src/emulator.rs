@@ -1,7 +1,7 @@
 use ringbuf::traits::Split;
 
 use crate::{
-    Cartridge, Controller, Cpu, Ppu,
+    Apu, Cartridge, Controller, Cpu, Ppu,
     cartridge::NesParseError,
     cpu::{CLOCK_SPEED_HZ, CYCLES_PER_FRAME, CpuError},
     ppu::ScreenPixels,
@@ -46,7 +46,8 @@ impl Emulator {
         let size = self.audio_sample_rate * buffer_length.as_secs_f64();
         let rb = ringbuf::SharedRb::new(size as usize);
         let (prod, cons) = rb.split();
-        self.cpu.bus.apu.sample_prod = Some(prod);
+        self.apu().sample_prod = Some(prod);
+        self.apu().volume = 1.;
         cons
     }
 
@@ -99,6 +100,10 @@ impl Emulator {
 
     pub fn ppu(&mut self) -> &mut Ppu {
         &mut self.cpu.bus.ppu
+    }
+
+    pub fn apu(&mut self) -> &mut Apu {
+        &mut self.cpu.bus.apu
     }
 
     pub fn cartridge(&self) -> Option<std::cell::Ref<'_, Cartridge>> {

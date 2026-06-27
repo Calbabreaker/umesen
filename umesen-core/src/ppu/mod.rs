@@ -161,8 +161,8 @@ impl Ppu {
     /// cycles every 8 cycles but just have it all at once for simplicity (maybe slightly less accurate)
     fn load_background_shift_bits(&mut self) {
         let registers = &mut self.registers;
-        let tile_number = registers.bus.read_u8(registers.v.nametable_address());
-        let attribute_byte = registers.bus.read_u8(registers.v.attribute_address());
+        let tile_number = registers.bus.read(registers.v.nametable_address());
+        let attribute_byte = registers.bus.read(registers.v.attribute_address());
         self.bg_palette_id = registers.v.palette_id(attribute_byte);
         let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(
             tile_number as u16 + registers.control.background_table_offset(),

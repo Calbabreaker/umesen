@@ -1,17 +1,22 @@
 use ringbuf::traits::Producer;
 
-use crate::cpu::CLOCK_SPEED_HZ;
+use frame_counter::{FrameCounter, FrameCounterState};
 use pulse_channel::PulseChannel;
 
+mod envelope;
+mod frame_counter;
 mod pulse_channel;
+mod sequencer;
 
 /// Emulated RP2A03 NTSC APU
 #[derive(Default)]
 pub struct Apu {
-    pub sample_prod: Option<ringbuf::HeapProd<f32>>,
-    pub sample_rate: f64,
-    pub pulse_0: PulseChannel,
-    pub pulse_1: PulseChannel,
+    pub(crate) sample_prod: Option<ringbuf::HeapProd<f32>>,
+    pub(crate) sample_rate: f64,
+    pub volume: f32,
+    pulse_0: PulseChannel,
+    pulse_1: PulseChannel,
+    frame_counter: FrameCounter,
     cycles_since_sample: f64,
 }
 
@@ -19,8 +24,9 @@ impl Apu {
     pub fn write_u8(&mut self, address: u16, value: u8) {
         std::debug_assert_matches!(address, 0x4000..=0x4017);
         match address {
-            0x4000..=0x4003 => self.pulse_0.write_u8(address, value),
-            0x4004..=0x4007 => self.pulse_1.write_u8(address, value),
+            0x4000..=0x4003 => self.pulse_0.write(address, value),
+            0x4004..=0x4007 => self.pulse_1.write(address, value),
+            0x4017 => self.frame_counter.write(value),
             _ => (),
         }
     }
@@ -28,15 +34,23 @@ impl Apu {
     /// Ran on every CPU cycle
     pub fn clock(&mut self, cpu_cycles: u64) {
         if cpu_cycles.is_multiple_of(2) {
-            self.pulse_0.clock();
-            self.pulse_1.clock();
+            self.pulse_0.sequencer.clock();
+            self.pulse_1.sequencer.clock();
+        }
+
+        let state = self.frame_counter.clock();
+        if matches!(state, FrameCounterState::QuarterHalf) {
+            if matches!(state, FrameCounterState::Quarter) {
+                self.pulse_0.envelope.clock();
+                self.pulse_1.envelope.clock();
+            }
         }
 
         let sample = self.sample();
         if let Some(prod) = self.sample_prod.as_mut() {
             while self.cycles_since_sample > 0. {
                 prod.try_push(sample).ok();
-                self.cycles_since_sample -= CLOCK_SPEED_HZ / self.sample_rate;
+                self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / self.sample_rate;
             }
         }
 
@@ -47,6 +61,10 @@ impl Apu {
         // Math from https://www.nesdev.org/wiki/APU_Mixer
         let pulse_out = 95.88 / (8128. / (self.pulse_0.sample() + self.pulse_1.sample()) + 100.);
 
-        pulse_out
+        pulse_out * self.volume
+    }
+
+    pub fn irq_status(&self) -> bool {
+        self.frame_counter.irq_status
     }
 }
