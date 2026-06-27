@@ -1,11 +1,9 @@
-use umesen_core::Emulator;
-
 // Test rom by kevtris https://www.qmtpro.com/~nes/misc/nestest.txt
 #[test]
 fn nestest() {
     let correct_logs = include_str!("nestest.log");
 
-    let mut emu = Emulator::default();
+    let mut emu = umesen_core::Emulator::default();
     emu.load_nes_rom("tests/nestest.nes").unwrap();
     emu.cpu.pc = 0xc000;
 

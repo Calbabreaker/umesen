@@ -10,7 +10,7 @@ const PULSE_WAVEFORM: [[u8; 8]; 4] = [
 
 /// Generator for pulse/square wave
 #[derive(Default)]
-pub struct PulseWave {
+pub struct PulseChannel {
     /// 11 bit for the sequencer to go to the next step
     period_timer: u16,
     period: u16,
@@ -18,7 +18,7 @@ pub struct PulseWave {
     duty_cycle: u8,
 }
 
-impl PulseWave {
+impl PulseChannel {
     pub fn write_u8(&mut self, address: u16, value: u8) {
         // Address for both pulse channels
         std::debug_assert_matches!(address, 0x4000..=0x4007);

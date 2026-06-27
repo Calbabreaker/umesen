@@ -35,6 +35,8 @@ impl Default for Emulator {
 }
 
 impl Emulator {
+    /// Setup the audio buffer
+    /// Returns the ring buffer consumer that contains the samples generated from the APU
     pub fn setup_audio_buffer(
         &mut self,
         sample_rate: u32,

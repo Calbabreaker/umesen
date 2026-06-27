@@ -1,17 +1,17 @@
 use ringbuf::traits::Producer;
 
 use crate::cpu::CLOCK_SPEED_HZ;
-use pulse_wave::PulseWave;
+use pulse_channel::PulseChannel;
 
-mod pulse_wave;
+mod pulse_channel;
 
 /// Emulated RP2A03 NTSC APU
 #[derive(Default)]
 pub struct Apu {
     pub sample_prod: Option<ringbuf::HeapProd<f32>>,
     pub sample_rate: f64,
-    pub pulse_0: PulseWave,
-    pub pulse_1: PulseWave,
+    pub pulse_0: PulseChannel,
+    pub pulse_1: PulseChannel,
     cycles_since_sample: f64,
 }
 
