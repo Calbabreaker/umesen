@@ -35,5 +35,6 @@ impl Sequencer {
 
     pub fn set_timer_high(&mut self, value: u8) {
         self.timer_start = ((value as u16 & 0b0000_0111) << 8) | self.timer_start & (0x00ff);
+        self.step = 0;
     }
 }

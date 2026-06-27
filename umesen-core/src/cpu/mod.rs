@@ -2,7 +2,7 @@ mod bus;
 mod disassembler;
 mod opcode;
 
-use bus::CpuBus;
+pub use bus::{CpuBus, IrqStatus};
 pub use disassembler::Disassembler;
 pub use opcode::{AddrMode, Inst, Opcode};
 
@@ -101,6 +101,7 @@ impl Cpu {
         self.sp = 0xfd;
         // Some roms freeze when soft loading if nmi is enabled for some reason
         self.bus.ppu.registers.control = Default::default();
+        self.bus.apu.reset();
         if let Some(c) = self.bus.cartridge.as_mut() {
             c.borrow_mut().reset()
         }

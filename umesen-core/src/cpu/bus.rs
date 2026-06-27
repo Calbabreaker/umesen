@@ -44,8 +44,9 @@ impl CpuBus {
         let output = match address {
             0x2000..=0x3fff => self.ppu.registers.read(address),
             // Top 3 high bits always have open bus
-            0x4016 => self.controllers[0].read() | (0b11100000 & self.open_bus),
-            0x4017 => self.controllers[1].read() | (0b11100000 & self.open_bus),
+            0x4016 => self.controllers[0].read() | (0b1110_0000 & self.open_bus),
+            0x4015 => self.apu.read_status() | (0b0010_0000 & self.open_bus),
+            0x4017 => self.controllers[1].read() | (0b1110_0000 & self.open_bus),
             _ => self.peek_read(address),
         };
         self.open_bus = output;
@@ -68,7 +69,7 @@ impl CpuBus {
                 self.controllers[0].write(value);
                 self.controllers[1].write(value);
             }
-            0x4000..=0x4017 => self.apu.write_u8(address, value),
+            0x4000..=0x4017 => self.apu.write(address, value),
             _ => (),
         }
         self.clock();
@@ -139,5 +140,38 @@ impl CpuBus {
             self.clock();
             self.ppu.registers.write_oam_data(value);
         }
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct IrqStatus {
+    pub status: bool,
+    enabled: bool,
+    just_on: bool,
+}
+
+impl IrqStatus {
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
+        if !self.enabled {
+            self.status = false;
+        }
+    }
+
+    pub fn on(&mut self) {
+        if !self.status && self.enabled {
+            self.status = true;
+            self.just_on = true;
+        } else {
+            self.just_on = false;
+        }
+    }
+
+    pub fn read_status(&mut self) -> bool {
+        let status = self.status;
+        if !self.just_on {
+            self.status = false;
+        }
+        status
     }
 }

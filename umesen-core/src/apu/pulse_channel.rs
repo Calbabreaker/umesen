@@ -1,4 +1,4 @@
-use super::{envelope::Envelope, sequencer::Sequencer};
+use super::{counters::LengthCounter, envelope::Envelope, sequencer::Sequencer};
 
 /// Waveform for the pulse wave for each duty cycle
 /// https://www.nesdev.org/wiki/APU_Pulse#Sequencer_behavior
@@ -14,6 +14,7 @@ const PULSE_WAVEFORM: [[u8; 8]; 4] = [
 pub struct PulseChannel {
     pub sequencer: Sequencer,
     pub envelope: Envelope,
+    pub length_counter: LengthCounter,
 }
 
 impl Default for PulseChannel {
@@ -21,6 +22,7 @@ impl Default for PulseChannel {
         Self {
             sequencer: Sequencer::new(&PULSE_WAVEFORM[0]),
             envelope: Envelope::default(),
+            length_counter: LengthCounter::default(),
         }
     }
 }
@@ -33,19 +35,21 @@ impl PulseChannel {
             0 => {
                 self.sequencer.sequence = &PULSE_WAVEFORM[(value >> 6) as usize];
                 self.envelope.write(value);
+                self.length_counter.halt = value & 0b0010_0000 != 0;
             }
             1 => (),
             2 => self.sequencer.set_timer_low(value),
             3 => {
                 self.envelope.start();
                 self.sequencer.set_timer_high(value);
+                self.length_counter.set_counter(value);
             }
             _ => unreachable!(),
         }
     }
 
     pub fn sample(&self) -> f32 {
-        if self.sequencer.timer_start >= 8 {
+        if self.sequencer.timer_start >= 8 && self.length_counter.counter != 0 {
             self.sequencer.sample() * self.envelope.volume()
         } else {
             0.

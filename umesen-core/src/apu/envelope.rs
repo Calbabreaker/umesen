@@ -18,7 +18,7 @@ impl Envelope {
         self.should_loop = value & 0b0010_0000 != 0;
     }
 
-    /// Clocked By frame counter
+    /// Clocked by every quarter frame frame counter
     pub fn clock(&mut self) {
         if self.start {
             self.decay_level = DECAY_START;

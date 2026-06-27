@@ -1,4 +1,7 @@
-use crate::cartridge::{Bank, BankMapping, Mapper, Mirroring};
+use crate::{
+    cartridge::{Bank, BankMapping, Mapper, Mirroring},
+    cpu::IrqStatus,
+};
 
 /// INES designation for MMC3 boards
 /// https://www.nesdev.org/wiki/MMC3
@@ -13,8 +16,7 @@ pub struct Mapper004 {
     irq_counter: u8,
     irq_reload: bool,
     irq_latch_value: u8,
-    irq_status: bool,
-    irq_enable: bool,
+    irq: IrqStatus,
     low_cycles: u8,
 }
 
@@ -27,7 +29,7 @@ impl Mapper004 {
         }
 
         if self.irq_counter == 0 {
-            self.irq_status = self.irq_enable;
+            self.irq.on();
             self.irq_counter = self.irq_latch_value;
         } else {
             self.irq_counter -= 1;
@@ -79,11 +81,8 @@ impl Mapper for Mapper004 {
             0xc000..=0xdfff if even => self.irq_latch_value = value,
             0xc000..=0xdfff if !even => self.irq_reload = true,
             // Disable IRQs and acknowledge them
-            0xe000..=0xffff if even => {
-                self.irq_enable = false;
-                self.irq_status = false;
-            }
-            0xe000..=0xffff if !even => self.irq_enable = true,
+            0xe000..=0xffff if even => self.irq.set_enabled(false),
+            0xe000..=0xffff if !even => self.irq.set_enabled(true),
             _ => (),
         }
     }
@@ -123,7 +122,7 @@ impl Mapper for Mapper004 {
     }
 
     fn irq_status(&self) -> bool {
-        self.irq_status
+        self.irq.status
     }
 
     fn mirroring(&self) -> Option<Mirroring> {
