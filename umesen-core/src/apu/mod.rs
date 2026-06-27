@@ -7,6 +7,7 @@ mod counters;
 mod envelope;
 mod pulse_channel;
 mod sequencer;
+mod sweep;
 
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,8 +31,8 @@ pub struct Apu {
     pulse_0: PulseChannel,
     pulse_1: PulseChannel,
     frame_counter: FrameCounter,
-    cycles_since_sample: f64,
     status: Status,
+    cycles_since_sample: f64,
 }
 
 impl Apu {
@@ -49,7 +50,10 @@ impl Apu {
                     .length_counter
                     .set_enabled(self.status.contains(Status::PULSE_1));
             }
-            0x4017 => self.frame_counter.write(value),
+            0x4017 => {
+                let state = self.frame_counter.write(value);
+                self.handle_frame_state(state);
+            }
             _ => (),
         }
     }
@@ -63,20 +67,13 @@ impl Apu {
     /// Ran on every CPU cycle
     pub fn clock(&mut self, cpu_cycles: u64) {
         if cpu_cycles.is_multiple_of(2) {
+            self.pulse_0.sweep.ones_complement = true;
             self.pulse_0.sequencer.clock();
             self.pulse_1.sequencer.clock();
         }
 
         let state = self.frame_counter.clock();
-        if matches!(state, FrameCounterState::Half) {
-            self.pulse_0.length_counter.clock();
-            self.pulse_1.length_counter.clock();
-
-            if matches!(state, FrameCounterState::Quarter) {
-                self.pulse_0.envelope.clock();
-                self.pulse_1.envelope.clock();
-            }
-        }
+        self.handle_frame_state(state);
 
         let sample = self.sample();
         if let Some(prod) = self.sample_prod.as_mut() {
@@ -96,6 +93,22 @@ impl Apu {
     pub fn reset(&mut self) {
         // Disable everything
         self.write(0x4015, 0);
+    }
+
+    fn handle_frame_state(&mut self, state: FrameCounterState) {
+        if state == FrameCounterState::Half {
+            // Half frame clocks
+            self.pulse_0.length_counter.clock();
+            self.pulse_0.sweep.clock(&mut self.pulse_0.sequencer);
+            self.pulse_1.length_counter.clock();
+            self.pulse_1.sweep.clock(&mut self.pulse_1.sequencer);
+        }
+
+        if matches!(state, FrameCounterState::Half | FrameCounterState::Quarter) {
+            // Quarter frame clocks
+            self.pulse_0.envelope.clock();
+            self.pulse_1.envelope.clock();
+        }
     }
 
     fn sample(&self) -> f32 {

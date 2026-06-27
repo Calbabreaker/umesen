@@ -1,5 +1,6 @@
 use crate::cpu::IrqStatus;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FrameCounterState {
     Quarter,
     Half,
@@ -15,45 +16,47 @@ pub struct FrameCounter {
 
 impl FrameCounter {
     /// Write to 0x4017
-    pub fn write(&mut self, value: u8) {
+    pub fn write(&mut self, value: u8) -> FrameCounterState {
         self.five_step_mode = value & 0b1000_0000 != 0;
         self.irq.set_enabled(value & 0b0100_0000 == 0);
         // Delay counter reset by 3 or 4 cycles whether or not on a APU cycle
-        self.cycles_counter = if self.cycles_counter % 2 == 0 { -3 } else { -4 }
+        self.cycles_counter = if self.cycles_counter % 2 == 0 { -3 } else { -4 };
+        if self.five_step_mode {
+            FrameCounterState::Half
+        } else {
+            FrameCounterState::None
+        }
     }
 
     /// Ran on every cpu cycle
     pub fn clock(&mut self) -> FrameCounterState {
-        let count = self.cycles_counter;
-        self.cycles_counter += 1;
+        let mut state = FrameCounterState::None;
         // Sequence from https://www.nesdev.org/wiki/APU_Frame_Counter
         // Note that this is in CPU cycles and includes one cycle delay
-        match count {
-            7457 => FrameCounterState::Quarter,
-            14913 => FrameCounterState::Half,
-            22371 => FrameCounterState::Quarter,
+        match self.cycles_counter {
+            7457 => state = FrameCounterState::Quarter,
+            14913 => state = FrameCounterState::Half,
+            22371 => state = FrameCounterState::Quarter,
 
-            29828 if !self.five_step_mode => {
-                self.irq.on();
-                FrameCounterState::None
-            }
+            29828 if !self.five_step_mode => self.irq.on(),
             29829 if !self.five_step_mode => {
                 self.irq.on();
-                FrameCounterState::Half
+                state = FrameCounterState::Half
             }
             29830 if !self.five_step_mode => {
                 // This is meant to be cycle 0 so we skip the first cycle for the next loop
                 self.cycles_counter = 1;
                 self.irq.on();
-                FrameCounterState::None
             }
 
             37281 if self.five_step_mode => {
                 self.cycles_counter = 0;
-                FrameCounterState::Half
+                state = FrameCounterState::Half
             }
-            _ => FrameCounterState::None,
-        }
+            _ => (),
+        };
+        self.cycles_counter += 1;
+        state
     }
 }
 

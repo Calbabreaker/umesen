@@ -1,6 +1,7 @@
 pub struct Sequencer {
-    /// 11 bit for the sequencer to go to the next step
+    /// 11 bit number for the sequencer to go to the next step
     timer: u16,
+    /// 11 bit number for the timer start
     pub timer_start: u16,
     step: usize,
     pub sequence: &'static [u8],
