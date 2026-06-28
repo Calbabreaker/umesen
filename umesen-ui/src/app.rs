@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use crate::{ActionKind, Preferences, audio::setup_audio_stream, ui_window::UiWindowKind};
+use crate::{
+    ActionKind, DEFAULT_ACTION_MAP, Preferences, audio::setup_audio_stream, ui_window::UiWindowKind,
+};
 
 #[derive(serde::Deserialize, serde::Serialize, Default)]
 #[serde(default)]
@@ -113,7 +115,7 @@ impl App {
 
         ui.menu_button("Emulation", |ui| {
             use ActionKind::*;
-            self.show_action_list(ui, [PauseResume, Reset, QuickSave, QuickLoad].into_iter());
+            self.show_action_list(ui, &[PauseResume, Reset, QuickSave, QuickLoad]);
 
             ui.menu_button("Quick Save Slot", |ui| {
                 for i in 0..9 {
@@ -129,13 +131,14 @@ impl App {
         });
     }
 
-    fn show_action_list(&mut self, ui: &mut egui::Ui, iter: impl Iterator<Item = ActionKind>) {
-        for action in iter {
-            let shortcut = self.preferences.key_action_map.map[&action];
+    fn show_action_list(&mut self, ui: &mut egui::Ui, list: &[ActionKind]) {
+        for action in list.iter() {
+            let binding = self.preferences.key_action_map.bindings_map.get(action);
+            let shortcut = binding.unwrap_or(&DEFAULT_ACTION_MAP[action]);
             let button = egui::Button::new(action.name())
-                .shortcut_text(crate::egui_util::get_shortcut_text(&shortcut));
+                .shortcut_text(crate::egui_util::get_shortcut_text(shortcut));
             if ui.add(button).clicked() {
-                self.state.do_action(action);
+                self.state.do_action(*action);
                 ui.close();
             }
         }
@@ -143,18 +146,18 @@ impl App {
 
     fn check_input(&mut self, i: &mut egui::InputState) {
         // Do controller input seperate
-        for (action, shortcut) in &self.preferences.key_action_map.map {
+        for (action, shortcut) in self.preferences.key_action_map.iter_map() {
             if let ActionKind::ControllerInput(number, button) = action {
-                let controller = self.state.emu.controller(*number);
+                let controller = self.state.emu.controller(number);
                 let key_down = i.key_down(shortcut.logical_key);
-                let is_illegal = key_down && controller.check_illegal_press(*button);
+                let is_illegal = key_down && controller.check_illegal_press(button);
 
                 if !is_illegal || self.preferences.allow_illegal_press {
-                    controller.state.set(*button, key_down);
+                    controller.state.set(button, key_down);
                 }
             } else {
-                if i.consume_shortcut(shortcut) {
-                    self.state.do_action(*action);
+                if i.consume_shortcut(&shortcut) {
+                    self.state.do_action(action);
                 }
             }
         }

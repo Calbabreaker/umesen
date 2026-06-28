@@ -1,6 +1,3 @@
-use bitflags::Flags;
-use umesen_core::controller::Button;
-
 use crate::{ActionKind, Preferences};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize, Debug)]
@@ -45,20 +42,15 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
         Tab::KeyBinds => {
             ui.horizontal_top(|ui| {
                 use ActionKind::*;
-                show_key_map(
-                    ui,
-                    prefs,
-                    "mainkeys",
-                    [PauseResume, Reset, Step, NextFrame, QuickSave, QuickLoad].into_iter(),
-                );
+                show_key_map(ui, prefs, "mainkeys", |action| {
+                    !matches!(action, ControllerInput(..))
+                });
                 for i in 0..=1 {
                     show_key_map(
                         ui,
                         prefs,
-                        "controllerkeys",
-                        Button::FLAGS
-                            .iter()
-                            .map(|flag| ControllerInput(i, *flag.value())),
+                        format!("controllerkeys{i}"),
+                        |action| matches!(action, ControllerInput(num, _) if num == i),
                     );
                 }
             });
@@ -76,27 +68,25 @@ fn show_key_map(
     ui: &mut egui::Ui,
     prefs: &mut Preferences,
     name: impl egui::AsIdSalt,
-    action_iter: impl Iterator<Item = ActionKind>,
+    filter_func: impl Fn(ActionKind) -> bool,
 ) {
     egui::Grid::new(name).striped(true).show(ui, |ui| {
-        for action in action_iter {
-            let map = &prefs.key_action_map.map;
-            let shortcut = map
-                .get(&action)
-                .copied()
-                .unwrap_or(action.default_shortcut());
-            ui.label(action.name());
+        let mut action_to_rebind = prefs.key_action_map.action_to_rebind;
+        for (action, shortcut) in prefs.key_action_map.iter_map() {
+            if filter_func(action) {
+                ui.label(action.name());
 
-            let text = if prefs.key_action_map.action_to_rebind == Some(action) {
-                "...".to_owned()
-            } else {
-                crate::egui_util::get_shortcut_text(&shortcut)
-            };
-
-            if ui.button(text).clicked() {
-                prefs.key_action_map.action_to_rebind = Some(action);
+                let text = if action_to_rebind == Some(action) {
+                    "...".to_owned()
+                } else {
+                    crate::egui_util::get_shortcut_text(&shortcut)
+                };
+                if ui.button(text).clicked() {
+                    action_to_rebind = Some(action);
+                }
+                ui.end_row();
             }
-            ui.end_row();
         }
+        prefs.key_action_map.action_to_rebind = action_to_rebind;
     });
 }

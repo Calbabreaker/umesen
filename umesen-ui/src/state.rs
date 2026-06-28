@@ -1,12 +1,23 @@
-use crate::{ActionKind, texture::TextureMap};
+use crate::{ActionKind, KeyActionMap, texture::TextureMap};
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Preferences {
-    pub key_action_map: crate::KeyActionMap,
+    pub key_action_map: KeyActionMap,
     pub allow_illegal_press: bool,
     pub allow_unlimted_sprites: bool,
     pub volume: f32,
+}
+
+impl Default for Preferences {
+    fn default() -> Self {
+        Self {
+            key_action_map: KeyActionMap::default(),
+            allow_illegal_press: false,
+            allow_unlimted_sprites: false,
+            volume: 1.,
+        }
+    }
 }
 
 #[derive(Default)]
