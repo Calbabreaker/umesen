@@ -43,7 +43,6 @@ impl Default for ApuConfig {
 pub struct Apu {
     pub config: ApuConfig,
     pub channels: Channels,
-    pub(crate) speed_scale: f32,
     sample_sender: Option<SampleSender>,
     frame_counter: FrameCounter,
     status: Status,
@@ -80,11 +79,7 @@ impl Apu {
         self.channels.handle_frame_state(state);
 
         if let Some(sender) = self.sample_sender.as_mut() {
-            sender.check_send(
-                &self.channels,
-                crate::cpu::CLOCK_SPEED_HZ / self.speed_scale,
-                &self.config,
-            );
+            sender.check_send(&self.channels, &self.config);
         }
     }
 
@@ -104,7 +99,6 @@ impl Apu {
         sample_rate: u32,
         buffer_length: std::time::Duration,
     ) -> ringbuf::HeapCons<f32> {
-        self.speed_scale = 1.;
         let sample_rate = sample_rate as f32;
         let size = sample_rate * buffer_length.as_secs_f32();
         let rb = ringbuf::SharedRb::new(size as usize);
@@ -137,7 +131,7 @@ impl SampleSender {
         }
     }
 
-    fn check_send(&mut self, channels: &Channels, clock_speed: f32, config: &ApuConfig) {
+    fn check_send(&mut self, channels: &Channels, config: &ApuConfig) {
         while self.cycles_since_sample > 0. {
             let mut sample = channels.sample() * config.volume;
             sample = self.high_pass_filter.process(sample);
@@ -148,7 +142,7 @@ impl SampleSender {
             }
 
             self.buffer_prod.try_push(sample).ok();
-            self.cycles_since_sample -= clock_speed / self.sample_rate;
+            self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / self.sample_rate;
         }
         self.cycles_since_sample += 1.;
     }

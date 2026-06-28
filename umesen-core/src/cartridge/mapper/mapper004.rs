@@ -22,17 +22,15 @@ pub struct Mapper004 {
 
 impl Mapper004 {
     fn signal_scanline(&mut self) {
-        if self.irq_reload {
+        if self.irq_reload || self.irq_counter == 0 {
             self.irq_counter = self.irq_latch_value;
             self.irq_reload = false;
-            return;
+        } else {
+            self.irq_counter -= 1;
         }
 
         if self.irq_counter == 0 {
             self.irq.on();
-            self.irq_counter = self.irq_latch_value;
-        } else {
-            self.irq_counter -= 1;
         }
     }
 }

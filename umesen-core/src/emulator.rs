@@ -46,7 +46,6 @@ impl Emulator {
         mut on_frame_completed: impl FnMut(&ScreenPixels),
     ) -> Result<(), CpuError> {
         let delta = self.last_update_time.elapsed().as_secs_f32().min(0.05) * self.speed;
-        self.cpu.bus.apu.speed_scale = self.speed;
         self.last_update_time = std::time::Instant::now();
         if !self.running {
             self.clocks_remaining = 0.;
