@@ -18,13 +18,12 @@ fn main() -> eframe::Result {
     env_logger::builder()
         .parse_default_env()
         .filter_module("umesen", log::LevelFilter::Trace)
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Info)
         .init();
 
-    let native_options = eframe::NativeOptions::default();
     eframe::run_native(
         "Umesen",
-        native_options,
+        eframe::NativeOptions::default(),
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )
 }
