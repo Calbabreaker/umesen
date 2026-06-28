@@ -38,11 +38,11 @@ impl Envelope {
         self.start = true;
     }
 
-    pub fn volume(&self) -> f32 {
+    pub fn volume(&self) -> u8 {
         if self.constant_volume {
-            self.timer.start as f32
+            self.timer.start
         } else {
-            self.decay_level as f32
+            self.decay_level
         }
     }
 }

@@ -4,7 +4,7 @@ pub struct Sequencer {
     /// 11 bit number for the sequencer to go to the next step
     pub timer: TimerCounter<u16>,
     /// 11 bit number for the timer start
-    step: usize,
+    pub step: usize,
     pub sequence: &'static [u8],
 }
 
@@ -17,8 +17,8 @@ impl Sequencer {
         }
     }
 
-    pub fn sample(&self) -> f32 {
-        self.sequence[self.step] as f32
+    pub fn sample(&self) -> u8 {
+        self.sequence[self.step]
     }
 
     pub fn clock(&mut self) {
@@ -33,6 +33,5 @@ impl Sequencer {
 
     pub fn set_timer_high(&mut self, value: u8) {
         self.timer.start = ((value as u16 & 0b0000_0111) << 8) | self.timer.start & (0x00ff);
-        self.step = 0;
     }
 }

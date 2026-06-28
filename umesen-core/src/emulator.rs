@@ -1,5 +1,3 @@
-use ringbuf::traits::Split;
-
 use crate::{
     Apu, Cartridge, Controller, Cpu, Ppu,
     cartridge::NesParseError,
@@ -10,20 +8,18 @@ use crate::{
 /// High level struct for controlling the cpu
 pub struct Emulator {
     pub cpu: Cpu,
-    pub speed: f64,
+    pub speed: f32,
     pub running: bool,
     last_frame_time: std::time::Instant,
-    frame_rate: f64,
-    clocks_remaining: f64,
+    frame_rate: f32,
+    clocks_remaining: f32,
     last_update_time: std::time::Instant,
-    audio_sample_rate: f64,
 }
 
 impl Default for Emulator {
     fn default() -> Self {
         Self {
             last_update_time: std::time::Instant::now(),
-            audio_sample_rate: 0.,
             running: true,
             cpu: Cpu::default(),
             last_frame_time: std::time::Instant::now(),
@@ -35,21 +31,6 @@ impl Default for Emulator {
 }
 
 impl Emulator {
-    /// Setup the audio buffer
-    /// Returns the ring buffer consumer that contains the samples generated from the APU
-    pub fn setup_audio_buffer(
-        &mut self,
-        sample_rate: u32,
-        buffer_length: std::time::Duration,
-    ) -> ringbuf::HeapCons<f32> {
-        self.audio_sample_rate = sample_rate as f64;
-        let size = self.audio_sample_rate * buffer_length.as_secs_f64();
-        let rb = ringbuf::SharedRb::new(size as usize);
-        let (prod, cons) = rb.split();
-        self.apu().sample_prod = Some(prod);
-        cons
-    }
-
     /// Keep stepping until a frame is generated
     pub fn next_frame(&mut self) -> Result<(), CpuError> {
         while !self.ppu().frame_complete() {
@@ -64,8 +45,8 @@ impl Emulator {
         &mut self,
         mut on_frame_completed: impl FnMut(&ScreenPixels),
     ) -> Result<(), CpuError> {
-        let delta = self.last_update_time.elapsed().as_secs_f64() * self.speed;
-        self.cpu.bus.apu.sample_rate = self.audio_sample_rate / self.speed;
+        let delta = self.last_update_time.elapsed().as_secs_f32() * self.speed;
+        self.cpu.bus.apu.speed_scale = self.speed;
         self.last_update_time = std::time::Instant::now();
         if !self.running {
             self.clocks_remaining = 0.;
@@ -74,9 +55,9 @@ impl Emulator {
 
         self.clocks_remaining += delta * CLOCK_SPEED_HZ;
         while self.clocks_remaining > 0. {
-            self.clocks_remaining -= self.cpu.execute_next()? as f64;
+            self.clocks_remaining -= self.cpu.execute_next()? as f32;
             if self.ppu().frame_complete() && self.clocks_remaining < CYCLES_PER_FRAME {
-                self.frame_rate = 1. / self.last_frame_time.elapsed().as_secs_f64();
+                self.frame_rate = 1. / self.last_frame_time.elapsed().as_secs_f32();
                 self.last_frame_time = std::time::Instant::now();
                 on_frame_completed(&self.ppu().screen_pixels);
             }
@@ -93,7 +74,7 @@ impl Emulator {
         Ok(())
     }
 
-    pub fn frame_rate(&self) -> f64 {
+    pub fn frame_rate(&self) -> f32 {
         self.frame_rate
     }
 

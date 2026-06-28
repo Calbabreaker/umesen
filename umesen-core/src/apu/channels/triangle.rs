@@ -1,8 +1,13 @@
-use super::{counters::LengthCounter, sequencer::Sequencer};
+use crate::apu::{counters::LengthCounter, sequencer::Sequencer};
+
+const TRIANGLE_WAVEFORM: [u8; 32] = [
+    15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, //
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+];
 
 pub struct TriangleChannel {
     pub length_counter: LengthCounter,
-    linear_counter: u8,
+    pub linear_counter: u8,
     linear_counter_reload: bool,
     linear_counter_reload_value: u8,
     pub sequencer: Sequencer,
@@ -15,10 +20,7 @@ impl Default for TriangleChannel {
             linear_counter_reload: true,
             linear_counter_reload_value: 0,
             length_counter: LengthCounter::default(),
-            sequencer: Sequencer::new(&[
-                15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, //
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-            ]),
+            sequencer: Sequencer::new(&TRIANGLE_WAVEFORM),
         }
     }
 }
@@ -53,11 +55,14 @@ impl TriangleChannel {
         }
     }
 
-    pub fn sample(&self) -> f32 {
+    pub fn clock(&mut self) {
+        // Clock if not muted
         if self.length_counter.counter != 0 && self.linear_counter != 0 {
-            self.sequencer.sample()
-        } else {
-            0.
+            self.sequencer.clock();
         }
+    }
+
+    pub fn sample(&self) -> u8 {
+        self.sequencer.sample()
     }
 }

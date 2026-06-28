@@ -183,8 +183,8 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         ctx.input_mut(|i| self.check_input(i));
 
-        self.state.emu.ppu().unlimited_sprites = self.preferences.allow_unlimted_sprites;
-        self.state.emu.apu().volume = self.preferences.volume;
+        self.state.emu.ppu().config = self.preferences.ppu.clone();
+        self.state.emu.apu().config = self.preferences.apu.clone();
 
         self.state.update_emulation(ctx);
     }

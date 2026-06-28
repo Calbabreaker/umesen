@@ -1,31 +1,20 @@
-use crate::apu::counters::TimerCounter;
-
-use super::{counters::LengthCounter, envelope::Envelope};
+use crate::apu::{
+    counters::{LengthCounter, TimerCounter},
+    envelope::Envelope,
+};
 
 /// Period values from https://www.nesdev.org/wiki/APU_Noise
-/// Note this is halfed since this is in APU cycles
 const NOISE_PERIODS: [u16; 16] = [
     4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
 ];
 
+#[derive(Default)]
 pub struct NoiseChannel {
     pub timer: TimerCounter<u16>,
     pub length_counter: LengthCounter,
     pub envelope: Envelope,
     pub mode_flag: bool,
     pub shift_register: u16,
-}
-
-impl Default for NoiseChannel {
-    fn default() -> Self {
-        Self {
-            timer: TimerCounter::default(),
-            length_counter: LengthCounter::default(),
-            envelope: Envelope::default(),
-            mode_flag: false,
-            shift_register: 1,
-        }
-    }
 }
 
 impl NoiseChannel {
@@ -38,7 +27,7 @@ impl NoiseChannel {
             }
             1 => (),
             2 => {
-                self.mode_flag = 0b1000_0000 != 0;
+                self.mode_flag = value & 0b1000_0000 != 0;
                 self.timer.start = NOISE_PERIODS[(value & 0x0f) as usize];
             }
             3 => {
@@ -51,6 +40,10 @@ impl NoiseChannel {
 
     pub fn clock(&mut self) {
         if self.timer.clock() {
+            if self.shift_register == 0 {
+                self.shift_register = 1;
+            }
+
             let bit_0 = self.shift_register & 1;
             // Bit 6 if mode flag set otherwise bit 1
             let bit_1 = (self.shift_register >> (if self.mode_flag { 6 } else { 1 })) & 1;
@@ -59,11 +52,11 @@ impl NoiseChannel {
         }
     }
 
-    pub fn sample(&self) -> f32 {
+    pub fn sample(&self) -> u8 {
         if self.length_counter.counter != 0 && self.shift_register & 1 == 0 {
             self.envelope.volume()
         } else {
-            0.
+            0
         }
     }
 }

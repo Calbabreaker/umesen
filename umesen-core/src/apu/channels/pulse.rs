@@ -1,4 +1,4 @@
-use super::{counters::LengthCounter, envelope::Envelope, sequencer::Sequencer, sweep::Sweep};
+use crate::apu::{counters::LengthCounter, envelope::Envelope, sequencer::Sequencer, sweep::Sweep};
 
 /// Waveform for the pulse wave for each duty cycle
 /// https://www.nesdev.org/wiki/APU_Pulse#Sequencer_behavior
@@ -43,16 +43,17 @@ impl PulseChannel {
                 self.envelope.start();
                 self.sequencer.set_timer_high(value);
                 self.length_counter.set_counter(value);
+                self.sequencer.step = 0;
             }
             _ => unreachable!(),
         }
     }
 
-    pub fn sample(&self) -> f32 {
+    pub fn sample(&self) -> u8 {
         if self.length_counter.counter != 0 && !self.sweep.muted(&self.sequencer) {
             self.sequencer.sample() * self.envelope.volume()
         } else {
-            0.
+            0
         }
     }
 }

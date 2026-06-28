@@ -24,13 +24,19 @@ pub enum PpuClockReport {
     Nmi,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug, Default)]
+#[serde(default)]
+pub struct PpuConfig {
+    pub unlimited_sprites: bool,
+}
+
 /// Emulated 2C02 NTSC PPU
 #[derive(Default)]
 pub struct Ppu {
+    pub config: PpuConfig,
     pub registers: Registers,
     pub palette: Palette,
     pub screen_pixels: ScreenPixels,
-    pub unlimited_sprites: bool,
     frame_complete: bool,
 
     // Bits shifted left every render dot so leftmost bit contains low and high bit of the current pixel index in the palette
@@ -195,7 +201,7 @@ impl Ppu {
             // Add to sprite buffer if sprite part of scanline
             // Note that it's loading sprites for the next scanline so all sprite y is offset by one
             let overflowed =
-                self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.unlimited_sprites;
+                self.sprite_buffer.len() == MAX_SPRITES_PER_SCAN && !self.config.unlimited_sprites;
             if self.registers.scanline >= sprite.y as usize
                 && self.registers.scanline < sprite.y as usize + height
             {
