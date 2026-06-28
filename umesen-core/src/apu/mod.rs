@@ -3,6 +3,7 @@ use ringbuf::traits::Producer;
 use counters::{FrameCounter, FrameCounterState};
 use noise_channel::NoiseChannel;
 use pulse_channel::PulseChannel;
+use triangle_channel::TriangleChannel;
 
 mod counters;
 mod envelope;
@@ -10,6 +11,7 @@ mod noise_channel;
 mod pulse_channel;
 mod sequencer;
 mod sweep;
+mod triangle_channel;
 
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +33,7 @@ pub struct Apu {
     pub volume: f32,
     pulse_0: PulseChannel,
     pulse_1: PulseChannel,
+    triangle: TriangleChannel,
     noise: NoiseChannel,
     frame_counter: FrameCounter,
     status: Status,
@@ -45,6 +48,7 @@ impl Default for Apu {
             volume: 1.,
             pulse_0: PulseChannel::new(true),
             pulse_1: PulseChannel::new(false),
+            triangle: TriangleChannel::default(),
             noise: NoiseChannel::default(),
             frame_counter: FrameCounter::default(),
             status: Status::empty(),
@@ -59,6 +63,7 @@ impl Apu {
         match address {
             0x4000..=0x4003 => self.pulse_0.write(address, value),
             0x4004..=0x4007 => self.pulse_1.write(address, value),
+            0x4008..=0x400b => self.triangle.write(address, value),
             0x400c..=0x400f => self.noise.write(address, value),
             0x4015 => self.set_status(value),
             0x4017 => {
@@ -77,6 +82,7 @@ impl Apu {
 
     /// Ran on every CPU cycle
     pub fn clock(&mut self, cpu_cycles: u64) {
+        self.triangle.sequencer.clock();
         if cpu_cycles.is_multiple_of(2) {
             self.pulse_0.sequencer.clock();
             self.pulse_1.sequencer.clock();
@@ -114,6 +120,9 @@ impl Apu {
         self.pulse_1
             .length_counter
             .set_enabled(self.status.contains(Status::PULSE_1));
+        self.triangle
+            .length_counter
+            .set_enabled(self.status.contains(Status::TRIANGLE));
         self.noise
             .length_counter
             .set_enabled(self.status.contains(Status::NOISE));
@@ -126,6 +135,7 @@ impl Apu {
             self.pulse_0.sweep.clock(&mut self.pulse_0.sequencer);
             self.pulse_1.length_counter.clock();
             self.pulse_1.sweep.clock(&mut self.pulse_1.sequencer);
+            self.triangle.length_counter.clock();
             self.noise.length_counter.clock();
         }
 
@@ -134,6 +144,7 @@ impl Apu {
             self.pulse_0.envelope.clock();
             self.pulse_1.envelope.clock();
             self.noise.envelope.clock();
+            self.triangle.clock_linear_counter();
         }
     }
 
@@ -142,7 +153,7 @@ impl Apu {
         let pulse_1 = self.pulse_1.sample();
         let noise = self.noise.sample();
         let dmc = 0.;
-        let triangle = 0.;
+        let triangle = self.triangle.sample();
 
         // Math from https://www.nesdev.org/wiki/APU_Mixer
         let pulse = pulse_0 + pulse_1;
