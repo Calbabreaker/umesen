@@ -1,10 +1,12 @@
 use ringbuf::traits::Producer;
 
 use counters::{FrameCounter, FrameCounterState};
+use noise_channel::NoiseChannel;
 use pulse_channel::PulseChannel;
 
 mod counters;
 mod envelope;
+mod noise_channel;
 mod pulse_channel;
 mod sequencer;
 mod sweep;
@@ -23,16 +25,32 @@ bitflags::bitflags! {
 }
 
 /// Emulated RP2A03 NTSC APU
-#[derive(Default)]
 pub struct Apu {
     pub(crate) sample_prod: Option<ringbuf::HeapProd<f32>>,
     pub(crate) sample_rate: f64,
     pub volume: f32,
     pulse_0: PulseChannel,
     pulse_1: PulseChannel,
+    noise: NoiseChannel,
     frame_counter: FrameCounter,
     status: Status,
     cycles_since_sample: f64,
+}
+
+impl Default for Apu {
+    fn default() -> Self {
+        Self {
+            sample_prod: None,
+            sample_rate: 0.,
+            volume: 1.,
+            pulse_0: PulseChannel::new(true),
+            pulse_1: PulseChannel::new(false),
+            noise: NoiseChannel::default(),
+            frame_counter: FrameCounter::default(),
+            status: Status::empty(),
+            cycles_since_sample: 0.,
+        }
+    }
 }
 
 impl Apu {
@@ -41,15 +59,8 @@ impl Apu {
         match address {
             0x4000..=0x4003 => self.pulse_0.write(address, value),
             0x4004..=0x4007 => self.pulse_1.write(address, value),
-            0x4015 => {
-                self.status = Status::from_bits_truncate(value);
-                self.pulse_0
-                    .length_counter
-                    .set_enabled(self.status.contains(Status::PULSE_0));
-                self.pulse_1
-                    .length_counter
-                    .set_enabled(self.status.contains(Status::PULSE_1));
-            }
+            0x400c..=0x400f => self.noise.write(address, value),
+            0x4015 => self.set_status(value),
             0x4017 => {
                 let state = self.frame_counter.write(value);
                 self.handle_frame_state(state);
@@ -67,9 +78,9 @@ impl Apu {
     /// Ran on every CPU cycle
     pub fn clock(&mut self, cpu_cycles: u64) {
         if cpu_cycles.is_multiple_of(2) {
-            self.pulse_0.sweep.ones_complement = true;
             self.pulse_0.sequencer.clock();
             self.pulse_1.sequencer.clock();
+            self.noise.clock();
         }
 
         let state = self.frame_counter.clock();
@@ -92,7 +103,20 @@ impl Apu {
 
     pub fn reset(&mut self) {
         // Disable everything
-        self.write(0x4015, 0);
+        self.set_status(0);
+    }
+
+    fn set_status(&mut self, value: u8) {
+        self.status = Status::from_bits_truncate(value);
+        self.pulse_0
+            .length_counter
+            .set_enabled(self.status.contains(Status::PULSE_0));
+        self.pulse_1
+            .length_counter
+            .set_enabled(self.status.contains(Status::PULSE_1));
+        self.noise
+            .length_counter
+            .set_enabled(self.status.contains(Status::NOISE));
     }
 
     fn handle_frame_state(&mut self, state: FrameCounterState) {
@@ -102,19 +126,29 @@ impl Apu {
             self.pulse_0.sweep.clock(&mut self.pulse_0.sequencer);
             self.pulse_1.length_counter.clock();
             self.pulse_1.sweep.clock(&mut self.pulse_1.sequencer);
+            self.noise.length_counter.clock();
         }
 
         if matches!(state, FrameCounterState::Half | FrameCounterState::Quarter) {
             // Quarter frame clocks
             self.pulse_0.envelope.clock();
             self.pulse_1.envelope.clock();
+            self.noise.envelope.clock();
         }
     }
 
     fn sample(&self) -> f32 {
-        // Math from https://www.nesdev.org/wiki/APU_Mixer
-        let pulse_out = 95.88 / (8128. / (self.pulse_0.sample() + self.pulse_1.sample()) + 100.);
+        let pulse_0 = self.pulse_0.sample();
+        let pulse_1 = self.pulse_1.sample();
+        let noise = self.noise.sample();
+        let dmc = 0.;
+        let triangle = 0.;
 
-        pulse_out * self.volume
+        // Math from https://www.nesdev.org/wiki/APU_Mixer
+        let pulse = pulse_0 + pulse_1;
+        let tnd = triangle / 8227. + noise / 12241. + dmc / 22638.;
+        let pulse_out = (95.88 * pulse) / (8128. + 100. * pulse);
+        let tnd_out = (159.79 * tnd) / (1. + 100. * tnd);
+        (tnd_out + pulse_out) * self.volume
     }
 }

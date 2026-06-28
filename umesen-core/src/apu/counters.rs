@@ -94,3 +94,22 @@ impl LengthCounter {
         }
     }
 }
+
+#[derive(Default)]
+pub struct TimerCounter<T> {
+    pub start: T,
+    pub counter: T,
+}
+
+impl<T: Eq + std::ops::SubAssign + Copy + From<u8>> TimerCounter<T> {
+    /// Decrements the timer counter returning true when zero then reload the counter with start
+    pub fn clock(&mut self) -> bool {
+        if self.counter == T::from(0) {
+            self.counter = self.start;
+            true
+        } else {
+            self.counter -= T::from(1);
+            false
+        }
+    }
+}

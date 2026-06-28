@@ -18,18 +18,16 @@ pub struct PulseChannel {
     pub sweep: Sweep,
 }
 
-impl Default for PulseChannel {
-    fn default() -> Self {
+impl PulseChannel {
+    pub fn new(sweep_ones_complement: bool) -> Self {
         Self {
             sequencer: Sequencer::new(&PULSE_WAVEFORM[0]),
             envelope: Envelope::default(),
             length_counter: LengthCounter::default(),
-            sweep: Sweep::default(),
+            sweep: Sweep::new(sweep_ones_complement),
         }
     }
-}
 
-impl PulseChannel {
     pub fn write(&mut self, address: u16, value: u8) {
         // Address for both pulse channels
         std::debug_assert_matches!(address, 0x4000..=0x4007);

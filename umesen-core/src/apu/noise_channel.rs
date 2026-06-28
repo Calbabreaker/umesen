@@ -1,0 +1,69 @@
+use crate::apu::counters::TimerCounter;
+
+use super::{counters::LengthCounter, envelope::Envelope};
+
+/// Period values from https://www.nesdev.org/wiki/APU_Noise
+/// Note this is halfed since this is in APU cycles
+const NOISE_PERIODS: [u16; 16] = [
+    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
+];
+
+pub struct NoiseChannel {
+    pub timer: TimerCounter<u16>,
+    pub length_counter: LengthCounter,
+    pub envelope: Envelope,
+    pub mode_flag: bool,
+    pub shift_register: u16,
+}
+
+impl Default for NoiseChannel {
+    fn default() -> Self {
+        Self {
+            timer: TimerCounter::default(),
+            length_counter: LengthCounter::default(),
+            envelope: Envelope::default(),
+            mode_flag: false,
+            shift_register: 1,
+        }
+    }
+}
+
+impl NoiseChannel {
+    pub fn write(&mut self, address: u16, value: u8) {
+        std::debug_assert_matches!(address, 0x400c..=0x400f);
+        match address % 4 {
+            0 => {
+                self.envelope.write(value);
+                self.length_counter.halt = value & 0b0010_0000 != 0;
+            }
+            1 => (),
+            2 => {
+                self.mode_flag = 0b1000_0000 != 0;
+                self.timer.start = NOISE_PERIODS[(value & 0x0f) as usize];
+            }
+            3 => {
+                self.envelope.start();
+                self.length_counter.set_counter(value);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn clock(&mut self) {
+        if self.timer.clock() {
+            let bit_0 = self.shift_register & 1;
+            // Bit 6 if mode flag set otherwise bit 1
+            let bit_1 = (self.shift_register >> (if self.mode_flag { 6 } else { 1 })) & 1;
+            self.shift_register >>= 1;
+            self.shift_register |= (bit_0 ^ bit_1) << 14;
+        }
+    }
+
+    pub fn sample(&self) -> f32 {
+        if self.length_counter.counter != 0 && self.shift_register & 1 == 0 {
+            self.envelope.volume()
+        } else {
+            0.
+        }
+    }
+}

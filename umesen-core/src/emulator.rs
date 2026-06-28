@@ -47,7 +47,6 @@ impl Emulator {
         let rb = ringbuf::SharedRb::new(size as usize);
         let (prod, cons) = rb.split();
         self.apu().sample_prod = Some(prod);
-        self.apu().volume = 1.;
         cons
     }
 
