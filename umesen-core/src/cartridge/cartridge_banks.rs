@@ -35,14 +35,14 @@ pub struct MemoryBanks(Vec<u8>);
 pub type BankMapping = (usize, Bank);
 
 impl MemoryBanks {
-    pub(crate) fn write(&mut self, bank_mapping: BankMapping, offset: u16, value: u8) {
+    pub fn write(&mut self, bank_mapping: BankMapping, offset: u16, value: u8) {
         if !self.0.is_empty() {
             let index = self.index(bank_mapping, offset);
             self.0[index] = value;
         }
     }
 
-    pub(crate) fn read(&self, bank_mapping: BankMapping, offset: u16) -> Option<u8> {
+    pub fn read(&self, bank_mapping: BankMapping, offset: u16) -> Option<u8> {
         if !self.0.is_empty() {
             Some(self.0[self.index(bank_mapping, offset)])
         } else {
@@ -56,16 +56,14 @@ impl MemoryBanks {
         let bank_size = bank_size_kb * 1024;
         let num_banks = self.0.len().div_ceil(bank_size);
 
-        match bank {
-            Bank::Number(number) => {
-                (bank_size * (number as usize % num_banks) + (offset as usize % bank_size))
-                    % self.0.len()
-            }
-            Bank::FromLast(from_last) => self.index(
-                (bank_size_kb, Bank::Number(num_banks as u8 - from_last - 1)),
-                offset,
-            ),
-        }
+        let bank_number = match bank {
+            Bank::Number(number) => number as usize,
+            Bank::FromLast(from_last) => num_banks - from_last as usize - 1,
+        };
+
+        let bank_start = bank_size * (bank_number % num_banks);
+        let bank_offset = offset as usize % bank_size;
+        (bank_start + bank_offset) % self.0.len()
     }
 }
 

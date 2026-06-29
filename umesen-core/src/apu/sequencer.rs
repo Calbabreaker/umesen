@@ -23,7 +23,10 @@ impl Sequencer {
 
     pub fn clock(&mut self) {
         if self.timer.clock() {
-            self.step = (self.step + 1) % self.sequence.len();
+            self.step += 1;
+            if self.step >= self.sequence.len() {
+                self.step = 0;
+            }
         }
     }
 

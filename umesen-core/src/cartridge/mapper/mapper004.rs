@@ -27,10 +27,9 @@ impl Mapper004 {
             self.irq_reload = false;
         } else {
             self.irq_counter -= 1;
-        }
-
-        if self.irq_counter == 0 {
-            self.irq.on();
+            if self.irq_counter == 0 {
+                self.irq.on();
+            }
         }
     }
 }

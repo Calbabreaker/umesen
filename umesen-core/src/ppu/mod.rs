@@ -185,8 +185,10 @@ impl Ppu {
             64 => self.eval_byte_offset = self.registers.oam_address as usize,
             // Technically supposed to happen for the entire scanline but do it once at the end for simplicity
             256 if self.registers.scanline != PRERENDER_SCANLINE => self.eval_sprites(),
-            261 => self.load_sprites(),
-            257..=320 => self.registers.oam_address = 0,
+            261 => {
+                self.load_sprites();
+                self.registers.oam_address = 0;
+            }
             _ => (),
         }
     }

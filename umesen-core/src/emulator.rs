@@ -65,12 +65,17 @@ impl Emulator {
         Ok(())
     }
 
-    pub fn load_nes_rom(&mut self, path: impl AsRef<std::path::Path>) -> Result<(), NesParseError> {
-        self.last_update_time = std::time::Instant::now();
-        let file = std::fs::File::open(path)?;
-        let catridge = Cartridge::from_nes(file)?;
-        self.cpu.bus.attach_catridge(catridge);
+    pub fn load_nes_file(
+        &mut self,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<(), NesParseError> {
+        self.load_nes_rom(std::fs::File::open(path)?)
+    }
+
+    pub fn load_nes_rom(&mut self, bytes: impl std::io::Read) -> Result<(), NesParseError> {
+        self.cpu.bus.attach_catridge(Cartridge::from_nes(bytes)?);
         self.cpu.reset();
+        self.last_update_time = std::time::Instant::now();
         Ok(())
     }
 
@@ -88,21 +93,6 @@ impl Emulator {
 
     pub fn cartridge(&self) -> Option<std::cell::Ref<'_, Cartridge>> {
         Some(self.cpu.bus.cartridge.as_ref()?.borrow())
-    }
-
-    pub fn debug_log(&self) -> String {
-        format!(
-            "{:04X} A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{: >3},{: >3} CYC:{}",
-            self.cpu.pc,
-            self.cpu.a,
-            self.cpu.x,
-            self.cpu.y,
-            self.cpu.flags.bits(),
-            self.cpu.sp,
-            self.cpu.bus.ppu.registers.scanline,
-            self.cpu.bus.ppu.registers.dot,
-            self.cpu.bus.cpu_cycles_total,
-        )
     }
 
     pub fn controller(&mut self, number: u8) -> &mut Controller {

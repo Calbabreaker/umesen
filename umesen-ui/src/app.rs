@@ -44,7 +44,7 @@ impl App {
 
     fn load_nes_rom(&mut self, path: &std::path::Path) {
         log::trace!("Loading {path:?}");
-        if let Err(err) = self.state.emu.load_nes_rom(path) {
+        if let Err(err) = self.state.emu.load_nes_file(path) {
             self.ui_windows.insert(UiWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
                 message: format!("{err}"),
