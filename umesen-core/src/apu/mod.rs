@@ -26,14 +26,20 @@ bitflags::bitflags! {
 #[serde(default)]
 pub struct ApuConfig {
     pub volume: f32,
-    pub extra_filters: bool,
+    pub triangle_volume: f32,
+    pub pulse_0_volume: f32,
+    pub pulse_1_volume: f32,
+    pub noise_volume: f32,
 }
 
 impl Default for ApuConfig {
     fn default() -> Self {
         Self {
             volume: 1.,
-            extra_filters: false,
+            triangle_volume: 1.,
+            pulse_0_volume: 1.,
+            pulse_1_volume: 1.,
+            noise_volume: 1.,
         }
     }
 }
@@ -42,7 +48,8 @@ impl Default for ApuConfig {
 #[derive(Default)]
 pub struct Apu {
     pub config: ApuConfig,
-    pub channels: Channels,
+    pub(crate) speed_scale: f32,
+    channels: Channels,
     sample_sender: Option<SampleSender>,
     frame_counter: FrameCounter,
     status: Status,
@@ -79,7 +86,7 @@ impl Apu {
         self.channels.handle_frame_state(state);
 
         if let Some(sender) = self.sample_sender.as_mut() {
-            sender.check_send(&self.channels, &self.config);
+            sender.check_send(|| self.channels.sample(&self.config), self.speed_scale);
         }
     }
 
@@ -111,8 +118,7 @@ impl Apu {
 struct SampleSender {
     buffer_prod: ringbuf::HeapProd<f32>,
     sample_rate: f32,
-    high_pass_filter: OnePoleFilter,
-    extra_filters: [OnePoleFilter; 2],
+    high_pass: OnePoleFilter<true>,
     cycles_since_sample: f32,
 }
 
@@ -122,57 +128,42 @@ impl SampleSender {
             buffer_prod,
             sample_rate,
             cycles_since_sample: 0.,
-            // Filters specified from https://www.nesdev.org/wiki/APU_Mixer
-            high_pass_filter: OnePoleFilter::new(90., sample_rate, false),
-            extra_filters: [
-                OnePoleFilter::new(440., sample_rate, false),
-                OnePoleFilter::new(14000., sample_rate, true),
-            ],
+            high_pass: OnePoleFilter::default(),
         }
     }
 
-    fn check_send(&mut self, channels: &Channels, config: &ApuConfig) {
+    fn check_send(&mut self, get_sample: impl Fn() -> f32, speed_scale: f32) {
         while self.cycles_since_sample > 0. {
-            let mut sample = channels.sample() * config.volume;
-            sample = self.high_pass_filter.process(sample);
-            if config.extra_filters {
-                for filter in self.extra_filters.iter_mut() {
-                    sample = filter.process(sample);
-                }
-            }
+            let real_sample_rate = self.sample_rate / speed_scale;
+            // Include low freq high pass filter to get rid of DC bias
+            let sample = self.high_pass.process(get_sample(), real_sample_rate, 20.);
 
             self.buffer_prod.try_push(sample).ok();
-            self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / self.sample_rate;
+            self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / real_sample_rate;
         }
         self.cycles_since_sample += 1.;
     }
 }
 
-struct OnePoleFilter {
-    alpha: f32,
+#[derive(Default)]
+struct OnePoleFilter<const HIGH_PASS: bool> {
     prev_out: f32,
     prev_in: f32,
-    low_pass: bool,
 }
 
-impl OnePoleFilter {
-    fn new(cutoff_freq: f32, sample_rate: f32, low_pass: bool) -> Self {
-        Self {
-            alpha: (-std::f32::consts::TAU * cutoff_freq / sample_rate).exp(),
-            prev_out: 0.,
-            prev_in: 0.,
-            low_pass,
-        }
-    }
-
-    fn process(&mut self, sample: f32) -> f32 {
+impl<const HIGH_PASS: bool> OnePoleFilter<{ HIGH_PASS }> {
+    fn process(&mut self, sample: f32, sample_rate: f32, cutoff_freq: f32) -> f32 {
+        let rc = 1. / (std::f32::consts::TAU * cutoff_freq);
+        let dt = 1. / sample_rate;
         // formulas from wikipedia
-        let out = if self.low_pass {
-            // y[i] := α * x[i] + (1-α) * y[i-1]
-            self.alpha * sample + (1. - self.alpha) * self.prev_out
-        } else {
+        let out = if HIGH_PASS {
             // y[i] := α × y[i−1] + α × (x[i] − x[i−1])
-            self.alpha * self.prev_out + self.alpha * (sample - self.prev_in)
+            let alpha = rc / (rc + dt);
+            alpha * self.prev_out + alpha * (sample - self.prev_in)
+        } else {
+            // y[i] := α * x[i] + (1-α) * y[i-1]
+            let alpha = dt / (rc + dt);
+            alpha * sample + (1. - alpha) * self.prev_out
         };
         self.prev_out = out;
         self.prev_in = sample;

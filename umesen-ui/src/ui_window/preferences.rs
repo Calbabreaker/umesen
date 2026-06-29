@@ -4,37 +4,52 @@ use crate::{ActionKind, Preferences};
 enum Tab {
     #[default]
     KeyBinds,
-    Emulation,
+    Misc,
+    Audio,
 }
 
 impl crate::egui_util::UiList for Tab {
     fn pretty_name(&self) -> &'static str {
         match self {
             Self::KeyBinds => "Key binds",
-            Self::Emulation => "Emulation",
+            Self::Misc => "Misc",
+            Self::Audio => "Audio",
         }
     }
 
-    const LIST: &[Self] = &[Self::Emulation, Self::KeyBinds];
+    const LIST: &[Self] = &[Self::KeyBinds, Self::Audio, Self::Misc];
 }
 
 pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
     let tab_open = crate::egui_util::ui_list_tab_group(ui);
 
     match tab_open {
-        Tab::Emulation => {
-            egui::Grid::new("pref list").striped(true).show(ui, |ui| {
+        Tab::Misc => {
+            egui::Grid::new("misc prefs").striped(true).show(ui, |ui| {
                 ui.label("Allow illegal press ").on_hover_text("Allow left and right or up and down to be pressed at the same time");
                 ui.checkbox(&mut prefs.allow_illegal_press, "");
                 ui.end_row();
                 ui.label("Allow unlimited sprites").on_hover_text("Allow unlimited sprites to be rendered on the same scanline at a time instead of the usual 8");
                 ui.checkbox(&mut prefs.ppu.unlimited_sprites, "");
                 ui.end_row();
-                ui.label("Audio volume");
+            });
+        }
+        Tab::Audio => {
+            egui::Grid::new("audio prefs").striped(true).show(ui, |ui| {
+                ui.label("Master volume");
                 ui.add(egui::Slider::new(&mut prefs.apu.volume, (0.)..=1.));
                 ui.end_row();
-                ui.label("Extra audio filters").on_hover_text("Add extra low and high pass filters to make it sound more like on the NES, sounds kinda bad though");
-                ui.checkbox(&mut prefs.apu.extra_filters, "");
+                ui.label("Pulse 0 volume");
+                ui.add(egui::Slider::new(&mut prefs.apu.pulse_0_volume, (0.)..=1.));
+                ui.end_row();
+                ui.label("Pulse 1 volume");
+                ui.add(egui::Slider::new(&mut prefs.apu.pulse_1_volume, (0.)..=1.));
+                ui.end_row();
+                ui.label("Triangle volume");
+                ui.add(egui::Slider::new(&mut prefs.apu.triangle_volume, (0.)..=1.));
+                ui.end_row();
+                ui.label("Noise volume");
+                ui.add(egui::Slider::new(&mut prefs.apu.noise_volume, (0.)..=1.));
                 ui.end_row();
             });
         }

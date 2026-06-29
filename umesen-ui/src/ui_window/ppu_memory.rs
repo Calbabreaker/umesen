@@ -6,7 +6,7 @@ enum Tab {
     Palettes,
     PatternTables,
     Nametables,
-    OamData,
+    Sprites,
 }
 
 impl crate::egui_util::UiList for Tab {
@@ -15,12 +15,12 @@ impl crate::egui_util::UiList for Tab {
             Self::Palettes => "Palettes",
             Self::PatternTables => "Pattern Tables",
             Self::Nametables => "Nametables",
-            Self::OamData => "OAM Data",
+            Self::Sprites => "Sprites",
         }
     }
 
     const LIST: &[Self] = &[
-        Self::OamData,
+        Self::Sprites,
         Self::Palettes,
         Self::Nametables,
         Self::PatternTables,
@@ -63,7 +63,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
                 });
             }
         }
-        Tab::OamData => {
+        Tab::Sprites => {
             ui.horizontal(|ui| {
                 show_oam_grid(ui, state);
                 show_oam_info(ui, state.emu.ppu());
@@ -139,8 +139,8 @@ fn show_oam_info(ui: &mut egui::Ui, ppu: &umesen_core::Ppu) {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         if let Some(i) = ui.memory_mut(|m| m.data.get_persisted("oam_grid".into())) {
             let mut sprite = ppu.registers.get_oam_sprite(i, 0).unwrap();
-            ui.label(format!("INDEX: {i}"));
-            ui.label(format!("Pos (x,y): {}, {}", sprite.x, sprite.y));
+            ui.label(format!("Index: {i}"));
+            ui.label(format!("Position (x,y): {}, {}", sprite.x, sprite.y));
             ui.label(format!(
                 "Tile address: ${:03x}0",
                 sprite.tile_number(&ppu.registers)
@@ -179,6 +179,11 @@ struct UiPatternTilesConfig {
     image_scale: f32,
 }
 
+/// Show a grid of ppu pattern table tiles
+/// get_tile_info_fn is ran for each tile in the grid and should return a tuple of
+/// (patern tile number, pallete id) based on the input tile index
+/// If a user clicked on a tile that tile will be highligted and the tile index will be stored in
+/// egui persistent memory with the id being the name
 fn show_pattern_tiles<'a>(
     ui: &mut egui::Ui,
     state: &'a mut crate::State,
@@ -200,7 +205,6 @@ fn show_pattern_tiles<'a>(
                 let bus = &ppu.registers.bus;
                 let (lsb_plane, msb_plane) = bus.read_pattern_tile_planes(tile_number, y);
 
-                // Get a value between 0 and 3
                 for x in 0..8 {
                     let pixel_index = add_bit_planes(lsb_plane << x, msb_plane << x, 0b1000_0000);
                     let pixel_x = tile_x * 8 + x as usize;

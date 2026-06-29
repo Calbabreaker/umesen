@@ -1,3 +1,5 @@
+use crate::apu::ApuConfig;
+
 use super::{Status, counters::FrameCounterState};
 use noise::NoiseChannel;
 use pulse::PulseChannel;
@@ -82,11 +84,11 @@ impl Channels {
             .set_enabled(status.contains(Status::NOISE));
     }
 
-    pub fn sample(&self) -> f32 {
-        let pulse_0 = self.pulse_0.sample() as f32;
-        let pulse_1 = self.pulse_1.sample() as f32;
-        let noise = self.noise.sample() as f32;
-        let triangle = self.triangle.sample() as f32;
+    pub fn sample(&self, config: &ApuConfig) -> f32 {
+        let pulse_0 = self.pulse_0.sample() as f32 * config.pulse_0_volume;
+        let pulse_1 = self.pulse_1.sample() as f32 * config.pulse_1_volume;
+        let noise = self.noise.sample() as f32 * config.noise_volume;
+        let triangle = self.triangle.sample() as f32 * config.triangle_volume;
         let dmc = 0.;
 
         // Math from https://www.nesdev.org/wiki/APU_Mixer
@@ -94,10 +96,6 @@ impl Channels {
         let tnd = triangle / 8227. + noise / 12241. + dmc / 22638.;
         let pulse_out = (95.88 * pulse) / (8128. + 100. * pulse);
         let tnd_out = (159.79 * tnd) / (1. + 100. * tnd);
-        tnd_out + pulse_out
-    }
-
-    pub fn pulse_1(&self) -> &PulseChannel {
-        &self.pulse_1
+        (tnd_out + pulse_out) * config.volume
     }
 }
