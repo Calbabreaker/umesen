@@ -57,7 +57,11 @@ impl TriangleChannel {
 
     pub fn clock(&mut self) {
         // Clock if not muted
-        if self.length_counter.counter != 0 && self.linear_counter != 0 {
+        if self.length_counter.counter != 0
+            && self.linear_counter != 0
+            // Prevent high frequencies from some games using this to silence the channel
+            && self.sequencer.timer.start > 1
+        {
             self.sequencer.clock();
         }
     }

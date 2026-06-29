@@ -136,7 +136,8 @@ impl SampleSender {
         while self.cycles_since_sample > 0. {
             let real_sample_rate = self.sample_rate / speed_scale;
             // Include low freq high pass filter to get rid of DC bias
-            let sample = self.high_pass.process(get_sample(), real_sample_rate, 20.);
+            let mut sample = get_sample();
+            sample = self.high_pass.process(sample, real_sample_rate, 20.);
 
             self.buffer_prod.try_push(sample).ok();
             self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / real_sample_rate;
