@@ -27,5 +27,5 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     ui.label("Mapper state: ");
     egui::Frame::canvas(ui.style())
         .inner_margin(6.0)
-        .show(ui, |ui| ui.label(format!("{:?}", catridge.mapper())));
+        .show(ui, |ui| ui.label(catridge.debug_mapper()));
 }

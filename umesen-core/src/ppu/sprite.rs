@@ -1,4 +1,4 @@
-use crate::ppu::{Control, PATTERN_TILE_COUNT, Registers};
+use crate::ppu::{Control, PATTERN_TILE_COUNT, Registers, get_pattern_tile_addresses};
 
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -59,7 +59,7 @@ impl Sprite {
         tile_number as u16 | (table_number as u16 * PATTERN_TILE_COUNT)
     }
 
-    pub(crate) fn load_shift_bits(&mut self, scanline: u16, registers: &Registers) {
+    pub(crate) fn load_shift_bits(&mut self, scanline: u16, registers: &mut Registers) {
         let mut tile_number = self.tile_number(registers);
 
         let mut fine_y = scanline.saturating_sub(self.y as u16);
@@ -73,9 +73,9 @@ impl Sprite {
             tile_number += 1;
         }
 
-        let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(tile_number, fine_y);
-        self.color_bits_low = tile_lsb;
-        self.color_bits_high = tile_msb;
+        let (address_lsb, address_msb) = get_pattern_tile_addresses(tile_number, fine_y);
+        self.color_bits_low = registers.bus.read(address_lsb);
+        self.color_bits_high = registers.bus.read(address_msb);
     }
 
     pub(crate) fn color_index(&self, scan_x: usize) -> u8 {

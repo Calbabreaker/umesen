@@ -91,8 +91,8 @@ impl Emulator {
         &mut self.cpu.bus.apu
     }
 
-    pub fn cartridge(&self) -> Option<std::cell::Ref<'_, Cartridge>> {
-        Some(self.cpu.bus.cartridge.as_ref()?.borrow())
+    pub fn cartridge(&self) -> Option<&Cartridge> {
+        self.cpu.bus.cartridge()
     }
 
     pub fn controller(&mut self, number: u8) -> &mut Controller {

@@ -61,7 +61,7 @@ impl Mapper for Mapper001 {
         }
     }
 
-    fn map_ppu(&mut self, address: u16) -> BankMapping {
+    fn map_ppu(&self, address: u16) -> BankMapping {
         let (bank_0000, bank_1000) = match self.control_register & 0b10000 {
             // 8 Kib mode
             0b00000 => half_double_bank(self.chr_bank_number_0),
@@ -190,11 +190,11 @@ mod test {
         write_register(&mut catridge, 0x8000, 0b11111);
         write_register(&mut catridge, 0xa000, 0b00001);
         write_register(&mut catridge, 0xc000, 0b00010);
-        assert_eq!(catridge.ppu_read(0x0000), 7);
-        assert_eq!(catridge.ppu_read(0x1000), 8);
+        assert_eq!(catridge.ppu_read(0x0000), Some(7));
+        assert_eq!(catridge.ppu_read(0x1000), Some(8));
 
         write_register(&mut catridge, 0x8000, 0b00000);
         write_register(&mut catridge, 0xa000, 0b00001);
-        assert_eq!(catridge.ppu_read(0x0000), 6);
+        assert_eq!(catridge.ppu_read(0x0000), Some(6));
     }
 }

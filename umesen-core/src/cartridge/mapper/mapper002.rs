@@ -22,7 +22,7 @@ impl Mapper for Mapper002 {
         }
     }
 
-    fn map_ppu(&mut self, _: u16) -> super::BankMapping {
+    fn map_ppu(&self, _: u16) -> super::BankMapping {
         (8, Bank::Number(0))
     }
 }
@@ -34,7 +34,7 @@ mod test {
     #[test]
     fn test() {
         let mut cartridge = create_test_catridge(2, 16, &[&[1], &[2], &[3]], 8, &[&[2]]);
-        assert_eq!(cartridge.ppu_read(0x0000), 2);
+        assert_eq!(cartridge.ppu_read(0x0000), Some(2));
 
         assert_eq!(cartridge.cpu_read(0x8000), Some(1));
         assert_eq!(cartridge.cpu_read(0xc000), Some(3));

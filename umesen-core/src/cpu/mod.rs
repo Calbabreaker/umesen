@@ -102,8 +102,8 @@ impl Cpu {
         // Some roms freeze when soft loading if nmi is enabled for some reason
         self.bus.ppu.registers.control = Default::default();
         self.bus.apu.reset();
-        if let Some(c) = self.bus.cartridge.as_mut() {
-            c.borrow_mut().reset()
+        if let Some(cart) = self.bus.cartridge_mut() {
+            cart.reset();
         }
 
         for _ in 0..5 {

@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
     Cartridge,
     cartridge::{FixedArray, Mirroring},
@@ -14,65 +12,53 @@ pub const PALETTE_START: u16 = 0x3f00;
 pub struct PpuBus {
     pub palette_ram: FixedArray<u8, PALETTE_RAM_SIZE>,
     pub nametable_ram: FixedArray<u8, 0x800>,
-    pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
+    pub(crate) cartridge: Option<Cartridge>,
 }
 
 impl PpuBus {
-    pub fn read(&self, mut address: u16) -> u8 {
-        address %= 0x4000;
+    pub fn peek_read(&self, address: u16) -> u8 {
+        std::debug_assert_matches!(address, 0x0000..=0x3fff);
+        if let Some(cart) = self.cartridge.as_ref()
+            && let Some(value) = cart.ppu_peek_read(address)
+        {
+            return value;
+        }
+
         match address {
-            0x0000..=0x1fff => match self.cartridge.as_ref() {
-                Some(cartridge) => cartridge.borrow_mut().ppu_read(address),
-                None => 0,
-            },
             0x2000..=0x3eff => self.nametable_ram[self.mirror_nametable(address)],
             // Palette byte is only 6 bit
             PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)],
-            _ => unreachable!(),
+            _ => 0,
         }
     }
 
-    pub fn write(&mut self, mut address: u16, value: u8) {
-        address %= 0x4000;
+    pub fn read(&mut self, address: u16) -> u8 {
+        if let Some(value) = self.cartridge.as_mut().and_then(|c| c.ppu_read(address)) {
+            value
+        } else {
+            self.peek_read(address)
+        }
+    }
+
+    pub fn write(&mut self, address: u16, value: u8) {
+        std::debug_assert_matches!(address, 0x0000..=0x3fff);
+        if let Some(cartridge) = self.cartridge.as_mut() {
+            cartridge.ppu_write(address, value);
+        }
+
         match address {
-            0x0000..=0x1fff => {
-                if let Some(cartridge) = self.cartridge.as_ref() {
-                    cartridge.borrow_mut().ppu_write(address, value);
-                }
-            }
             0x2000..=0x3eff => {
                 let address = self.mirror_nametable(address);
                 self.nametable_ram[address] = value;
             }
             PALETTE_START..=0x3fff => self.palette_ram[mirror_palette(address)] = value,
-            _ => unreachable!(),
+            _ => (),
         }
     }
 
-    /// Gets the pattern table tile planes
-    /// Return (lsb plane, msb plane)
-    pub fn read_pattern_tile_planes(&self, tile_number: u16, fine_y: u16) -> (u8, u8) {
-        // From nes wiki: https://www.nesdev.org/wiki/PPU_pattern_tables#Addressing
-        // DCBA98 76543210
-        // ---------------
-        // 0HNNNN NNNNPyyy
-        // |||||| |||||+++- T: Fine Y offset, the pixel row number within a tile
-        // |||||| ||||+---- P: Bit plane (0: less significant bit; 1: more significant bit)
-        // ||++++-++++----- N: Tile number from name table
-        // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
-        // +--------------- 0: Pattern table is at $0000-$1FFF
-        let address = ((tile_number) << 4) | (fine_y % 8);
-        (self.read(address), self.read(address + 8))
-    }
-
     fn mirror_nametable(&self, address: u16) -> usize {
-        mirror_nametable(
-            address,
-            self.cartridge
-                .as_ref()
-                .map(|c| c.borrow().mirroring())
-                .unwrap_or_default(),
-        )
+        let cart = self.cartridge.as_ref();
+        mirror_nametable(address, cart.map(|c| c.mirroring()).unwrap_or_default())
     }
 }
 
@@ -133,5 +119,13 @@ mod test {
         assert_eq!(mirror_nametable(0x2420, SingleScreenHigh), 0x0420);
         assert_eq!(mirror_nametable(0x2820, SingleScreenHigh), 0x0420);
         assert_eq!(mirror_nametable(0x2c20, SingleScreenHigh), 0x0420);
+    }
+
+    #[test]
+    fn palette() {
+        assert_eq!(mirror_palette(0x3f00), 0);
+        assert_eq!(mirror_palette(0x3f01), 1);
+        assert_eq!(mirror_palette(0x3f10), 0);
+        assert_eq!(mirror_palette(0x3f11), 17);
     }
 }

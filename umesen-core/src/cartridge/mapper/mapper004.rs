@@ -84,17 +84,19 @@ impl Mapper for Mapper004 {
         }
     }
 
-    fn map_ppu(&mut self, address: u16) -> BankMapping {
+    fn monitor_ppu(&mut self, address: u16) {
         // Checks if bit 12 of the address is low for three cycles and then becomes high
         if address & 0x1000 == 0 {
-            self.low_cycles += 1;
+            self.low_cycles = self.low_cycles.wrapping_add(1);
         } else {
             if self.low_cycles >= 3 {
                 self.signal_scanline();
             }
             self.low_cycles = 0;
         }
+    }
 
+    fn map_ppu(&self, address: u16) -> BankMapping {
         let mut section_0 = [
             Bank::Number(self.registers[0] & !1),
             Bank::Number(self.registers[0] | 1),

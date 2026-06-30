@@ -1,4 +1,6 @@
-use umesen_core::ppu::{PATTERN_TILE_COUNT, VramRegister, add_bit_planes};
+use umesen_core::ppu::{
+    PATTERN_TILE_COUNT, VramRegister, add_bit_planes, get_pattern_tile_addresses,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, serde::Deserialize, serde::Serialize, Debug)]
 enum Tab {
@@ -117,8 +119,8 @@ fn show_nametable(ui: &mut egui::Ui, state: &mut crate::State, table_number: u16
         register.set(VramRegister::COARSE_X, tile_index as u16 % 32);
         register.set(VramRegister::COARSE_Y, tile_index as u16 / 32);
 
-        let tile_number = ppu.registers.bus.read(register.nametable_address()) as u16;
-        let tile_attribute = ppu.registers.bus.read(register.attribute_address());
+        let tile_number = ppu.registers.bus.peek_read(register.nametable_address()) as u16;
+        let tile_attribute = ppu.registers.bus.peek_read(register.attribute_address());
         let palette_id = register.palette_id(tile_attribute);
         (
             tile_number + ppu.registers.control.background_table_offset(),
@@ -202,11 +204,14 @@ fn show_pattern_tiles<'a>(
             let tile_index = (tile_y * tile_count_x) + tile_x;
             let (tile_number, palette) = get_tile_info_fn(tile_index, ppu);
             for y in 0..8 {
-                let bus = &ppu.registers.bus;
-                let (lsb_plane, msb_plane) = bus.read_pattern_tile_planes(tile_number, y);
+                let (lsb_address, msb_address) = get_pattern_tile_addresses(tile_number, y);
 
                 for x in 0..8 {
-                    let pixel_index = add_bit_planes(lsb_plane << x, msb_plane << x, 0b1000_0000);
+                    let pixel_index = add_bit_planes(
+                        ppu.registers.bus.peek_read(lsb_address),
+                        ppu.registers.bus.peek_read(msb_address),
+                        0b1000_0000 >> x,
+                    );
                     let pixel_x = tile_x * 8 + x as usize;
                     let pixel_y = tile_y * 8 + y as usize;
                     let c = palette[pixel_index as usize];

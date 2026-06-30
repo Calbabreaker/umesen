@@ -183,7 +183,7 @@ impl Registers {
     pub fn read_palette_ram(&self, offset: u16) -> u8 {
         let address = PALETTE_START | (offset & 0xff);
         // Get the palette ram and with open bus
-        let mut value = (self.bus.read(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
+        let mut value = (self.bus.peek_read(address) & 0b0011_1111) | (self.open_bus & 0b1100_0000);
         if self.mask.contains(Mask::GRAYSCALE) {
             value &= 0x30;
         }

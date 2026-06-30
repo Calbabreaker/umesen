@@ -23,11 +23,14 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
     let selected = crate::egui_util::ui_list_combo_select(ui);
     ui.add_space(4.);
 
-    let cpu_bus = &state.emu.cpu.bus;
-    let ppu_bus = &state.emu.cpu.bus.ppu.registers.bus;
+    let bus = &state.emu.cpu.bus;
     match selected {
-        HexViewKind::Cpu => show_hex_view(ui, |address| cpu_bus.peek_read(address), 0x1000),
-        HexViewKind::Ppu => show_hex_view(ui, |address| ppu_bus.read(address), 0x400),
+        HexViewKind::Cpu => show_hex_view(ui, |address| bus.peek_read(address), 0x1000),
+        HexViewKind::Ppu => show_hex_view(
+            ui,
+            |address| bus.ppu.registers.bus.peek_read(address),
+            0x400,
+        ),
     }
 }
 

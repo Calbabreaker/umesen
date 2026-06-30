@@ -21,7 +21,7 @@ impl Mapper for Mapper003 {
         }
     }
 
-    fn map_ppu(&mut self, _: u16) -> BankMapping {
+    fn map_ppu(&self, _: u16) -> BankMapping {
         (8, Bank::Number(self.bank_number))
     }
 }
@@ -36,9 +36,9 @@ mod test {
 
         assert_eq!(cartridge.cpu_read(0x8000), Some(2));
 
-        assert_eq!(cartridge.ppu_read(0x0000), 1);
+        assert_eq!(cartridge.ppu_read(0x0000), Some(1));
 
         cartridge.cpu_write(0x8000, 1);
-        assert_eq!(cartridge.ppu_read(0x0000), 2);
+        assert_eq!(cartridge.ppu_read(0x0000), Some(2));
     }
 }

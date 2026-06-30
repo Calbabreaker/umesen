@@ -170,13 +170,15 @@ impl Ppu {
         let tile_number = registers.bus.read(registers.v.nametable_address());
         let attribute_byte = registers.bus.read(registers.v.attribute_address());
         self.bg_palette_id = registers.v.palette_id(attribute_byte);
-        let (tile_lsb, tile_msb) = registers.bus.read_pattern_tile_planes(
+        let (address_lsb, address_msb) = get_pattern_tile_addresses(
             tile_number as u16 + registers.control.background_table_offset(),
             registers.v.get(VramRegister::FINE_Y),
         );
 
-        self.bg_shift_bits_low = (self.bg_shift_bits_low & 0xff00) | tile_lsb as u16;
-        self.bg_shift_bits_high = (self.bg_shift_bits_high & 0xff00) | tile_msb as u16;
+        self.bg_shift_bits_low &= 0xff00;
+        self.bg_shift_bits_high &= 0xff00;
+        self.bg_shift_bits_low |= registers.bus.read(address_lsb) as u16;
+        self.bg_shift_bits_high |= registers.bus.read(address_msb) as u16;
         registers.v.scroll_coarse_x();
     }
 
@@ -232,7 +234,7 @@ impl Ppu {
         for i in 0..MAX_SPRITES_PER_SCAN.max(self.sprite_buffer.len()) {
             let mut empty_sprite = Sprite::new(&[0xff, 0xff, 0xff, 0xff], 0);
             let sprite = self.sprite_buffer.get_mut(i).unwrap_or(&mut empty_sprite);
-            sprite.load_shift_bits(self.registers.scanline as u16, &self.registers);
+            sprite.load_shift_bits(self.registers.scanline as u16, &mut self.registers);
         }
         // Prender scanline still makes same tile fetches but nothing gets rendered
         if self.registers.scanline == PRERENDER_SCANLINE {
@@ -312,4 +314,20 @@ pub fn add_bit_planes(lsb_plane: u8, msb_plane: u8, bit_mask: u8) -> u8 {
     let lsb = ((lsb_plane & bit_mask) != 0) as u8;
     let msb = ((msb_plane & bit_mask) != 0) as u8;
     lsb | (msb << 1)
+}
+
+/// Gets the pattern table tile planes least and most significant byte addresses
+/// Returns (lsb plane address, msb plane address)
+pub fn get_pattern_tile_addresses(tile_number: u16, fine_y: u16) -> (u16, u16) {
+    // From nes wiki: https://www.nesdev.org/wiki/PPU_pattern_tables#Addressing
+    // DCBA98 76543210
+    // ---------------
+    // 0HNNNN NNNNPyyy
+    // |||||| |||||+++- T: Fine Y offset, the pixel row number within a tile
+    // |||||| ||||+---- P: Bit plane (0: less significant bit; 1: more significant bit)
+    // ||++++-++++----- N: Tile number from name table
+    // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
+    // +--------------- 0: Pattern table is at $0000-$1FFF
+    let address = ((tile_number) << 4) | (fine_y % 8);
+    ((address), (address + 8))
 }

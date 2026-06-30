@@ -83,17 +83,27 @@ impl Cartridge {
         self.mapper.cpu_write(address, value);
     }
 
-    pub fn ppu_read(&mut self, address: u16) -> u8 {
-        std::debug_assert_matches!(address, 0x0000..=0x1fff);
-        let mapping = self.mapper.map_ppu(address);
-        self.banks.chr_mem.read(mapping, address).unwrap_or(0)
+    pub fn ppu_peek_read(&self, address: u16) -> Option<u8> {
+        if let 0x0000..=0x1fff = address {
+            let mapping = self.mapper.map_ppu(address);
+            self.banks.chr_mem.read(mapping, address)
+        } else {
+            None
+        }
+    }
+
+    pub fn ppu_read(&mut self, address: u16) -> Option<u8> {
+        self.mapper.monitor_ppu(address);
+        self.ppu_peek_read(address)
     }
 
     pub fn ppu_write(&mut self, address: u16, value: u8) {
-        std::debug_assert_matches!(address, 0x0000..=0x1fff);
-        let mapping = self.mapper.map_ppu(address);
-        if !self.header.chr_mem_is_rom {
-            self.banks.chr_mem.write(mapping, address, value);
+        self.mapper.monitor_ppu(address);
+        if let 0x0000..=0x1fff = address {
+            let mapping = self.mapper.map_ppu(address);
+            if !self.header.chr_mem_is_rom {
+                self.banks.chr_mem.write(mapping, address, value);
+            }
         }
     }
 
@@ -109,8 +119,8 @@ impl Cartridge {
         &self.header
     }
 
-    pub fn mapper(&self) -> &dyn Mapper {
-        self.mapper.as_ref()
+    pub fn debug_mapper(&self) -> String {
+        format!("{:?}", self.mapper)
     }
 
     pub fn reset(&mut self) {

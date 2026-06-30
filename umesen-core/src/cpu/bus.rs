@@ -1,5 +1,3 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
     Apu, Controller, Ppu,
     cartridge::{Cartridge, FixedArray},
@@ -15,7 +13,6 @@ pub struct CpuBus {
     pub(crate) cpu_cycles_since_inst: u32,
     pub cpu_cycles_total: u64,
     pub ppu: Ppu,
-    pub(crate) cartridge: Option<Rc<RefCell<Cartridge>>>,
     open_bus: u8,
     pub controllers: [Controller; 2],
     require_nmi: bool,
@@ -25,10 +22,8 @@ impl CpuBus {
     /// Immutable read function for peeking into memory
     /// Reads into some address cause side effects
     pub fn peek_read(&self, address: u16) -> u8 {
-        if let Some(cart) = self.cartridge.as_ref()
-            && let Some(byte) = cart.borrow().cpu_read(address)
-        {
-            return byte;
+        if let Some(value) = self.cartridge().and_then(|c| c.cpu_read(address)) {
+            return value;
         }
 
         // https://www.nesdev.org/wiki/CPU_memory_map
@@ -55,8 +50,8 @@ impl CpuBus {
     }
 
     pub fn write(&mut self, address: u16, value: u8) {
-        if let Some(cartridge) = self.cartridge.as_ref() {
-            cartridge.borrow_mut().cpu_write(address, value);
+        if let Some(cartridge) = self.cartridge_mut() {
+            cartridge.cpu_write(address, value);
         }
 
         let ram_len = self.ram.len();
@@ -111,20 +106,25 @@ impl CpuBus {
     }
 
     pub fn attach_catridge(&mut self, catridge: Cartridge) {
-        let catridge_rc = Rc::new(RefCell::new(catridge));
-        self.cartridge = Some(catridge_rc.clone());
-        self.ppu.registers.bus.cartridge = Some(catridge_rc);
+        self.ppu.registers.bus.cartridge = Some(catridge);
     }
 
     pub fn irq_status(&self) -> bool {
-        let cart = self.cartridge.as_ref();
-        self.apu.irq_status() | cart.map(|c| c.borrow().irq_status()).unwrap_or(false)
+        self.apu.irq_status() | self.cartridge().map(|c| c.irq_status()).unwrap_or(false)
     }
 
     pub fn require_nmi(&mut self) -> bool {
         let status = self.require_nmi;
         self.require_nmi = false;
         status
+    }
+
+    pub fn cartridge_mut(&mut self) -> Option<&mut Cartridge> {
+        self.ppu.registers.bus.cartridge.as_mut()
+    }
+
+    pub fn cartridge(&self) -> Option<&Cartridge> {
+        self.ppu.registers.bus.cartridge.as_ref()
     }
 
     fn oam_dma(&mut self, address_start: u16) {
