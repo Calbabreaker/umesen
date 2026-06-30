@@ -1,4 +1,4 @@
-use ringbuf::traits::{Producer, Split};
+use ringbuf::traits::Producer;
 
 use channels::Channels;
 use counters::FrameCounter;
@@ -48,11 +48,14 @@ impl Default for ApuConfig {
 #[derive(Default)]
 pub struct Apu {
     pub config: ApuConfig,
-    pub(crate) speed_scale: f32,
     channels: Channels,
-    sample_sender: Option<SampleSender>,
     frame_counter: FrameCounter,
     status: Status,
+
+    pub(crate) sample_rate: f32,
+    pub(crate) buffer_prod: Option<ringbuf::HeapProd<f32>>,
+    high_pass: OnePoleFilter<true>,
+    cycles_since_sample: f32,
 }
 
 impl Apu {
@@ -85,8 +88,16 @@ impl Apu {
         let state = self.frame_counter.clock();
         self.channels.handle_frame_state(state);
 
-        if let Some(sender) = self.sample_sender.as_mut() {
-            sender.check_send(|| self.channels.sample(&self.config), self.speed_scale);
+        if let Some(buffer) = self.buffer_prod.as_mut() {
+            while self.cycles_since_sample > 0. {
+                let mut sample = self.channels.sample(&self.config);
+                // Include low freq high pass filter to get rid of DC bias
+                sample = self.high_pass.process(sample, self.sample_rate, 20.);
+
+                buffer.try_push(sample).ok();
+                self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / self.sample_rate;
+            }
+            self.cycles_since_sample += 1.;
         }
     }
 
@@ -97,52 +108,6 @@ impl Apu {
     pub fn reset(&mut self) {
         self.status = Status::empty();
         self.channels.set_enabled(self.status);
-    }
-
-    /// Setup the audio buffer
-    /// Returns the ring buffer consumer that contains the samples generated from the APU
-    pub fn setup_audio_buffer(
-        &mut self,
-        sample_rate: u32,
-        buffer_length: std::time::Duration,
-    ) -> ringbuf::HeapCons<f32> {
-        let sample_rate = sample_rate as f32;
-        let size = sample_rate * buffer_length.as_secs_f32();
-        let rb = ringbuf::SharedRb::new(size as usize);
-        let (prod, cons) = rb.split();
-        self.sample_sender = Some(SampleSender::new(sample_rate, prod));
-        cons
-    }
-}
-
-struct SampleSender {
-    buffer_prod: ringbuf::HeapProd<f32>,
-    sample_rate: f32,
-    high_pass: OnePoleFilter<true>,
-    cycles_since_sample: f32,
-}
-
-impl SampleSender {
-    pub fn new(sample_rate: f32, buffer_prod: ringbuf::HeapProd<f32>) -> Self {
-        Self {
-            buffer_prod,
-            sample_rate,
-            cycles_since_sample: 0.,
-            high_pass: OnePoleFilter::default(),
-        }
-    }
-
-    fn check_send(&mut self, get_sample: impl Fn() -> f32, speed_scale: f32) {
-        while self.cycles_since_sample > 0. {
-            let real_sample_rate = self.sample_rate / speed_scale;
-            // Include low freq high pass filter to get rid of DC bias
-            let mut sample = get_sample();
-            sample = self.high_pass.process(sample, real_sample_rate, 20.);
-
-            self.buffer_prod.try_push(sample).ok();
-            self.cycles_since_sample -= crate::cpu::CLOCK_SPEED_HZ / real_sample_rate;
-        }
-        self.cycles_since_sample += 1.;
     }
 }
 

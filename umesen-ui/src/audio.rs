@@ -10,7 +10,6 @@ pub fn setup_audio_stream(emu: &mut umesen_core::Emulator) -> Result<cpal::Strea
     let config = device.default_output_config()?;
     let state = StreamState {
         sample_cons: emu
-            .apu()
             .setup_audio_buffer(config.sample_rate(), std::time::Duration::from_millis(50)),
         config: config.into(),
         device,

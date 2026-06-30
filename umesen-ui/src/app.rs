@@ -150,15 +150,9 @@ impl App {
             if let ActionKind::ControllerInput(number, button) = action {
                 let controller = self.state.emu.controller(number);
                 let key_down = i.key_down(shortcut.logical_key);
-                let is_illegal = key_down && controller.check_illegal_press(button);
-
-                if !is_illegal || self.preferences.allow_illegal_press {
-                    controller.state.set(button, key_down);
-                }
-            } else {
-                if i.consume_shortcut(&shortcut) {
-                    self.state.do_action(action);
-                }
+                controller.set_button(button, key_down, self.preferences.allow_illegal_press);
+            } else if i.consume_shortcut(&shortcut) {
+                self.state.do_action(action);
             }
         }
 
