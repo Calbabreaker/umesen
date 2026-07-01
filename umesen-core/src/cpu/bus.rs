@@ -9,7 +9,7 @@ pub struct CpuBus {
     // 2kb of cpu ram
     pub ram: FixedArray<u8, 0x800>,
     pub apu: Apu,
-    /// Number of cycles added when executing the previous instruction)
+    /// Number of cycles added when executing the previous instruction
     pub(crate) cpu_cycles_since_inst: u32,
     pub cpu_cycles_total: u64,
     pub ppu: Ppu,
@@ -36,16 +36,17 @@ impl CpuBus {
 
     pub fn read(&mut self, address: u16) -> u8 {
         // https://www.nesdev.org/wiki/CPU_memory_map
+        self.clock();
         let output = match address {
             0x2000..=0x3fff => self.ppu.registers.read(address),
             // Top 3 high controller bits always have open bus
             0x4016 => self.controllers[0].read() | (0b1110_0000 & self.open_bus),
-            0x4015 => self.apu.read_status() | (0b0010_0000 & self.open_bus),
+            // APU does not contribute to open bus
+            0x4015 => return self.apu.read_status() | (0b0010_0000 & self.open_bus),
             0x4017 => self.controllers[1].read() | (0b1110_0000 & self.open_bus),
             _ => self.peek_read(address),
         };
         self.open_bus = output;
-        self.clock();
         output
     }
 
@@ -103,6 +104,10 @@ impl CpuBus {
         }
         self.cpu_cycles_since_inst += 1;
         self.cpu_cycles_total += 1;
+        if let Some(address) = self.apu.channels.dmc.require_dma_at {
+            // TODO: stall cycles and some register conflict stuff
+            self.apu.channels.dmc.on_dma_read(self.peek_read(address));
+        }
     }
 
     pub fn attach_catridge(&mut self, catridge: Cartridge) {

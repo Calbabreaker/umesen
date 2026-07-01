@@ -51,6 +51,9 @@ pub fn show(ui: &mut egui::Ui, prefs: &mut Preferences) {
                 ui.label("Noise volume");
                 ui.add(egui::Slider::new(&mut prefs.apu.noise_volume, (0.)..=1.));
                 ui.end_row();
+                ui.label("DMC volume");
+                ui.add(egui::Slider::new(&mut prefs.apu.dmc_volume, (0.)..=1.));
+                ui.end_row();
             });
         }
         Tab::KeyBinds => {

@@ -27,20 +27,19 @@ impl Default for TriangleChannel {
 
 impl TriangleChannel {
     pub fn write(&mut self, address: u16, value: u8) {
-        std::debug_assert_matches!(address, 0x4008..=0x400b);
-        match address % 4 {
-            0 => {
+        match address {
+            0x4008 => {
                 self.length_counter.halt = value & 0b1000_0000 != 0;
                 self.linear_counter_reload_value = value & 0b0111_1111;
             }
-            1 => (),
-            2 => self.sequencer.set_timer_low(value),
-            3 => {
+            0x4009 => (),
+            0x400a => self.sequencer.set_timer_low(value),
+            0x400b => {
                 self.sequencer.set_timer_high(value);
                 self.length_counter.set_counter(value);
                 self.linear_counter_reload = true;
             }
-            _ => unreachable!(),
+            _ => (),
         }
     }
 
@@ -57,7 +56,7 @@ impl TriangleChannel {
 
     pub fn clock(&mut self) {
         // Clock if not muted
-        if self.length_counter.counter != 0
+        if self.length_counter.playing()
             && self.linear_counter != 0
             // Prevent high frequencies from some games using this to silence the channel
             && self.sequencer.timer.start > 1

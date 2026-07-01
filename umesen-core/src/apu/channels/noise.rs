@@ -20,22 +20,21 @@ pub struct NoiseChannel {
 
 impl NoiseChannel {
     pub fn write(&mut self, address: u16, value: u8) {
-        std::debug_assert_matches!(address, 0x400c..=0x400f);
-        match address % 4 {
-            0 => {
+        match address {
+            0x400c => {
                 self.envelope.write(value);
                 self.length_counter.halt = value & 0b0010_0000 != 0;
             }
-            1 => (),
-            2 => {
+            0x400d => (),
+            0x400e => {
                 self.mode_flag = value & 0b1000_0000 != 0;
                 self.timer.start = NOISE_PERIODS[(value & 0x0f) as usize];
             }
-            3 => {
+            0x400f => {
                 self.envelope.start();
                 self.length_counter.set_counter(value);
             }
-            _ => unreachable!(),
+            _ => (),
         }
     }
 
@@ -54,7 +53,7 @@ impl NoiseChannel {
     }
 
     pub fn sample(&self) -> u8 {
-        if self.length_counter.counter != 0 && self.shift_register & 1 == 0 {
+        if self.length_counter.playing() && self.shift_register & 1 == 0 {
             self.envelope.volume()
         } else {
             0

@@ -7,7 +7,6 @@ mod channels;
 mod counters;
 mod envelope;
 mod sequencer;
-mod sweep;
 
 bitflags::bitflags! {
     #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +29,7 @@ pub struct ApuConfig {
     pub pulse_0_volume: f32,
     pub pulse_1_volume: f32,
     pub noise_volume: f32,
+    pub dmc_volume: f32,
 }
 
 impl Default for ApuConfig {
@@ -40,6 +40,7 @@ impl Default for ApuConfig {
             pulse_0_volume: 1.,
             pulse_1_volume: 1.,
             noise_volume: 1.,
+            dmc_volume: 1.,
         }
     }
 }
@@ -48,9 +49,8 @@ impl Default for ApuConfig {
 #[derive(Default)]
 pub struct Apu {
     pub config: ApuConfig,
-    channels: Channels,
+    pub(crate) channels: Channels,
     frame_counter: FrameCounter,
-    status: Status,
 
     pub(crate) sample_rate: f32,
     pub(crate) buffer_prod: Option<ringbuf::HeapProd<f32>>,
@@ -63,10 +63,7 @@ impl Apu {
         std::debug_assert_matches!(address, 0x4000..=0x4017);
         match address {
             0x4000..=0x4013 => self.channels.write(address, value),
-            0x4015 => {
-                self.status = Status::from_bits_truncate(value);
-                self.channels.set_enabled(self.status);
-            }
+            0x4015 => self.channels.set_enabled(Status::from_bits_truncate(value)),
             0x4017 => {
                 let state = self.frame_counter.write(value);
                 self.channels.handle_frame_state(state);
@@ -76,9 +73,9 @@ impl Apu {
     }
 
     pub fn read_status(&mut self) -> u8 {
-        self.status
-            .set(Status::FRAME_IRQ, self.frame_counter.irq.read_status());
-        self.status.bits()
+        let mut status = self.channels.get_status();
+        status.set(Status::FRAME_IRQ, self.frame_counter.irq.read_status());
+        status.bits()
     }
 
     /// Ran on every CPU cycle
@@ -102,12 +99,11 @@ impl Apu {
     }
 
     pub fn irq_status(&self) -> bool {
-        self.frame_counter.irq.status
+        self.frame_counter.irq.status | self.channels.dmc.irq.status
     }
 
     pub fn reset(&mut self) {
-        self.status = Status::empty();
-        self.channels.set_enabled(self.status);
+        self.channels.set_enabled(Status::empty());
     }
 }
 

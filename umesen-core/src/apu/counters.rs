@@ -69,8 +69,8 @@ const LENGTH_COUNTER_VALUES: [u8; 32] = [
 #[derive(Default)]
 pub struct LengthCounter {
     pub halt: bool,
-    pub counter: u8,
-    pub enabled: bool,
+    counter: u8,
+    enabled: bool,
 }
 
 impl LengthCounter {
@@ -92,6 +92,10 @@ impl LengthCounter {
         if !self.halt && self.counter != 0 {
             self.counter -= 1;
         }
+    }
+
+    pub fn playing(&self) -> bool {
+        self.counter > 0
     }
 }
 

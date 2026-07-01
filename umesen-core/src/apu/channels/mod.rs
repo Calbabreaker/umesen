@@ -1,43 +1,29 @@
 use crate::apu::ApuConfig;
 
 use super::{Status, counters::FrameCounterState};
-use noise::NoiseChannel;
-use pulse::PulseChannel;
-use triangle::TriangleChannel;
 
+mod dmc;
 mod noise;
 mod pulse;
 mod triangle;
 
+#[derive(Default)]
 pub struct Channels {
-    pulse_0: PulseChannel,
-    pulse_1: PulseChannel,
-    triangle: TriangleChannel,
-    noise: NoiseChannel,
-}
-
-impl Default for Channels {
-    fn default() -> Self {
-        Self {
-            pulse_0: PulseChannel::new(true),
-            pulse_1: PulseChannel::new(false),
-            triangle: TriangleChannel::default(),
-            noise: NoiseChannel::default(),
-        }
-    }
+    pulse_0: pulse::PulseChannel<0>,
+    pulse_1: pulse::PulseChannel<1>,
+    triangle: triangle::TriangleChannel,
+    noise: noise::NoiseChannel,
+    pub(crate) dmc: dmc::DmcChannel,
 }
 
 impl Channels {
     pub fn write(&mut self, address: u16, value: u8) {
         std::debug_assert_matches!(address, 0x4000..=0x4013);
-        match address {
-            0x4000..=0x4003 => self.pulse_0.write(address, value),
-            0x4004..=0x4007 => self.pulse_1.write(address, value),
-            0x4008..=0x400b => self.triangle.write(address, value),
-            0x400c..=0x400f => self.noise.write(address, value),
-            0x4010..=0x4013 => (),
-            _ => unreachable!(),
-        }
+        self.pulse_0.write(address, value, 0);
+        self.pulse_1.write(address, value, 1);
+        self.triangle.write(address, value);
+        self.noise.write(address, value);
+        self.dmc.write(address, value);
     }
 
     pub fn clock(&mut self, cpu_cycles: u64) {
@@ -46,6 +32,7 @@ impl Channels {
             self.pulse_0.sequencer.clock();
             self.pulse_1.sequencer.clock();
             self.noise.clock();
+            self.dmc.clock();
         }
     }
 
@@ -82,6 +69,18 @@ impl Channels {
         self.noise
             .length_counter
             .set_enabled(status.contains(Status::NOISE));
+        self.dmc.set_enabled(status.contains(Status::DMC));
+    }
+
+    pub fn get_status(&self) -> Status {
+        let mut status = Status::empty();
+        status.set(Status::PULSE_0, self.pulse_0.length_counter.playing());
+        status.set(Status::PULSE_1, self.pulse_1.length_counter.playing());
+        status.set(Status::TRIANGLE, self.triangle.length_counter.playing());
+        status.set(Status::NOISE, self.noise.length_counter.playing());
+        status.set(Status::DMC, self.dmc.playing());
+        status.set(Status::DMC_IRQ, self.dmc.irq.status);
+        status
     }
 
     pub fn sample(&self, config: &ApuConfig) -> f32 {
@@ -89,7 +88,7 @@ impl Channels {
         let pulse_1 = self.pulse_1.sample() as f32 * config.pulse_1_volume;
         let noise = self.noise.sample() as f32 * config.noise_volume;
         let triangle = self.triangle.sample() as f32 * config.triangle_volume;
-        let dmc = 0.;
+        let dmc = self.dmc.sample() as f32 * config.dmc_volume;
 
         // Math from https://www.nesdev.org/wiki/APU_Mixer
         let pulse = pulse_0 + pulse_1;
