@@ -7,6 +7,8 @@ const PALETTE_RAM_SIZE: usize = 0x20;
 /// Size of one pattern table in number of tiles, add this to tile number to access the next pattern table
 pub const PATTERN_TILE_COUNT: u16 = 256;
 pub const PALETTE_START: u16 = 0x3f00;
+pub const NAMETABLE_SIZE_X: u16 = 32;
+pub const NAMETABLE_SIZE_Y: u16 = 30;
 
 #[derive(Default)]
 pub struct PpuBus {
