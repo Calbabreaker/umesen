@@ -205,17 +205,17 @@ impl Cpu {
             Inst::Plp => self.plp(),
 
             // -- Shift and rotate --
-            Inst::Asl => drop(self.shift(true, false)), // Use drop to return nothing
-            Inst::Lsr => drop(self.shift(false, false)),
-            Inst::Rol => drop(self.shift(true, true)),
-            Inst::Ror => drop(self.shift(false, true)),
+            Inst::Asl => drop(self.shift::<true, false>()), // Use drop to return nothing
+            Inst::Lsr => drop(self.shift::<false, false>()),
+            Inst::Rol => drop(self.shift::<true, true>()),
+            Inst::Ror => drop(self.shift::<false, true>()),
 
-            Inst::Slo => self.a |= self.shift(true, false), // asl + ora
-            Inst::Rla => self.a &= self.shift(true, true),  // rol + and
-            Inst::Sre => self.a ^= self.shift(false, false), // lsr + eor
+            Inst::Slo => self.a |= self.shift::<true, false>(), // asl + ora
+            Inst::Rla => self.a &= self.shift::<true, true>(),  // rol + and
+            Inst::Sre => self.a ^= self.shift::<false, false>(), // lsr + eor
             Inst::Rra => {
                 // ror + adc
-                let adder = self.shift(false, true);
+                let adder = self.shift::<false, true>();
                 self.add_carry(adder);
             }
 
@@ -231,20 +231,20 @@ impl Cpu {
             }
 
             // -- Increment and decrement --
-            Inst::Inc => drop(self.increment(1, None)),
-            Inst::Dec => drop(self.increment(-1, None)),
-            Inst::Inx => self.x = self.increment(1, Some(self.x)),
-            Inst::Iny => self.y = self.increment(1, Some(self.y)),
-            Inst::Dex => self.x = self.increment(-1, Some(self.x)),
-            Inst::Dey => self.y = self.increment(-1, Some(self.y)),
+            Inst::Inc => drop(self.increment(1)),
+            Inst::Dec => drop(self.increment(-1)),
+            Inst::Inx => self.x = self.transfer(self.x.wrapping_add(1)),
+            Inst::Iny => self.y = self.transfer(self.y.wrapping_add(1)),
+            Inst::Dex => self.x = self.transfer(self.x.wrapping_sub(1)),
+            Inst::Dey => self.y = self.transfer(self.y.wrapping_sub(1)),
             Inst::Isc => {
                 // inc + adc
-                let adder = !self.increment(1, None);
+                let adder = !self.increment(1);
                 self.add_carry(adder);
             }
             Inst::Dcp => {
                 // dec + cmp
-                let value = self.increment(-1, None);
+                let value = self.increment(-1);
                 self.compare(self.a, Some(value));
             }
 
@@ -300,11 +300,11 @@ impl Cpu {
             Inst::Bit => self.bit(),
             Inst::Anc => {
                 self.a &= self.read_operand_value().unwrap();
-                self.flags.set(Flags::CARRY, self.a & 0b1000_0000 != 0)
+                self.calc_shift::<false, false>(self.a);
             }
             Inst::Asr => {
                 self.a &= self.read_operand_value().unwrap();
-                self.a = self.calc_shift(self.a, false, false);
+                self.a = self.calc_shift::<false, false>(self.a);
             }
             Inst::Arr => self.arr(),
 
@@ -336,7 +336,7 @@ impl Cpu {
         #[rustfmt::skip]
         if matches!(opcode.instruction,
             Inst::Las | Inst::Pla | Inst::Slo | Inst::Rla | Inst::Sre | Inst::Ora | Inst::Eor
-                | Inst::And | Inst::Anc
+                | Inst::And
         ) {
             self.set_zero_neg_flags(self.a)
         };
@@ -385,52 +385,46 @@ impl Cpu {
         self.flags.remove(Flags::BREAK);
     }
 
-    fn calc_shift(&mut self, value: u8, is_left: bool, contains_carry: bool) -> u8 {
-        let carry = (self.flags.contains(Flags::CARRY) && contains_carry) as u8;
-        let (result, carry_mask) = match is_left {
-            true => ((value << 1) | carry, 0b1000_0000),
-            false => ((value >> 1) | (carry << 7), 0b0000_0001),
+    fn calc_shift<const LEFT: bool, const INCLUDE_CARRY: bool>(&mut self, value: u8) -> u8 {
+        let carry = (self.flags.contains(Flags::CARRY) && INCLUDE_CARRY) as u8;
+        let result = if LEFT {
+            self.flags.set(Flags::CARRY, value & 0b1000_0000 != 0);
+            (value << 1) | carry
+        } else {
+            self.flags.set(Flags::CARRY, value & 0b0000_0001 != 0);
+            (value >> 1) | (carry << 7)
         };
-
-        self.flags.set(Flags::CARRY, value & carry_mask != 0);
         self.set_zero_neg_flags(result);
         result
     }
 
-    fn shift(&mut self, is_left: bool, contains_carry: bool) -> u8 {
+    fn shift<const LEFT: bool, const INCLUDE_CARRY: bool>(&mut self) -> u8 {
         let value = self.read_operand_value().unwrap_or(self.a);
-        // Read-modify-update instructions like shift whatever immediately writes the value in the
-        // same cycle as performing the operation
-        if let Some(address) = self.operand_address {
-            self.bus.write(address, value);
-        } else {
-            // Still a cycle for implied addressing mode
-            self.bus.clock();
-        };
-
-        let result = self.calc_shift(value, is_left, contains_carry);
-        if let Some(address) = self.operand_address {
-            self.bus.write(address, result);
-        } else {
+        let result = self.calc_shift::<LEFT, INCLUDE_CARRY>(value);
+        if self.operand_address.is_none() {
             self.a = result;
         }
-        result
+        self.read_update_write(value, result)
     }
 
-    fn increment(&mut self, sign: i8, value_override: Option<u8>) -> u8 {
-        let value = value_override
-            .or_else(|| self.read_operand_value())
-            .unwrap();
+    fn increment(&mut self, sign: i8) -> u8 {
+        let value = self.read_operand_value().unwrap();
         let result = (value as i8).wrapping_add(sign) as u8;
-        if value_override.is_none() {
+        self.set_zero_neg_flags(result);
+        self.read_update_write(value, result)
+    }
+
+    fn read_update_write(&mut self, value: u8, result: u8) -> u8 {
+        // Read-modify-update instructions like shift whatever immediately writes the value in the
+        // same cycle as performing the operation
+        if let Some(operand_address) = self.operand_address {
             // Should not be a implied addressing mode
-            self.bus.write(self.operand_address.unwrap(), value); // See shift func
-            self.bus.write(self.operand_address.unwrap(), result);
+            self.bus.write(operand_address, value); // See shift func
+            self.bus.write(operand_address, result);
         } else {
             // Still a clock for the op when implied
             self.bus.clock();
         }
-        self.set_zero_neg_flags(result);
         result
     }
 
@@ -459,7 +453,7 @@ impl Cpu {
 
     fn arr(&mut self) {
         self.a &= self.read_operand_value().unwrap();
-        self.a = self.calc_shift(self.a, false, true);
+        self.a = self.calc_shift::<false, true>(self.a);
         let bit_5 = (self.a & 0b0001_0000) >> 4;
         let bit_6 = (self.a & 0b0010_0000) >> 5;
         self.flags.set(Flags::CARRY, bit_5 == 1);
