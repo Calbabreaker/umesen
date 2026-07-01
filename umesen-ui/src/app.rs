@@ -25,8 +25,9 @@ impl App {
             .and_then(|storage| eframe::get_value(storage, eframe::APP_KEY))
             .unwrap_or_default();
 
-        if let Some(path) = app.recent_file_paths.first().cloned() {
-            app.load_nes_rom(&path);
+        if !app.recent_file_paths.is_empty() {
+            let path = app.recent_file_paths.remove(0);
+            app.load_nes_rom(path);
         }
 
         match setup_audio_stream(&mut app.state.emu) {
@@ -42,9 +43,9 @@ impl App {
         app
     }
 
-    fn load_nes_rom(&mut self, path: &std::path::Path) {
+    fn load_nes_rom(&mut self, path: std::path::PathBuf) {
         log::trace!("Loading {path:?}");
-        if let Err(err) = self.state.emu.load_nes_file(path) {
+        if let Err(err) = self.state.emu.load_nes_file(&path) {
             self.ui_windows.insert(UiWindowKind::Popup {
                 heading: "Failed to load NES ROM!".to_string(),
                 message: format!("{err}"),
@@ -56,8 +57,8 @@ impl App {
                 self.state.emu.cartridge().unwrap().header()
             );
             // Make sure added path is on top
-            self.recent_file_paths.retain(|x| x != path);
-            self.recent_file_paths.insert(0, path.to_path_buf());
+            self.recent_file_paths.retain(|x| *x != path);
+            self.recent_file_paths.insert(0, path);
             self.recent_file_paths.truncate(20);
             self.state.emu.running = true;
         }
@@ -70,7 +71,7 @@ impl App {
                     .add_filter("NES ROM", &["nes"])
                     .pick_file()
                 {
-                    self.load_nes_rom(&path);
+                    self.load_nes_rom(path);
                 }
                 ui.close();
             }
@@ -79,8 +80,8 @@ impl App {
                 let mut paths = self.recent_file_paths.iter();
                 let path = paths.find(|path| ui.button(path.to_string_lossy()).clicked());
 
-                if let Some(path) = path.cloned() {
-                    self.load_nes_rom(&path);
+                if let Some(path) = path {
+                    self.load_nes_rom(path.to_path_buf());
                     ui.close();
                 }
             });
@@ -115,7 +116,7 @@ impl App {
 
         ui.menu_button("Emulation", |ui| {
             use ActionKind::*;
-            self.show_action_list(ui, &[PauseResume, Reset, QuickSave, QuickLoad]);
+            self.show_action_list(ui, &[PauseResume, SoftReset, QuickSave, QuickLoad]);
 
             ui.menu_button("Quick Save Slot", |ui| {
                 for i in 0..9 {
@@ -159,7 +160,7 @@ impl App {
         self.preferences.key_action_map.check_key_down(i);
 
         if let Some(path) = i.raw.dropped_files.pop().and_then(|f| f.path) {
-            self.load_nes_rom(&path);
+            self.load_nes_rom(path);
         }
         i.raw.dropped_files.clear();
     }

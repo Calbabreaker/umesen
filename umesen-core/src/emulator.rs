@@ -77,6 +77,7 @@ impl Emulator {
         buffer_length: std::time::Duration,
     ) -> ringbuf::HeapCons<f32> {
         self.audio_sample_rate = sample_rate as f32;
+        self.apu().sample_rate = self.audio_sample_rate / self.speed;
         let size = self.audio_sample_rate * buffer_length.as_secs_f32();
         let rb = ringbuf::SharedRb::new(size as usize);
         let (prod, cons) = rb.split();

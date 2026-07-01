@@ -11,12 +11,11 @@ pub struct Preferences {
 
 #[derive(Default)]
 pub struct State {
-    pub emu: Box<umesen_core::Emulator>,
+    pub emu: umesen_core::Emulator,
     pub texture_map: TextureMap,
     pub ui_render_time: f32,
     pub save_states: std::collections::HashMap<u8, umesen_core::Cpu>,
     pub selected_quick_save: u8,
-    pub counter: u32,
 }
 
 impl State {
@@ -40,7 +39,7 @@ impl State {
 
     pub fn do_action(&mut self, action: ActionKind) {
         match action {
-            ActionKind::Reset => {
+            ActionKind::SoftReset => {
                 self.emu.cpu.reset();
                 self.emu.running = true;
             }

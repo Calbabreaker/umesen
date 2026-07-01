@@ -29,7 +29,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut crate::State) {
         }
 
         if ui.button("⟳").clicked() {
-            state.do_action(ActionKind::Reset);
+            state.do_action(ActionKind::SoftReset);
         }
 
         if ui.button("Step").clicked() {

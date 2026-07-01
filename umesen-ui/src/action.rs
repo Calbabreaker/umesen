@@ -6,7 +6,7 @@ use umesen_core::controller::Button;
 pub enum ActionKind {
     ControllerInput(u8, Button),
     PauseResume,
-    Reset,
+    SoftReset,
     Step,
     NextFrame,
     QuickSave,
@@ -21,7 +21,7 @@ impl ActionKind {
             }
             Self::NextFrame => "Step next frame".to_owned(),
             Self::PauseResume => "Pause/Resume".to_owned(),
-            Self::Reset => "Reset".to_owned(),
+            Self::SoftReset => "Soft reset".to_owned(),
             Self::Step => "Step Instruction".to_owned(),
             Self::QuickSave => "Quick Save".to_owned(),
             Self::QuickLoad => "Quick Load".to_owned(),
@@ -43,8 +43,8 @@ pub static DEFAULT_ACTION_MAP: LazyLock<ActionMapType> = LazyLock::new(|| {
     use ActionKind::*;
     use egui::Key::*;
     let mapping = [
-        (PauseResume, F5),
-        (Reset, F4),
+        (PauseResume, F4),
+        (SoftReset, F5),
         (Step, OpenBracket),
         (QuickSave, W),
         (QuickLoad, O),
