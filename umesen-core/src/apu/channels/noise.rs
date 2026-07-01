@@ -4,8 +4,9 @@ use crate::apu::{
 };
 
 /// Period values from https://www.nesdev.org/wiki/APU_Noise
+/// Note this is halfed since it is in APU cycles
 const NOISE_PERIODS: [u16; 16] = [
-    4, 8, 16, 32, 64, 96, 128, 160, 202, 254, 380, 508, 762, 1016, 2034, 4068,
+    2, 4, 8, 16, 32, 48, 64, 80, 101, 127, 190, 254, 381, 508, 1017, 2034,
 ];
 
 #[derive(Default)]
