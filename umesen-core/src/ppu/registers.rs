@@ -111,38 +111,13 @@ pub struct Registers {
 }
 
 impl Registers {
-    pub(crate) fn peek_read(&self, address: u16) -> u8 {
-        std::debug_assert_matches!(address, 0x2000..=0x3fff);
-        match address % 8 {
-            // PPUSTATUS (with unused bits filled with open bus)
-            2 => self.status.bits() | (self.open_bus & (!Status::all().bits())),
-            4 => self.read_oam_data(),
-            7 => self.read_buffer,
-            _ => self.open_bus,
-        }
-    }
-
     pub(crate) fn read(&mut self, address: u16) -> u8 {
-        let mut output = self.peek_read(address);
-        match address % 8 {
-            2 => {
-                // Reset VBLANK and latch when read PPUSTATUS for real
-                self.status.remove(Status::VBLANK);
-                self.latch = false;
-            }
-            7 => {
-                // Palette address gets data returned immediately instead of being buffered
-                // but read_buffer populated with nametable data
-                if self.v.0 >= PALETTE_START {
-                    output = self.read_palette_ram(self.v.0);
-                    self.read_buffer = self.bus.read(0x2f00 | (self.v.0 & 0xff));
-                } else {
-                    self.read_buffer = self.bus.read(self.v.0);
-                }
-                self.increment_v_register();
-            }
-            _ => (),
-        }
+        let output = match address % 8 {
+            2 => self.read_status(),
+            4 => self.read_oam_data(),
+            7 => self.read_vram_data(),
+            _ => self.open_bus,
+        };
         self.open_bus = output;
         self.open_bus_decay_counter = OPEN_BUS_DECAY_START;
         output
@@ -176,10 +151,6 @@ impl Registers {
         }
     }
 
-    pub(crate) fn on_visble_dot(&self) -> bool {
-        self.dot >= 1 && (self.dot - 1 < WIDTH)
-    }
-
     pub fn read_palette_ram(&self, offset: u16) -> u8 {
         let address = PALETTE_START | (offset & 0xff);
         // Get the palette ram and with open bus
@@ -188,6 +159,10 @@ impl Registers {
             value &= 0x30;
         }
         value
+    }
+
+    pub(crate) fn on_visble_dot(&self) -> bool {
+        self.dot >= 1 && (self.dot - 1 < WIDTH)
     }
 
     pub(crate) fn next_dot(&mut self) {
@@ -211,6 +186,28 @@ impl Registers {
     // TODO: weird oam behaviour while reading/writing during rendering
     fn read_oam_data(&self) -> u8 {
         self.oam_data[self.oam_address as usize]
+    }
+
+    fn read_status(&mut self) -> u8 {
+        let status = self.status.bits();
+        self.status.remove(Status::VBLANK);
+        self.latch = false;
+        // PPUSTATUS (with unused bits filled with open bus)
+        status | (self.open_bus & (!Status::all().bits()))
+    }
+
+    fn read_vram_data(&mut self) -> u8 {
+        let mut output = self.read_buffer;
+        // Palette address gets data returned immediately instead of being buffered
+        // but read_buffer populated with nametable data
+        if self.v.0 >= PALETTE_START {
+            output = self.read_palette_ram(self.v.0);
+            self.read_buffer = self.bus.read(0x2f00 | (self.v.0 & 0xff));
+        } else {
+            self.read_buffer = self.bus.read(self.v.0);
+        }
+        self.increment_v_register();
+        output
     }
 
     pub(crate) fn write_oam_data(&mut self, mut value: u8) {

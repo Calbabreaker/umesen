@@ -26,19 +26,19 @@ impl CpuBus {
             return value;
         }
 
-        // https://www.nesdev.org/wiki/CPU_memory_map
-        match address {
+        if let 0x0000..=0x1fff = address {
             // 2kb of ram is mirrored 3 times
-            0x0000..=0x1fff => self.ram[address as usize % self.ram.len()],
-            0x2000..=0x3fff => self.ppu.registers.peek_read(address),
-            _ => self.open_bus,
+            self.ram[address as usize % self.ram.len()]
+        } else {
+            self.open_bus
         }
     }
 
     pub fn read(&mut self, address: u16) -> u8 {
+        // https://www.nesdev.org/wiki/CPU_memory_map
         let output = match address {
             0x2000..=0x3fff => self.ppu.registers.read(address),
-            // Top 3 high bits always have open bus
+            // Top 3 high controller bits always have open bus
             0x4016 => self.controllers[0].read() | (0b1110_0000 & self.open_bus),
             0x4015 => self.apu.read_status() | (0b0010_0000 & self.open_bus),
             0x4017 => self.controllers[1].read() | (0b1110_0000 & self.open_bus),
