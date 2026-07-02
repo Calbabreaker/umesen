@@ -57,3 +57,25 @@ pub fn show_flags<T: bitflags::Flags + Copy>(ui: &mut egui::Ui, value: &mut T) {
         }
     });
 }
+
+pub fn draw_rect_wrapped(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    clip_rect: egui::Rect,
+    color: egui::Color32,
+) {
+    ui.painter()
+        .with_clip_rect(clip_rect)
+        .rect_filled(rect, 0., color);
+    let left_over_size = (rect.max - clip_rect.max).max(egui::Vec2::ZERO);
+    ui.painter().rect_filled(
+        egui::Rect::from_min_size(clip_rect.min, egui::vec2(left_over_size.x, rect.size().y)),
+        0.,
+        color,
+    );
+    ui.painter().rect_filled(
+        egui::Rect::from_min_size(clip_rect.min, egui::vec2(rect.size().x, left_over_size.y)),
+        0.,
+        color,
+    );
+}
