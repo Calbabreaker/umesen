@@ -57,7 +57,6 @@ pub enum Inst {
     Anc,
     Asr,
     Arr,
-    Lxa,
     Cmp,
     Cpx,
     Cpy,
@@ -267,6 +266,7 @@ impl Opcode {
             0xac => Opcode::new(Ldy, Absolute),
             0xbc => Opcode::new(Ldy, AbsoluteX),
 
+            0xab => Opcode::new(Lax, Immediate),
             0xa7 => Opcode::new(Lax, ZeroPage),
             0xb7 => Opcode::new(Lax, ZeroPageY),
             0xaf => Opcode::new(Lax, Absolute),
@@ -358,7 +358,6 @@ impl Opcode {
             0x2b => Opcode::new(Anc, Immediate),
             0x4b => Opcode::new(Asr, Immediate),
             0x6b => Opcode::new(Arr, Immediate),
-            0xab => Opcode::new(Lxa, Immediate),
 
             0xc9 => Opcode::new(Cmp, Immediate),
             0xc5 => Opcode::new(Cmp, ZeroPage),

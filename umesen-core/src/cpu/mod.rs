@@ -234,7 +234,6 @@ impl Cpu {
             Inst::Ldy => self.ldy(opcode.addr_mode),
             Inst::Lax => self.lax(opcode.addr_mode),
             Inst::Las => self.las(opcode.addr_mode),
-            Inst::Lxa => self.lxa(opcode.addr_mode),
 
             // -- Register stores --
             Inst::Sta => self.sta(opcode.addr_mode),
@@ -551,19 +550,14 @@ impl Cpu {
     }
 
     fn lax(&mut self, mode: AddrMode) {
-        self.a = self.read_operand(mode).1;
-        self.x = self.set_zero_neg_flags(self.a);
+        self.lda(mode);
+        self.x = self.a;
     }
 
     fn las(&mut self, mode: AddrMode) {
         self.a = self.read_operand(mode).1 & self.sp;
         self.x = self.set_zero_neg_flags(self.a);
         self.sp = self.a;
-    }
-
-    fn lxa(&mut self, mode: AddrMode) {
-        self.lda(mode);
-        self.x = self.a;
     }
 
     fn sta(&mut self, mode: AddrMode) {
@@ -791,9 +785,9 @@ impl Cpu {
     // Does nothing
     fn nop(&mut self, mode: AddrMode) {
         if mode == AddrMode::Implied {
-            // Dummy read for nop instructions with address
             self.bus.clock();
         } else {
+            // Dummy read for nop instructions with address
             let address = self.read_operand_address(mode);
             self.bus.read(address);
         }
