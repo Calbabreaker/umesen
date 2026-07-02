@@ -33,14 +33,7 @@ impl<'a> Disassembler<'a> {
         let opcode_byte = self.cpu.bus.peek_read(self.current_address);
         self.current_address = self.current_address.wrapping_add(1);
 
-        let opcode = match Opcode::from_byte(opcode_byte) {
-            Some(x) => x,
-            None => {
-                write!(f, "??? (${opcode_byte:02x})")?;
-                return Ok(());
-            }
-        };
-
+        let opcode = Opcode::from_byte(opcode_byte);
         let name = format!("{:?}", opcode.instruction);
         write!(f, "{} ", name.to_lowercase())?;
 

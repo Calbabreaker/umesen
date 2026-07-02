@@ -42,12 +42,9 @@ pub enum CpuError {
     Halted,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum InterruptKind {
-    Brk,
-    Irq,
-    Nmi,
-}
+const NMI_LOAD_VECTOR: u16 = 0xfffa;
+const RESET_LOAD_VECTOR: u16 = 0xfffc;
+const IRQ_LOAD_VECTOR: u16 = 0xfffe;
 
 /// Emulated 6502 CPU
 #[derive(Default)]
@@ -64,8 +61,6 @@ pub struct Cpu {
     pub y: u8,
     pub flags: Flags,
     pub bus: CpuBus,
-    // Temp value storing the operand address
-    operand_address: Option<u16>,
 }
 
 impl Cpu {
@@ -75,16 +70,14 @@ impl Cpu {
         self.bus.cpu_cycles_since_inst = 0;
 
         if self.bus.require_nmi() {
-            self.interrupt(InterruptKind::Nmi);
+            self.interrupt(NMI_LOAD_VECTOR);
         } else if self.bus.irq_status() && !self.flags.contains(Flags::INTERRUPT) {
-            self.interrupt(InterruptKind::Irq);
+            self.interrupt(IRQ_LOAD_VECTOR);
         }
 
         let byte = self.read_at_pc();
-        if let Some(opcode) = Opcode::from_byte(byte) {
-            self.operand_address = self.read_operand_address(opcode.addr_mode);
-            self.execute(opcode)?;
-        }
+        let opcode = Opcode::from_byte(byte);
+        self.execute(opcode)?;
 
         Ok(self.bus.cpu_cycles_since_inst)
     }
@@ -97,7 +90,7 @@ impl Cpu {
 
         self.bus.cpu_cycles_total = 0;
         self.bus.cpu_cycles_since_inst = 0;
-        self.pc = self.bus.read_u16(0xfffc);
+        self.pc = self.bus.read_u16(RESET_LOAD_VECTOR);
         self.sp = 0xfd;
         // Some roms freeze when soft loading if nmi is enabled for some reason
         self.bus.ppu.registers.control = Default::default();
@@ -142,10 +135,11 @@ impl Cpu {
     }
 
     /// Returns the target address of the value based on the addressing mode and the operand
-    fn read_operand_address(&mut self, mode: AddrMode) -> Option<u16> {
-        Some(match mode {
-            AddrMode::Accumulator => return None,
-            AddrMode::Implied => return None,
+    fn read_operand_address(&mut self, mode: AddrMode) -> u16 {
+        match mode {
+            AddrMode::Accumulator | AddrMode::Implied => {
+                unreachable!("read operand address when no operand available")
+            }
             AddrMode::Immediate => {
                 let address = self.pc;
                 self.pc = self.pc.wrapping_add(1);
@@ -187,165 +181,134 @@ impl Cpu {
                 let offset = self.read_at_pc() as i8 as u16;
                 self.pc.wrapping_add(offset)
             }
-        })
+        }
     }
 
-    fn read_operand_value(&mut self) -> Option<u8> {
-        let value = self.bus.read(self.operand_address?);
-        self.set_zero_neg_flags(value);
-        Some(value)
+    /// Returns (operand address, operand value)
+    fn read_operand(&mut self, mode: AddrMode) -> (Option<u16>, u8) {
+        if mode == AddrMode::Accumulator {
+            (None, self.a)
+        } else {
+            let address = self.read_operand_address(mode);
+            (Some(address), self.bus.read(address))
+        }
     }
 
     fn execute(&mut self, opcode: Opcode) -> Result<(), CpuError> {
+        // Temp value storing the operand address
         match opcode.instruction {
             // -- Stack --
-            Inst::Pha => self.stack_push(self.a),
-            Inst::Php => self.stack_push((self.flags | Flags::BREAK).bits()),
-            Inst::Pla => self.a = self.stack_pop(),
+            Inst::Pha => self.pha(),
+            Inst::Php => self.php(),
+            Inst::Pla => self.pla(),
             Inst::Plp => self.plp(),
 
             // -- Shift and rotate --
-            Inst::Asl => drop(self.shift::<true, false>()), // Use drop to return nothing
-            Inst::Lsr => drop(self.shift::<false, false>()),
-            Inst::Rol => drop(self.shift::<true, true>()),
-            Inst::Ror => drop(self.shift::<false, true>()),
+            Inst::Asl => drop(self.asl(opcode.addr_mode)),
+            Inst::Lsr => drop(self.lsr(opcode.addr_mode)),
+            Inst::Rol => drop(self.rol(opcode.addr_mode)),
+            Inst::Ror => drop(self.ror(opcode.addr_mode)),
 
-            Inst::Slo => self.a |= self.shift::<true, false>(), // asl + ora
-            Inst::Rla => self.a &= self.shift::<true, true>(),  // rol + and
-            Inst::Sre => self.a ^= self.shift::<false, false>(), // lsr + eor
-            Inst::Rra => {
-                // ror + adc
-                let adder = self.shift::<false, true>();
-                self.add_carry(adder);
-            }
+            Inst::Slo => self.slo(opcode.addr_mode),
+            Inst::Rla => self.rla(opcode.addr_mode),
+            Inst::Sre => self.sre(opcode.addr_mode),
+            Inst::Rra => self.rra(opcode.addr_mode),
 
             // -- Arithmetic --
-            Inst::Adc => {
-                let adder = self.read_operand_value().unwrap();
-                self.add_carry(adder)
-            }
-            Inst::Sbc => {
-                // Inverting results in inverting the sign so the adc can be resued for sbc
-                let adder = !self.read_operand_value().unwrap();
-                self.add_carry(adder)
-            }
+            Inst::Adc => self.adc(opcode.addr_mode),
+            Inst::Sbc => self.sbc(opcode.addr_mode),
 
             // -- Increment and decrement --
-            Inst::Inc => drop(self.increment(1)),
-            Inst::Dec => drop(self.increment(-1)),
-            Inst::Inx => self.x = self.transfer(self.x.wrapping_add(1)),
-            Inst::Iny => self.y = self.transfer(self.y.wrapping_add(1)),
-            Inst::Dex => self.x = self.transfer(self.x.wrapping_sub(1)),
-            Inst::Dey => self.y = self.transfer(self.y.wrapping_sub(1)),
-            Inst::Isc => {
-                // inc + adc
-                let adder = !self.increment(1);
-                self.add_carry(adder);
-            }
-            Inst::Dcp => {
-                // dec + cmp
-                let value = self.increment(-1);
-                self.compare(self.a, Some(value));
-            }
+            Inst::Inc => drop(self.inc(opcode.addr_mode)),
+            Inst::Dec => drop(self.dec(opcode.addr_mode)),
+            Inst::Inx => self.inx(),
+            Inst::Iny => self.iny(),
+            Inst::Dex => self.dex(),
+            Inst::Dey => self.dey(),
+            Inst::Isc => self.isc(opcode.addr_mode),
+            Inst::Dcp => self.dcp(opcode.addr_mode),
 
             // -- Register loads --
-            Inst::Lda => self.a = self.read_operand_value().unwrap(),
-            Inst::Ldx => self.x = self.read_operand_value().unwrap(),
-            Inst::Ldy => self.y = self.read_operand_value().unwrap(),
-            Inst::Lax => {
-                self.a = self.read_operand_value().unwrap();
-                self.x = self.a;
-            }
-            Inst::Las => {
-                self.a = self.read_operand_value().unwrap() & self.sp;
-                (self.x, self.sp) = (self.a, self.a);
-            }
-            Inst::Lxa => {
-                self.a &= self.read_operand_value().unwrap();
-                self.x = self.transfer(self.a);
-            }
+            Inst::Lda => self.lda(opcode.addr_mode),
+            Inst::Ldx => self.ldx(opcode.addr_mode),
+            Inst::Ldy => self.ldy(opcode.addr_mode),
+            Inst::Lax => self.lax(opcode.addr_mode),
+            Inst::Las => self.las(opcode.addr_mode),
+            Inst::Lxa => self.lxa(opcode.addr_mode),
 
             // -- Register stores --
-            Inst::Sta => self.bus.write(self.operand_address.unwrap(), self.a),
-            Inst::Stx => self.bus.write(self.operand_address.unwrap(), self.x),
-            Inst::Sty => self.bus.write(self.operand_address.unwrap(), self.y),
-            Inst::Sax => self
-                .bus
-                .write(self.operand_address.unwrap(), self.a & self.x),
+            Inst::Sta => self.sta(opcode.addr_mode),
+            Inst::Stx => self.stx(opcode.addr_mode),
+            Inst::Sty => self.sty(opcode.addr_mode),
+            Inst::Sax => self.sax(opcode.addr_mode),
+            Inst::Sha => self.sha(opcode.addr_mode),
+            Inst::Shs => self.shs(opcode.addr_mode),
+            Inst::Shy => self.shy(opcode.addr_mode),
+            Inst::Shx => self.shx(opcode.addr_mode),
 
             // -- Register transfers --
-            Inst::Tax => self.x = self.transfer(self.a),
-            Inst::Tay => self.y = self.transfer(self.a),
-            Inst::Tsx => self.x = self.transfer(self.sp),
-            Inst::Txa => self.a = self.transfer(self.x),
-            Inst::Txs => {
-                self.sp = self.x;
-                self.bus.clock();
-            }
-            Inst::Tya => self.a = self.transfer(self.y),
+            Inst::Tax => self.tax(),
+            Inst::Tay => self.tay(),
+            Inst::Tsx => self.tsx(),
+            Inst::Txa => self.txa(),
+            Inst::Tya => self.tya(),
+            Inst::Txs => self.txs(),
+            Inst::Ane => self.ane(opcode.addr_mode),
+            Inst::Axs => self.axs(opcode.addr_mode),
 
             // -- Flag clear and set --
-            Inst::Clc => self.flag(Flags::CARRY, false),
-            Inst::Cld => self.flag(Flags::DECIMAL, false),
-            Inst::Cli => self.flag(Flags::INTERRUPT, false),
-            Inst::Clv => self.flag(Flags::OVERFLOW, false),
-            Inst::Sec => self.flag(Flags::CARRY, true),
-            Inst::Sed => self.flag(Flags::DECIMAL, true),
-            Inst::Sei => self.flag(Flags::INTERRUPT, true),
+            Inst::Clc => self.clc(),
+            Inst::Cld => self.cld(),
+            Inst::Cli => self.cli(),
+            Inst::Clv => self.clv(),
+            Inst::Sec => self.sec(),
+            Inst::Sed => self.sed(),
+            Inst::Sei => self.sei(),
 
             // -- Logic --
-            Inst::And => self.a &= self.read_operand_value().unwrap(),
-            Inst::Eor => self.a ^= self.read_operand_value().unwrap(),
-            Inst::Ora => self.a |= self.read_operand_value().unwrap(),
-            Inst::Bit => self.bit(),
-            Inst::Anc => {
-                self.a &= self.read_operand_value().unwrap();
-                self.calc_shift::<false, false>(self.a);
-            }
-            Inst::Asr => {
-                self.a &= self.read_operand_value().unwrap();
-                self.a = self.calc_shift::<false, false>(self.a);
-            }
-            Inst::Arr => self.arr(),
+            Inst::And => self.and(opcode.addr_mode),
+            Inst::Eor => self.eor(opcode.addr_mode),
+            Inst::Ora => self.ora(opcode.addr_mode),
+            Inst::Bit => self.bit(opcode.addr_mode),
+            Inst::Anc => self.anc(opcode.addr_mode),
+            Inst::Asr => self.asr(opcode.addr_mode),
+            Inst::Arr => self.arr(opcode.addr_mode),
 
-            Inst::Cmp => self.compare(self.a, None),
-            Inst::Cpx => self.compare(self.x, None),
-            Inst::Cpy => self.compare(self.y, None),
+            Inst::Cmp => self.cmp(opcode.addr_mode),
+            Inst::Cpx => self.cpx(opcode.addr_mode),
+            Inst::Cpy => self.cpy(opcode.addr_mode),
 
             // -- Control flow --
-            Inst::Jmp => self.pc = self.operand_address.unwrap(),
-            Inst::Jsr => self.jsr(),
+            Inst::Jmp => self.jmp(opcode.addr_mode),
+            Inst::Jsr => self.jsr(opcode.addr_mode),
             Inst::Rts => self.rts(),
-            Inst::Brk => self.interrupt(InterruptKind::Brk),
+            Inst::Brk => self.brk(),
             Inst::Rti => self.rti(),
 
-            Inst::Bcc => self.branch(!self.flags.contains(Flags::CARRY)),
-            Inst::Bcs => self.branch(self.flags.contains(Flags::CARRY)),
-            Inst::Beq => self.branch(self.flags.contains(Flags::ZERO)),
-            Inst::Bmi => self.branch(self.flags.contains(Flags::NEGATIVE)),
-            Inst::Bne => self.branch(!self.flags.contains(Flags::ZERO)),
-            Inst::Bpl => self.branch(!self.flags.contains(Flags::NEGATIVE)),
-            Inst::Bvc => self.branch(!self.flags.contains(Flags::OVERFLOW)),
-            Inst::Bvs => self.branch(self.flags.contains(Flags::OVERFLOW)),
+            Inst::Bcc => self.bcc(opcode.addr_mode),
+            Inst::Bcs => self.bcs(opcode.addr_mode),
+            Inst::Beq => self.beq(opcode.addr_mode),
+            Inst::Bmi => self.bmi(opcode.addr_mode),
+            Inst::Bne => self.bne(opcode.addr_mode),
+            Inst::Bpl => self.bpl(opcode.addr_mode),
+            Inst::Bvc => self.bvc(opcode.addr_mode),
+            Inst::Bvs => self.bvs(opcode.addr_mode),
 
             // Does nothing
-            Inst::Nop => self.nop(),
+            Inst::Nop => self.nop(opcode.addr_mode),
             Inst::Hlt => return Err(CpuError::Halted),
         }
-
-        #[rustfmt::skip]
-        if matches!(opcode.instruction,
-            Inst::Las | Inst::Pla | Inst::Slo | Inst::Rla | Inst::Sre | Inst::Ora | Inst::Eor
-                | Inst::And
-        ) {
-            self.set_zero_neg_flags(self.a)
-        };
         Ok(())
     }
 
-    fn set_zero_neg_flags(&mut self, value: u8) {
+    //
+    // -- Utility functions --
+    //
+
+    fn set_zero_neg_flags(&mut self, value: u8) -> u8 {
         self.flags.set(Flags::ZERO, value == 0);
         self.flags.set(Flags::NEGATIVE, value & 0b1000_0000 != 0);
+        value
     }
 
     // This just returns the value but also clocks the bus and sets zero and neg flags for certain instructions
@@ -379,53 +342,28 @@ impl Cpu {
         self.bus.read_u16(0x100 + self.sp.wrapping_sub(1) as u16)
     }
 
-    fn plp(&mut self) {
-        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
-        self.flags.insert(Flags::UNUSED);
-        self.flags.remove(Flags::BREAK);
+    fn left_shift(&mut self, value: u8, carry: bool) -> u8 {
+        self.flags.set(Flags::CARRY, value & 0b1000_0000 != 0);
+        (value << 1) | carry as u8
     }
 
-    fn calc_shift<const LEFT: bool, const INCLUDE_CARRY: bool>(&mut self, value: u8) -> u8 {
-        let carry = (self.flags.contains(Flags::CARRY) && INCLUDE_CARRY) as u8;
-        let result = if LEFT {
-            self.flags.set(Flags::CARRY, value & 0b1000_0000 != 0);
-            (value << 1) | carry
-        } else {
-            self.flags.set(Flags::CARRY, value & 0b0000_0001 != 0);
-            (value >> 1) | (carry << 7)
-        };
-        self.set_zero_neg_flags(result);
-        result
+    fn right_shift(&mut self, value: u8, carry: bool) -> u8 {
+        self.flags.set(Flags::CARRY, value & 0b0000_0001 != 0);
+        (value >> 1) | ((carry as u8) << 7)
     }
 
-    fn shift<const LEFT: bool, const INCLUDE_CARRY: bool>(&mut self) -> u8 {
-        let value = self.read_operand_value().unwrap_or(self.a);
-        let result = self.calc_shift::<LEFT, INCLUDE_CARRY>(value);
-        if self.operand_address.is_none() {
-            self.a = result;
-        }
-        self.read_update_write(value, result)
-    }
-
-    fn increment(&mut self, sign: i8) -> u8 {
-        let value = self.read_operand_value().unwrap();
-        let result = (value as i8).wrapping_add(sign) as u8;
-        self.set_zero_neg_flags(result);
-        self.read_update_write(value, result)
-    }
-
-    fn read_update_write(&mut self, value: u8, result: u8) -> u8 {
+    fn write_read_result(&mut self, address: Option<u16>, value: u8, result: u8) -> u8 {
         // Read-modify-update instructions like shift whatever immediately writes the value in the
         // same cycle as performing the operation
-        if let Some(operand_address) = self.operand_address {
-            // Should not be a implied addressing mode
-            self.bus.write(operand_address, value); // See shift func
+        if let Some(operand_address) = address {
+            self.bus.write(operand_address, value);
             self.bus.write(operand_address, result);
         } else {
-            // Still a clock for the op when implied
+            // Still a clock for the op when accumulator addressing mode
             self.bus.clock();
+            self.a = result;
         }
-        result
+        self.set_zero_neg_flags(result)
     }
 
     /// Set overflow if the resulting addition overflowed a (negative) 8-bit number with 2's compliment
@@ -446,76 +384,26 @@ impl Cpu {
         self.a = result as u8;
     }
 
-    fn flag(&mut self, flag: Flags, value: bool) {
-        self.flags.set(flag, value);
-        self.bus.clock();
-    }
-
-    fn arr(&mut self) {
-        self.a &= self.read_operand_value().unwrap();
-        self.a = self.calc_shift::<false, true>(self.a);
-        let bit_5 = (self.a & 0b0001_0000) >> 4;
-        let bit_6 = (self.a & 0b0010_0000) >> 5;
-        self.flags.set(Flags::CARRY, bit_5 == 1);
-        self.flags.set(Flags::OVERFLOW, bit_5 ^ bit_6 == 1);
-    }
-
-    fn bit(&mut self) {
-        let value = self.read_operand_value().unwrap();
-        let result = self.a & value;
-        self.flags.set(Flags::ZERO, result == 0);
-        self.flags.set(Flags::OVERFLOW, value & (0b0100_0000) != 0);
-        self.flags.set(Flags::NEGATIVE, value & (0b1000_0000) != 0);
-    }
-
-    fn compare(&mut self, register: u8, value: Option<u8>) {
-        let value = value.or_else(|| self.read_operand_value()).unwrap();
+    fn set_compare_flags(&mut self, register: u8, value: u8) {
         self.flags.set(Flags::CARRY, register >= value);
         self.set_zero_neg_flags(register.wrapping_sub(value));
     }
 
-    fn jsr(&mut self) {
-        self.stack_push_u16(self.pc - 1);
-        self.bus.clock();
-        self.pc = self.operand_address.unwrap();
-    }
-
-    fn rts(&mut self) {
-        self.pc = self.stack_pop_u16() + 1;
-        for _ in 0..3 {
-            self.bus.clock();
-        }
-    }
-
-    fn rti(&mut self) {
-        self.plp();
-        self.pc = self.stack_pop_u16();
-    }
-
-    fn interrupt(&mut self, interrupt: InterruptKind) {
-        let mut push_flags = self.flags;
-        if interrupt == InterruptKind::Brk {
-            push_flags |= Flags::BREAK;
-            self.pc += 1; // BRK has padding byte
-        }
-
+    fn interrupt(&mut self, mut load_vector: u16) {
         self.stack_push_u16(self.pc);
-        self.stack_push((self.flags | push_flags).bits());
+        self.stack_push(self.flags.bits());
         // If there is a nmi when we're about the load the load vector then the nmi hijacks it
         // No later than cycle 4
-        let load_vector = if self.bus.require_nmi() || interrupt == InterruptKind::Nmi {
-            0xfffa
-        } else {
-            0xfffe
-        };
-
+        if self.bus.require_nmi() {
+            load_vector = NMI_LOAD_VECTOR;
+        }
         self.bus.clock();
         self.flags.set(Flags::INTERRUPT, true);
         self.pc = self.bus.read_u16(load_vector);
     }
 
-    fn branch(&mut self, condition: bool) {
-        let address = self.operand_address.unwrap();
+    fn branch(&mut self, mode: AddrMode, condition: bool) {
+        let address = self.read_operand_address(mode);
         if condition {
             self.bus.clock();
             if address & 0xff00 != self.pc & 0xff00 {
@@ -525,12 +413,389 @@ impl Cpu {
         }
     }
 
-    fn nop(&mut self) {
-        if let Some(address) = self.operand_address {
-            // Dummy read for nop instructions with address
-            self.bus.read(address);
-        } else {
+    //
+    // -- Actual cpu instructions --
+    //
+
+    fn pha(&mut self) {
+        self.stack_push(self.a);
+    }
+
+    fn php(&mut self) {
+        self.stack_push((self.flags | Flags::BREAK).bits());
+    }
+
+    fn pla(&mut self) {
+        self.a = self.stack_pop();
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn plp(&mut self) {
+        self.flags = Flags::from_bits(self.stack_pop()).unwrap();
+        self.flags.insert(Flags::UNUSED);
+        self.flags.remove(Flags::BREAK);
+    }
+
+    fn asl(&mut self, mode: AddrMode) -> u8 {
+        let (address, value) = self.read_operand(mode);
+        let result = self.left_shift(value, false);
+        self.write_read_result(address, value, result)
+    }
+
+    fn lsr(&mut self, mode: AddrMode) -> u8 {
+        let (address, value) = self.read_operand(mode);
+        let result = self.right_shift(value, false);
+        self.write_read_result(address, value, result)
+    }
+
+    fn rol(&mut self, mode: AddrMode) -> u8 {
+        let (address, value) = self.read_operand(mode);
+        let result = self.left_shift(value, self.flags.contains(Flags::CARRY));
+        self.write_read_result(address, value, result)
+    }
+
+    fn ror(&mut self, mode: AddrMode) -> u8 {
+        let (address, value) = self.read_operand(mode);
+        let result = self.right_shift(value, self.flags.contains(Flags::CARRY));
+        self.write_read_result(address, value, result)
+    }
+
+    fn slo(&mut self, mode: AddrMode) {
+        // asl + ora
+        self.a |= self.asl(mode);
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn rla(&mut self, mode: AddrMode) {
+        // rol + and
+        self.a &= self.rol(mode);
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn sre(&mut self, mode: AddrMode) {
+        // lsr + eor
+        self.a ^= self.lsr(mode);
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn rra(&mut self, mode: AddrMode) {
+        // ror + adc
+        let adder = self.ror(mode);
+        self.add_carry(adder);
+    }
+
+    fn adc(&mut self, mode: AddrMode) {
+        let (_, value) = self.read_operand(mode);
+        self.add_carry(value);
+    }
+
+    fn sbc(&mut self, mode: AddrMode) {
+        // Inverting results in inverting the sign so the adc can be resued for sbc
+        let (_, value) = self.read_operand(mode);
+        self.add_carry(!value);
+    }
+
+    fn inc(&mut self, mode: AddrMode) -> u8 {
+        let (address, value) = self.read_operand(mode);
+        let result = value.wrapping_add(1);
+        self.write_read_result(address, value, result)
+    }
+
+    fn dec(&mut self, mode: AddrMode) -> u8 {
+        let (address, value) = self.read_operand(mode);
+        let result = value.wrapping_sub(1);
+        self.write_read_result(address, value, result)
+    }
+
+    fn inx(&mut self) {
+        self.x = self.transfer(self.x.wrapping_add(1));
+    }
+
+    fn iny(&mut self) {
+        self.y = self.transfer(self.y.wrapping_add(1));
+    }
+
+    fn dex(&mut self) {
+        self.x = self.transfer(self.x.wrapping_sub(1));
+    }
+
+    fn dey(&mut self) {
+        self.y = self.transfer(self.y.wrapping_sub(1));
+    }
+
+    fn isc(&mut self, mode: AddrMode) {
+        // inc + sbc
+        let adder = !self.inc(mode);
+        self.add_carry(adder);
+    }
+
+    fn dcp(&mut self, mode: AddrMode) {
+        // dec + cmp
+        let value = self.dec(mode);
+        self.set_compare_flags(self.a, value);
+    }
+
+    fn lda(&mut self, mode: AddrMode) {
+        self.a = self.read_operand(mode).1;
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn ldx(&mut self, mode: AddrMode) {
+        self.x = self.read_operand(mode).1;
+        self.set_zero_neg_flags(self.x);
+    }
+
+    fn ldy(&mut self, mode: AddrMode) {
+        self.y = self.read_operand(mode).1;
+        self.set_zero_neg_flags(self.y);
+    }
+
+    fn lax(&mut self, mode: AddrMode) {
+        self.a = self.read_operand(mode).1;
+        self.x = self.set_zero_neg_flags(self.a);
+    }
+
+    fn las(&mut self, mode: AddrMode) {
+        self.a = self.read_operand(mode).1 & self.sp;
+        self.x = self.set_zero_neg_flags(self.a);
+        self.sp = self.a;
+    }
+
+    fn lxa(&mut self, mode: AddrMode) {
+        self.a &= self.read_operand(mode).1;
+        self.x = self.transfer(self.a);
+    }
+
+    fn sta(&mut self, mode: AddrMode) {
+        let address = self.read_operand_address(mode);
+        self.bus.write(address, self.a);
+    }
+
+    fn stx(&mut self, mode: AddrMode) {
+        let address = self.read_operand_address(mode);
+        self.bus.write(address, self.x);
+    }
+
+    fn sty(&mut self, mode: AddrMode) {
+        let address = self.read_operand_address(mode);
+        self.bus.write(address, self.y);
+    }
+
+    fn sax(&mut self, mode: AddrMode) {
+        let address = self.read_operand_address(mode);
+        self.bus.write(address, self.a & self.x);
+    }
+
+    fn sha(&mut self, mode: AddrMode) {}
+
+    fn shs(&mut self, mode: AddrMode) {}
+
+    fn shx(&mut self, mode: AddrMode) {}
+
+    fn shy(&mut self, mode: AddrMode) {}
+
+    fn tax(&mut self) {
+        self.x = self.transfer(self.a);
+    }
+
+    fn tay(&mut self) {
+        self.y = self.transfer(self.a);
+    }
+
+    fn tsx(&mut self) {
+        self.x = self.transfer(self.sp);
+    }
+
+    fn txa(&mut self) {
+        self.a = self.transfer(self.x);
+    }
+
+    fn tya(&mut self) {
+        self.a = self.transfer(self.y);
+    }
+
+    fn txs(&mut self) {
+        self.sp = self.x;
+        self.bus.clock();
+    }
+
+    fn ane(&mut self, mode: AddrMode) {
+        self.a = self.read_operand(mode).1 & self.x;
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn axs(&mut self, mode: AddrMode) {
+        self.x &= self.a;
+        let value = self.read_operand(mode).1;
+        self.set_compare_flags(self.x, value);
+        self.x = self.x.wrapping_sub(value);
+    }
+
+    fn clc(&mut self) {
+        self.flags.remove(Flags::CARRY);
+        self.bus.clock();
+    }
+
+    fn cld(&mut self) {
+        self.flags.remove(Flags::DECIMAL);
+        self.bus.clock();
+    }
+
+    fn cli(&mut self) {
+        self.flags.remove(Flags::INTERRUPT);
+        self.bus.clock();
+    }
+
+    fn clv(&mut self) {
+        self.flags.remove(Flags::OVERFLOW);
+        self.bus.clock();
+    }
+
+    fn sec(&mut self) {
+        self.flags.insert(Flags::CARRY);
+        self.bus.clock();
+    }
+
+    fn sed(&mut self) {
+        self.flags.insert(Flags::DECIMAL);
+        self.bus.clock();
+    }
+
+    fn sei(&mut self) {
+        self.flags.insert(Flags::INTERRUPT);
+        self.bus.clock();
+    }
+
+    fn and(&mut self, mode: AddrMode) {
+        self.a &= self.read_operand(mode).1;
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn eor(&mut self, mode: AddrMode) {
+        self.a ^= self.read_operand(mode).1;
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn ora(&mut self, mode: AddrMode) {
+        self.a |= self.read_operand(mode).1;
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn anc(&mut self, mode: AddrMode) {
+        self.a &= self.read_operand(mode).1;
+        self.flags.set(Flags::CARRY, self.a & 0b1000_0000 != 0);
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn asr(&mut self, mode: AddrMode) {
+        self.a &= self.read_operand(mode).1;
+        self.a = self.right_shift(self.a, false);
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn arr(&mut self, mode: AddrMode) {
+        self.a &= self.read_operand(mode).1;
+        self.a = self.right_shift(self.a, self.flags.contains(Flags::CARRY));
+        let bit_5 = (self.a & 0b0001_0000) >> 4;
+        let bit_6 = (self.a & 0b0010_0000) >> 5;
+        self.flags.set(Flags::CARRY, bit_5 == 1);
+        self.flags.set(Flags::OVERFLOW, bit_5 ^ bit_6 == 1);
+        self.set_zero_neg_flags(self.a);
+    }
+
+    fn bit(&mut self, mode: AddrMode) {
+        let value = self.read_operand(mode).1;
+        let result = self.a & value;
+        self.flags.set(Flags::ZERO, result == 0);
+        self.flags.set(Flags::OVERFLOW, value & (0b0100_0000) != 0);
+        self.flags.set(Flags::NEGATIVE, value & (0b1000_0000) != 0);
+    }
+
+    fn cmp(&mut self, mode: AddrMode) {
+        let value = self.read_operand(mode).1;
+        self.set_compare_flags(self.a, value);
+    }
+
+    fn cpx(&mut self, mode: AddrMode) {
+        let value = self.read_operand(mode).1;
+        self.set_compare_flags(self.x, value);
+    }
+
+    fn cpy(&mut self, mode: AddrMode) {
+        let value = self.read_operand(mode).1;
+        self.set_compare_flags(self.y, value);
+    }
+
+    fn jmp(&mut self, mode: AddrMode) {
+        self.pc = self.read_operand_address(mode);
+    }
+
+    fn jsr(&mut self, mode: AddrMode) {
+        let address = self.read_operand_address(mode);
+        self.stack_push_u16(self.pc - 1);
+        self.bus.clock();
+        self.pc = address;
+    }
+
+    fn rts(&mut self) {
+        for _ in 0..3 {
             self.bus.clock();
+        }
+        self.pc = self.stack_pop_u16() + 1;
+    }
+
+    fn rti(&mut self) {
+        self.plp();
+        self.pc = self.stack_pop_u16();
+    }
+
+    fn brk(&mut self) {
+        self.flags.insert(Flags::BREAK);
+        self.pc += 1; // BRK has padding byte
+        self.interrupt(IRQ_LOAD_VECTOR);
+        self.flags.remove(Flags::BREAK);
+    }
+
+    fn bcc(&mut self, mode: AddrMode) {
+        self.branch(mode, !self.flags.contains(Flags::CARRY));
+    }
+
+    fn bcs(&mut self, mode: AddrMode) {
+        self.branch(mode, self.flags.contains(Flags::CARRY));
+    }
+
+    fn beq(&mut self, mode: AddrMode) {
+        self.branch(mode, self.flags.contains(Flags::ZERO));
+    }
+
+    fn bmi(&mut self, mode: AddrMode) {
+        self.branch(mode, self.flags.contains(Flags::NEGATIVE));
+    }
+
+    fn bne(&mut self, mode: AddrMode) {
+        self.branch(mode, !self.flags.contains(Flags::ZERO));
+    }
+
+    fn bpl(&mut self, mode: AddrMode) {
+        self.branch(mode, !self.flags.contains(Flags::NEGATIVE));
+    }
+
+    fn bvc(&mut self, mode: AddrMode) {
+        self.branch(mode, !self.flags.contains(Flags::OVERFLOW));
+    }
+
+    fn bvs(&mut self, mode: AddrMode) {
+        self.branch(mode, self.flags.contains(Flags::OVERFLOW));
+    }
+
+    // Does nothing
+    fn nop(&mut self, mode: AddrMode) {
+        if mode == AddrMode::Implied {
+            // Dummy read for nop instructions with address
+            self.bus.clock();
+        } else {
+            let address = self.read_operand_address(mode);
+            self.bus.read(address);
         }
     }
 }

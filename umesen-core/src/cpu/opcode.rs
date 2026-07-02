@@ -30,6 +30,10 @@ pub enum Inst {
     Sta,
     Stx,
     Sty,
+    Sha,
+    Shs,
+    Shy,
+    Shx,
     Sax,
     Tax,
     Tay,
@@ -37,6 +41,8 @@ pub enum Inst {
     Txa,
     Txs,
     Tya,
+    Ane,
+    Axs,
     Clc,
     Clv,
     Cld,
@@ -121,10 +127,10 @@ impl Opcode {
     }
 
     /// Convert opcode byte into opcode name with addressing mode including unofficial ones
-    pub fn from_byte(byte: u8) -> Option<Self> {
+    pub fn from_byte(byte: u8) -> Self {
         use AddrMode::*;
         use Inst::*;
-        Some(match byte {
+        match byte {
             // -- Stack --
             0x48 => Opcode::new(Pha, Implied),
             0x08 => Opcode::new(Php, Implied),
@@ -159,34 +165,34 @@ impl Opcode {
             0x07 => Opcode::new(Slo, ZeroPage),
             0x17 => Opcode::new(Slo, ZeroPageX),
             0x0f => Opcode::new(Slo, Absolute),
-            0x1f => Opcode::new(Slo, AbsoluteX),
-            0x1b => Opcode::new(Slo, AbsoluteY),
+            0x1f => Opcode::new(Slo, AbsoluteXForceDummy),
+            0x1b => Opcode::new(Slo, AbsoluteYForceDummy),
             0x03 => Opcode::new(Slo, IndirectX),
-            0x13 => Opcode::new(Slo, IndirectY),
+            0x13 => Opcode::new(Slo, IndirectYForceDummy),
 
             0x27 => Opcode::new(Rla, ZeroPage),
             0x37 => Opcode::new(Rla, ZeroPageX),
             0x2f => Opcode::new(Rla, Absolute),
-            0x3f => Opcode::new(Rla, AbsoluteX),
-            0x3b => Opcode::new(Rla, AbsoluteY),
+            0x3f => Opcode::new(Rla, AbsoluteXForceDummy),
+            0x3b => Opcode::new(Rla, AbsoluteYForceDummy),
             0x23 => Opcode::new(Rla, IndirectX),
-            0x33 => Opcode::new(Rla, IndirectY),
+            0x33 => Opcode::new(Rla, IndirectYForceDummy),
 
             0x47 => Opcode::new(Sre, ZeroPage),
             0x57 => Opcode::new(Sre, ZeroPageX),
             0x4f => Opcode::new(Sre, Absolute),
-            0x5f => Opcode::new(Sre, AbsoluteX),
-            0x5b => Opcode::new(Sre, AbsoluteY),
+            0x5f => Opcode::new(Sre, AbsoluteXForceDummy),
+            0x5b => Opcode::new(Sre, AbsoluteYForceDummy),
             0x43 => Opcode::new(Sre, IndirectX),
-            0x53 => Opcode::new(Sre, IndirectY),
+            0x53 => Opcode::new(Sre, IndirectYForceDummy),
 
             0x67 => Opcode::new(Rra, ZeroPage),
             0x77 => Opcode::new(Rra, ZeroPageX),
             0x6f => Opcode::new(Rra, Absolute),
-            0x7f => Opcode::new(Rra, AbsoluteX),
-            0x7b => Opcode::new(Rra, AbsoluteY),
+            0x7f => Opcode::new(Rra, AbsoluteXForceDummy),
+            0x7b => Opcode::new(Rra, AbsoluteYForceDummy),
             0x63 => Opcode::new(Rra, IndirectX),
-            0x73 => Opcode::new(Rra, IndirectY),
+            0x73 => Opcode::new(Rra, IndirectYForceDummy),
 
             // -- Arithmetic --
             0x69 => Opcode::new(Adc, Immediate),
@@ -292,6 +298,12 @@ impl Opcode {
             0x8f => Opcode::new(Sax, Absolute),
             0x83 => Opcode::new(Sax, IndirectX),
 
+            0x93 => Opcode::new(Sha, IndirectYForceDummy),
+            0x9f => Opcode::new(Sha, AbsoluteYForceDummy),
+            0x9b => Opcode::new(Shs, AbsoluteYForceDummy),
+            0x9c => Opcode::new(Shy, AbsoluteX),
+            0x9e => Opcode::new(Shx, AbsoluteYForceDummy),
+
             // -- Register transfers --
             0xaa => Opcode::new(Tax, Implied),
             0xa8 => Opcode::new(Tay, Implied),
@@ -299,6 +311,8 @@ impl Opcode {
             0x8a => Opcode::new(Txa, Implied),
             0x9a => Opcode::new(Txs, Implied),
             0x98 => Opcode::new(Tya, Implied),
+            0x8b => Opcode::new(Ane, Immediate),
+            0xcb => Opcode::new(Axs, Immediate),
 
             // -- Flag clear and set --
             0x18 => Opcode::new(Clc, Implied),
@@ -391,7 +405,6 @@ impl Opcode {
             0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xb2 | 0xd2 | 0xf2 => {
                 Opcode::new(Hlt, Implied)
             }
-            _ => return None,
-        })
+        }
     }
 }
