@@ -562,8 +562,8 @@ impl Cpu {
     }
 
     fn lxa(&mut self, mode: AddrMode) {
-        self.a &= self.read_operand(mode).1;
-        self.x = self.transfer(self.a);
+        self.lda(mode);
+        self.x = self.a;
     }
 
     fn sta(&mut self, mode: AddrMode) {
@@ -696,9 +696,9 @@ impl Cpu {
     fn arr(&mut self, mode: AddrMode) {
         self.a &= self.read_operand(mode).1;
         self.a = self.right_shift(self.a, self.flags.contains(Flags::CARRY));
-        let bit_5 = (self.a & 0b0001_0000) >> 4;
-        let bit_6 = (self.a & 0b0010_0000) >> 5;
-        self.flags.set(Flags::CARRY, bit_5 == 1);
+        let bit_5 = (self.a >> 5) & 1;
+        let bit_6 = (self.a >> 6) & 1;
+        self.flags.set(Flags::CARRY, bit_6 == 1);
         self.flags.set(Flags::OVERFLOW, bit_5 ^ bit_6 == 1);
         self.set_zero_neg_flags(self.a);
     }
